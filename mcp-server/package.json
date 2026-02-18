@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
+    "postbuild": "cp -r src/knowledge dist/knowledge",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "inspect": "npx @modelcontextprotocol/inspector"
@@ -31,6 +32,13 @@
     "@types/node": "^20.10.0",
     "tsx": "^4.6.2",
     "typescript": "^5.3.2"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./services/knowledgeBase": "./src/services/knowledgeBase.ts",
+    "./services/jiraClient": "./src/services/jiraClient.ts",
+    "./schemas": "./src/schemas/index.ts",
+    "./knowledge/*": "./src/knowledge/*"
   },
   "engines": {
     "node": ">=18.0.0"

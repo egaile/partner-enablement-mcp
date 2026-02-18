@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { 
-  Building2, 
-  FileCode, 
-  Shield, 
+import { useState, useCallback } from 'react';
+import {
+  Building2,
+  FileCode,
+  Shield,
   ClipboardList,
   Play,
   ChevronRight,
@@ -13,58 +13,7 @@ import {
   ExternalLink,
   Loader2,
   CheckCircle2,
-  AlertCircle
 } from 'lucide-react';
-
-// Mock project data (simulating Jira)
-const mockProjects = {
-  healthcare: {
-    key: 'HEALTH',
-    name: 'Healthcare AI Assistant',
-    description: 'AI-powered patient intake and benefits navigation system for regional health network',
-    issues: [
-      {
-        key: 'HEALTH-1',
-        summary: 'Patient Intake Conversational Flow',
-        description: 'Design and implement conversational AI flow for gathering patient information before appointments. Must integrate with Epic EHR via FHIR APIs.',
-        labels: ['hipaa', 'phi', 'patient-facing', 'epic-integration'],
-        type: 'Epic',
-        priority: 'High'
-      },
-      {
-        key: 'HEALTH-2',
-        summary: 'Benefits Navigator RAG System',
-        description: 'Implement retrieval-augmented generation system to answer patient questions about their insurance benefits.',
-        labels: ['hipaa', 'rag', 'patient-facing', 'benefits'],
-        type: 'Epic',
-        priority: 'Medium'
-      },
-      {
-        key: 'HEALTH-3',
-        summary: 'HIPAA Compliance Infrastructure',
-        description: 'Set up compliant infrastructure including encryption, audit logging, access controls, BAA with Claude API provider.',
-        labels: ['hipaa', 'infrastructure', 'security', 'compliance'],
-        type: 'Epic',
-        priority: 'Critical'
-      }
-    ]
-  },
-  financial: {
-    key: 'FINSERV',
-    name: 'Financial Document Processing',
-    description: 'Intelligent document processing and customer service automation for regional bank',
-    issues: [
-      {
-        key: 'FINSERV-1',
-        summary: 'Document Classification Pipeline',
-        description: 'Build automated pipeline for classifying incoming financial documents.',
-        labels: ['soc2', 'batch-processing', 'documents'],
-        type: 'Epic',
-        priority: 'High'
-      }
-    ]
-  }
-};
 
 type Step = 'select' | 'context' | 'architecture' | 'compliance' | 'plan' | 'complete';
 
@@ -75,288 +24,408 @@ interface GeneratedContent {
   plan?: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+interface ProjectContextData {
+  project: { key: string; name: string; description?: string; lead?: string };
+  issues: Array<{
+    key: string;
+    summary: string;
+    description?: string;
+    type: string;
+    status: string;
+    labels: string[];
+    priority?: string;
+  }>;
+  detectedCompliance: string[];
+  detectedIntegrations: string[];
+  detectedDataTypes: string[];
+  allLabels: string[];
+  summary: { totalIssues: number };
+}
+
+function formatContextMarkdown(data: ProjectContextData): string {
+  let md = `# Project Context: ${data.project.name}\n\n`;
+  md += `**Key:** ${data.project.key}\n`;
+  md += `**Lead:** ${data.project.lead || 'Not assigned'}\n\n`;
+
+  if (data.project.description) {
+    md += `## Description\n${data.project.description}\n\n`;
+  }
+
+  if (data.detectedCompliance.length > 0) {
+    md += `## Compliance Indicators\n`;
+    for (const indicator of data.detectedCompliance) {
+      md += `- ⚠️ ${indicator}\n`;
+    }
+    md += '\n';
+  }
+
+  if (data.detectedIntegrations.length > 0) {
+    md += `## Detected Integration Targets\n`;
+    for (const target of data.detectedIntegrations) {
+      md += `- ${target}\n`;
+    }
+    md += '\n';
+  }
+
+  if (data.issues.length > 0) {
+    md += `## Recent Issues (${data.issues.length})\n\n`;
+    for (const issue of data.issues) {
+      md += `### ${issue.key}: ${issue.summary}\n`;
+      md += `**Type:** ${issue.type} | **Status:** ${issue.status}`;
+      if (issue.priority) {
+        md += ` | **Priority:** ${issue.priority}`;
+      }
+      md += '\n';
+      if (issue.labels.length > 0) {
+        md += `**Labels:** ${issue.labels.join(', ')}\n`;
+      }
+      if (issue.description) {
+        md += `\n${issue.description.substring(0, 500)}${issue.description.length > 500 ? '...' : ''}\n`;
+      }
+      md += '\n';
+    }
+  }
+
+  return md;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function formatArchitectureMarkdown(data: any): string {
+  let md = `# Reference Architecture: ${data.patternName}\n\n`;
+  md += `## Pattern Selection\n`;
+  md += `**Recommended Pattern:** ${data.patternName}\n\n`;
+  md += `**Rationale:** ${data.rationale}\n\n`;
+
+  if (data.mermaidDiagram) {
+    md += `## Architecture Diagram\n`;
+    md += '```mermaid\n';
+    md += data.mermaidDiagram;
+    md += '\n```\n\n';
+  }
+
+  md += `## Components\n\n`;
+  for (const comp of data.components) {
+    md += `### ${comp.name}\n`;
+    md += `${comp.description}\n\n`;
+    const providers = Object.keys(comp.services).filter(k => k !== 'anthropic');
+    for (const provider of providers) {
+      if (comp.services[provider]?.length > 0) {
+        md += `**${provider.toUpperCase()} Services:**\n`;
+        for (const service of comp.services[provider]) {
+          md += `- ${service}\n`;
+        }
+      }
+    }
+    if (comp.services.anthropic?.length > 0) {
+      md += `\n**Anthropic Services:**\n`;
+      for (const service of comp.services.anthropic) {
+        md += `- ${service}\n`;
+      }
+    }
+    if (comp.considerations?.length > 0) {
+      md += `\n**Implementation Considerations:**\n`;
+      for (const c of comp.considerations) {
+        md += `- ${c}\n`;
+      }
+    }
+    md += '\n';
+  }
+
+  md += `## Data Flow\n`;
+  for (const step of data.dataFlow) {
+    md += `${step}\n`;
+  }
+  md += '\n';
+
+  md += `## Security Considerations\n`;
+  for (const c of data.securityConsiderations) {
+    md += `- ${c}\n`;
+  }
+  md += '\n';
+
+  if (data.scalingConsiderations?.length > 0) {
+    md += `## Scaling Considerations\n`;
+    for (const c of data.scalingConsiderations) {
+      md += `- ${c}\n`;
+    }
+  }
+
+  return md;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function formatComplianceMarkdown(data: any, industry: string, dataTypes: string[]): string {
+  let md = `# Compliance Assessment\n\n`;
+  md += `**Industry:** ${industry}\n`;
+  md += `**Data Types:** ${dataTypes.length > 0 ? dataTypes.join(', ') : 'Not specified'}\n\n`;
+
+  md += `## Applicable Frameworks\n\n`;
+  for (const fw of data.applicableFrameworks) {
+    const icon = fw.priority === 'required' ? '🔴' : '🟡';
+    md += `### ${icon} ${fw.name}\n`;
+    md += `**Priority:** ${fw.priority}\n`;
+    md += `**Reason:** ${fw.applicabilityReason}\n\n`;
+  }
+
+  if (data.keyRequirements?.length > 0) {
+    md += `## Key Requirements\n\n`;
+    for (const req of data.keyRequirements) {
+      md += `### ${req.category}\n`;
+      md += `**Requirement:** ${req.requirement}\n`;
+      md += `**Implementation:** ${req.implementation}\n`;
+      md += `**Priority:** ${req.priority}\n\n`;
+    }
+  }
+
+  md += `## Risk Areas\n\n`;
+  for (const risk of data.riskAreas) {
+    md += `### ⚠️ ${risk.area}\n`;
+    md += `**Risk:** ${risk.risk}\n`;
+    md += `**Mitigation:** ${risk.mitigation}\n\n`;
+  }
+
+  if (data.checklist) {
+    md += `## Implementation Checklist\n\n`;
+    for (const item of data.checklist) {
+      md += `- [ ] **${item.category}:** ${item.item}\n`;
+    }
+  }
+
+  return md;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function formatPlanMarkdown(data: any, patternName: string): string {
+  let md = `# Implementation Plan\n\n`;
+  md += `## Summary\n`;
+  md += `- **Total Duration:** ${data.summary.totalWeeks} weeks (${data.summary.totalSprints} sprints)\n`;
+  md += `- **Team Size:** ${data.summary.teamSize}\n`;
+  md += `- **Architecture Pattern:** ${patternName}\n\n`;
+
+  md += `## Phases\n\n`;
+  for (const phase of data.phases) {
+    md += `### ${phase.name}\n`;
+    md += `${phase.description}\n\n`;
+    md += `**Duration:** ${phase.durationWeeks} weeks | **Sprints:** ${phase.sprints.length}\n\n`;
+
+    md += `**Milestones:**\n`;
+    for (const m of phase.milestones) {
+      md += `- ✓ ${m}\n`;
+    }
+    md += '\n';
+
+    md += `**Risk Factors:**\n`;
+    for (const r of phase.riskFactors) {
+      md += `- ⚠️ ${r}\n`;
+    }
+    md += '\n';
+  }
+
+  md += `## Skill Requirements\n\n`;
+  for (const skill of data.skillRequirements) {
+    const icon = skill.level === 'required' ? '🔴' : '🟡';
+    md += `- ${icon} **${skill.skill}** (${skill.level})\n`;
+    md += `  - Roles: ${skill.roles.join(', ')}\n`;
+  }
+  md += '\n';
+
+  if (data.jiraTickets) {
+    md += `## Jira Ticket Templates\n\n`;
+    for (const ticket of data.jiraTickets) {
+      md += `### [${ticket.type.toUpperCase()}] ${ticket.summary}\n`;
+      md += `${ticket.description}\n`;
+      md += `- **Labels:** ${ticket.labels.join(', ')}\n`;
+      if (ticket.estimateHours) {
+        md += `- **Estimate:** ${ticket.estimateHours} hours\n`;
+      }
+      md += '\n';
+    }
+  }
+
+  return md;
+}
+
 export default function Home() {
   const [selectedIndustry, setSelectedIndustry] = useState<'healthcare' | 'financial' | null>(null);
   const [currentStep, setCurrentStep] = useState<Step>('select');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedContent, setGeneratedContent] = useState<GeneratedContent>({});
   const [streamingText, setStreamingText] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
-  const project = selectedIndustry ? mockProjects[selectedIndustry] : null;
+  // Store intermediate data for chaining API calls
+  const [contextData, setContextData] = useState<ProjectContextData | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [architectureData, setArchitectureData] = useState<any>(null);
 
-  const simulateGeneration = async (step: Step) => {
+  const projectKey = selectedIndustry === 'healthcare' ? 'HEALTH' : 'FINSERV';
+
+  const streamText = useCallback(async (text: string): Promise<void> => {
+    for (let i = 0; i < text.length; i += 3) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      setStreamingText(text.substring(0, i + 3));
+    }
+  }, []);
+
+  const generateStep = useCallback(async (step: Step) => {
     setIsGenerating(true);
     setStreamingText('');
-    
-    // Simulate streaming response
-    const content = getContentForStep(step);
-    for (let i = 0; i < content.length; i += 3) {
-      await new Promise(resolve => setTimeout(resolve, 10));
-      setStreamingText(content.substring(0, i + 3));
+    setError(null);
+
+    try {
+      let markdown = '';
+
+      if (step === 'context') {
+        const res = await fetch('/api/tools/read-context', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectKey, includeIssues: true, issueLimit: 10 }),
+        });
+        if (!res.ok) throw new Error(`API error: ${res.status}`);
+        const data: ProjectContextData = await res.json();
+        setContextData(data);
+        markdown = formatContextMarkdown(data);
+
+      } else if (step === 'architecture') {
+        const useCaseDesc = contextData?.project.description || 'AI-powered enterprise application';
+        const complianceTags = contextData?.allLabels.filter(l =>
+          ['hipaa', 'soc2', 'fedramp', 'pci_dss', 'gdpr', 'ccpa'].includes(l)
+        ) || [];
+        const industry = selectedIndustry === 'healthcare' ? 'healthcare' : 'financial_services';
+
+        const res = await fetch('/api/tools/generate-architecture', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectContext: {
+              projectKey,
+              industry,
+              useCaseDescription: useCaseDesc,
+              complianceTags,
+              cloudProvider: 'aws',
+              dataTypes: contextData?.detectedDataTypes || [],
+              integrationTargets: contextData?.detectedIntegrations || [],
+            },
+            includeDiagram: true,
+            includeAlternatives: true,
+          }),
+        });
+        if (!res.ok) throw new Error(`API error: ${res.status}`);
+        const data = await res.json();
+        setArchitectureData(data);
+        markdown = formatArchitectureMarkdown(data);
+
+      } else if (step === 'compliance') {
+        const industry = selectedIndustry === 'healthcare' ? 'healthcare' : 'financial_services';
+        const complianceTags = contextData?.allLabels.filter(l =>
+          ['hipaa', 'soc2', 'fedramp', 'pci_dss', 'gdpr', 'ccpa'].includes(l)
+        ) || [];
+
+        const res = await fetch('/api/tools/assess-compliance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectContext: {
+              projectKey,
+              industry,
+              useCaseDescription: contextData?.project.description || '',
+              complianceTags,
+              cloudProvider: 'aws',
+              dataTypes: contextData?.detectedDataTypes || [],
+              integrationTargets: contextData?.detectedIntegrations || [],
+            },
+            detailLevel: 'detailed',
+            includeChecklist: true,
+          }),
+        });
+        if (!res.ok) throw new Error(`API error: ${res.status}`);
+        const data = await res.json();
+        markdown = formatComplianceMarkdown(
+          data,
+          industry,
+          contextData?.detectedDataTypes || []
+        );
+
+      } else if (step === 'plan') {
+        const industry = selectedIndustry === 'healthcare' ? 'healthcare' : 'financial_services';
+        const complianceTags = contextData?.allLabels.filter(l =>
+          ['hipaa', 'soc2', 'fedramp', 'pci_dss', 'gdpr', 'ccpa'].includes(l)
+        ) || [];
+
+        const res = await fetch('/api/tools/create-plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectContext: {
+              projectKey,
+              industry,
+              useCaseDescription: contextData?.project.description || '',
+              complianceTags,
+              cloudProvider: 'aws',
+              dataTypes: contextData?.detectedDataTypes || [],
+              integrationTargets: contextData?.detectedIntegrations || [],
+            },
+            architecturePattern: architectureData?.pattern || 'conversational_agent',
+            teamSize: 5,
+            sprintLengthWeeks: 2,
+            includeJiraTickets: true,
+          }),
+        });
+        if (!res.ok) throw new Error(`API error: ${res.status}`);
+        const data = await res.json();
+        markdown = formatPlanMarkdown(
+          data,
+          architectureData?.patternName || architectureData?.pattern || 'Unknown'
+        );
+      }
+
+      await streamText(markdown);
+      setGeneratedContent((prev) => ({ ...prev, [step]: markdown }));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      setError(msg);
+    } finally {
+      setIsGenerating(false);
+      setStreamingText('');
     }
-    
-    setGeneratedContent(prev => ({ ...prev, [step]: content }));
-    setIsGenerating(false);
-    setStreamingText('');
-  };
-
-  const getContentForStep = (step: Step): string => {
-    switch (step) {
-      case 'context':
-        return `# Project Context: ${project?.name}
-
-**Key:** ${project?.key}
-**Industry:** Healthcare
-
-## Compliance Indicators
-- ⚠️ HIPAA compliance required (PHI handling detected)
-- ⚠️ BAA required with LLM provider
-
-## Detected Integration Targets
-- Epic EHR (FHIR APIs)
-- Benefits eligibility systems
-
-## Recent Issues (${project?.issues.length})
-
-${project?.issues.map(issue => `### ${issue.key}: ${issue.summary}
-**Type:** ${issue.type} | **Priority:** ${issue.priority}
-**Labels:** ${issue.labels.join(', ')}
-
-${issue.description}
-`).join('\n')}`;
-
-      case 'architecture':
-        return `# Reference Architecture: Conversational Agent with Tool Use
-
-## Pattern Selection
-**Recommended Pattern:** Conversational Agent with Tool Use
-
-**Rationale:** Based on the use case "AI-powered patient intake and benefits navigation", this pattern is recommended because it supports multi-turn interactions with personalized, context-aware responses and integration with external systems (Epic EHR).
-
-## Architecture Diagram
-
-\`\`\`mermaid
-graph TB
-    User[Patient] --> API[API Gateway]
-    API --> Orch[Orchestration Layer]
-    Orch --> Session[(Session Store)]
-    Orch --> Claude[Claude API]
-    Claude --> |Tool Call| Tools[Tool Execution]
-    Tools --> |Tool Result| Claude
-    Claude --> Orch
-    Orch --> Session
-    Orch --> API
-    API --> User
-    
-    subgraph External Systems
-        Tools --> EHR[Epic EHR - FHIR]
-        Tools --> Benefits[Benefits API]
-    end
-    
-    subgraph Compliance Layer
-        Audit[(Audit Logs)]
-        Orch --> Audit
-        Tools --> Audit
-    end
-\`\`\`
-
-## Components
-
-### Conversation Management
-Manages session state and conversation history with HIPAA-compliant storage.
-
-**AWS Services:**
-- DynamoDB (encrypted at rest)
-- ElastiCache Redis (in-VPC)
-
-**Implementation Considerations:**
-- AES-256 encryption for all PHI storage
-- Session timeout (15-30 minutes)
-- Automatic session cleanup
-
-### Orchestration Layer
-Handles conversation flow and tool execution with audit logging.
-
-**AWS Services:**
-- ECS/Fargate (HIPAA-eligible)
-- Lambda for tool execution
-
-### LLM Integration
-Claude API with tool use for EHR and benefits queries.
-
-**Anthropic Services:**
-- Claude API with BAA
-- Tool use for structured data retrieval
-
-## Security Considerations
-- BAA required with Claude API provider
-- PHI must be encrypted at rest and in transit
-- Comprehensive audit logging required for all PHI access
-- Tool execution permissions and scoping
-- Session token management and expiration
-- Input validation before tool execution`;
-
-      case 'compliance':
-        return `# Compliance Assessment
-
-**Industry:** Healthcare
-**Data Types:** PHI, PII
-
-## Applicable Frameworks
-
-### 🔴 HIPAA
-**Priority:** Required
-**Reason:** Processing Protected Health Information (PHI)
-
-### 🟡 SOC 2
-**Priority:** Recommended
-**Reason:** SaaS deployment handling sensitive data
-
-## Key Requirements
-
-### Data at Rest
-**Requirement:** Encryption required (addressable but strongly recommended)
-**Implementation:** AES-256 encryption for all PHI storage; AWS KMS for key management
-**Priority:** Critical
-
-### Data in Transit
-**Requirement:** Encryption required
-**Implementation:** TLS 1.2+ for all data transmission; No PHI in URLs
-**Priority:** Critical
-
-### LLM Specific
-**Requirement:** Special considerations for AI/LLM deployments
-**Implementation:** BAA required with Anthropic; PHI handling procedures; Human-in-the-loop for clinical decisions
-**Priority:** Critical
-
-## Risk Areas
-
-### ⚠️ PHI in LLM Prompts
-**Risk:** Protected Health Information may be included in prompts sent to Claude API
-**Mitigation:** Ensure BAA is in place with Anthropic; implement PHI detection and masking where appropriate
-
-### ⚠️ Conversation Logging
-**Risk:** Chat logs containing PHI require same protections as other PHI
-**Mitigation:** Encrypt conversation storage; implement access controls; define retention policies
-
-### ⚠️ EHR Integration
-**Risk:** Integration with EHR systems expands attack surface and compliance scope
-**Mitigation:** Follow Epic security guidelines; implement API access controls; audit all data access
-
-## Implementation Checklist
-
-- [ ] **Legal:** BAA executed with Anthropic
-- [ ] **Technical:** Data encryption at rest configured
-- [ ] **Technical:** Data encryption in transit (TLS 1.2+)
-- [ ] **Technical:** Audit logging implemented
-- [ ] **Technical:** Access controls and RBAC configured
-- [ ] **Administrative:** Security risk assessment completed
-- [ ] **Administrative:** Incident response plan documented
-- [ ] **Administrative:** Staff training completed`;
-
-      case 'plan':
-        return `# Implementation Plan
-
-## Summary
-- **Total Duration:** 16 weeks (8 sprints)
-- **Team Size:** 5
-- **Sprint Length:** 2 weeks
-- **Architecture Pattern:** Conversational Agent with Tool Use
-
-## Phases
-
-### Phase 1: Discovery & Design (3 weeks)
-Requirements gathering, architecture design, compliance planning
-
-**Milestones:**
-- ✓ Architecture design approved
-- ✓ Compliance requirements documented
-- ✓ Development environment setup
-
-**Risk Factors:**
-- ⚠️ Stakeholder availability for requirements
-- ⚠️ Epic API access and credentials
-
-### Phase 2: Foundation & Infrastructure (4 weeks)
-Core infrastructure, security controls, CI/CD pipeline
-
-**Milestones:**
-- ✓ AWS infrastructure deployed
-- ✓ Security controls implemented
-- ✓ CI/CD pipeline operational
-
-### Phase 3: Core Development (6 weeks)
-Primary feature development, integrations, LLM implementation
-
-**Milestones:**
-- ✓ Core conversation flow functional
-- ✓ Claude API integration complete
-- ✓ Epic FHIR integration working
-
-### Phase 4: Testing & Hardening (3 weeks)
-Comprehensive testing, security audit, performance optimization
-
-**Milestones:**
-- ✓ UAT complete
-- ✓ Security audit passed
-- ✓ HIPAA compliance verified
-
-## Jira Ticket Templates
-
-### [EPIC] Infrastructure & Security Foundation
-Set up AWS infrastructure with HIPAA-compliant security controls
-- **Labels:** infrastructure, security, hipaa
-- **Estimate:** 80 hours
-
-### [EPIC] Claude Integration & Conversation Flow
-Implement conversational agent with Claude API and tool use
-- **Labels:** development, llm, core
-- **Estimate:** 160 hours
-
-### [EPIC] Epic EHR Integration
-Build FHIR-based integration with Epic EHR
-- **Labels:** integration, ehr, fhir
-- **Estimate:** 80 hours
-
-### [STORY] Execute BAA with Anthropic
-Coordinate with legal to execute Business Associate Agreement
-- **Labels:** compliance, legal
-- **Estimate:** 4 hours`;
-
-      default:
-        return '';
-    }
-  };
+  }, [projectKey, contextData, architectureData, selectedIndustry, streamText]);
 
   const handleSelectIndustry = (industry: 'healthcare' | 'financial') => {
     setSelectedIndustry(industry);
     setCurrentStep('context');
     setGeneratedContent({});
+    setContextData(null);
+    setArchitectureData(null);
+    setError(null);
   };
 
   const handleNextStep = async () => {
     const steps: Step[] = ['select', 'context', 'architecture', 'compliance', 'plan', 'complete'];
     const currentIndex = steps.indexOf(currentStep);
     const nextStep = steps[currentIndex + 1];
-    
+
     if (nextStep && nextStep !== 'complete') {
-      await simulateGeneration(nextStep);
+      await generateStep(nextStep);
     }
-    
+
     setCurrentStep(nextStep);
   };
 
   const handleRunAll = async () => {
     const steps: Step[] = ['context', 'architecture', 'compliance', 'plan'];
-    
+
     for (const step of steps) {
       setCurrentStep(step);
-      await simulateGeneration(step);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await generateStep(step);
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
-    
+
     setCurrentStep('complete');
   };
+
+  // For the initial context view, fetch issues from the API on first render
+  const contextIssues = contextData?.issues || [];
 
   return (
     <main className="min-h-screen">
@@ -374,16 +443,16 @@ Coordinate with legal to execute Business Associate Agreement
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <a 
-                href="https://github.com/egaile" 
+              <a
+                href="https://github.com/egaile"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-500 hover:text-gray-700 transition-colors"
               >
                 <Github className="w-5 h-5" />
               </a>
-              <a 
-                href="https://linkedin.com/in/edgaile" 
+              <a
+                href="https://linkedin.com/in/edgaile"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-500 hover:text-gray-700 transition-colors"
@@ -405,18 +474,22 @@ Coordinate with legal to execute Business Associate Agreement
                   context: 'Project Context',
                   architecture: 'Architecture',
                   compliance: 'Compliance',
-                  plan: 'Implementation'
+                  plan: 'Implementation',
                 };
                 const isActive = currentStep === step;
                 const isComplete = generatedContent[step as keyof GeneratedContent];
-                
+
                 return (
                   <div key={step} className="flex items-center">
-                    <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${
-                      isActive ? 'bg-amber-100 text-amber-800' :
-                      isComplete ? 'bg-green-100 text-green-800' :
-                      'bg-gray-100 text-gray-500'
-                    }`}>
+                    <div
+                      className={`flex items-center gap-2 px-4 py-2 rounded-full ${
+                        isActive
+                          ? 'bg-amber-100 text-amber-800'
+                          : isComplete
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-gray-100 text-gray-500'
+                      }`}
+                    >
                       {isComplete && !isActive ? (
                         <CheckCircle2 className="w-4 h-4" />
                       ) : (
@@ -426,9 +499,7 @@ Coordinate with legal to execute Business Associate Agreement
                       )}
                       <span className="text-sm font-medium">{stepLabels[step]}</span>
                     </div>
-                    {index < 3 && (
-                      <ChevronRight className="w-5 h-5 text-gray-300 mx-2" />
-                    )}
+                    {index < 3 && <ChevronRight className="w-5 h-5 text-gray-300 mx-2" />}
                   </div>
                 );
               })}
@@ -445,10 +516,10 @@ Coordinate with legal to execute Business Associate Agreement
               Generate Compliant Reference Architectures
             </h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-8">
-              See how Claude can help GSIs translate project requirements into deployment-ready 
+              See how Claude can help GSIs translate project requirements into deployment-ready
               architectures with compliance guidance and implementation plans.
             </p>
-            
+
             <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
               <button
                 onClick={() => handleSelectIndustry('healthcare')}
@@ -467,7 +538,7 @@ Coordinate with legal to execute Business Associate Agreement
                   <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">FHIR</span>
                 </div>
               </button>
-              
+
               <button
                 onClick={() => handleSelectIndustry('financial')}
                 className="card-hover bg-white rounded-xl border border-gray-200 p-8 text-left opacity-50 cursor-not-allowed"
@@ -498,56 +569,77 @@ Coordinate with legal to execute Business Associate Agreement
                     <FileCode className="w-4 h-4 text-blue-600" />
                   </div>
                   <div>
-                    <h3 className="font-medium text-gray-900">Jira Project: {project?.key}</h3>
-                    <p className="text-sm text-gray-500">{project?.name}</p>
+                    <h3 className="font-medium text-gray-900">Jira Project: {projectKey}</h3>
+                    <p className="text-sm text-gray-500">
+                      {selectedIndustry === 'healthcare' ? 'Healthcare AI Assistant' : 'Financial Services'}
+                    </p>
                   </div>
                 </div>
-                <span className="text-xs text-gray-400">Simulated Jira Data</span>
+                <span className="text-xs text-gray-400">
+                  {process.env.NEXT_PUBLIC_JIRA_CONFIGURED === 'true' ? 'Live Jira Data' : 'Demo Data'}
+                </span>
               </div>
-              
+
               <div className="p-6">
-                <p className="text-gray-600 mb-6">{project?.description}</p>
-                
-                <h4 className="font-medium text-gray-900 mb-3">Recent Issues</h4>
-                <div className="space-y-3">
-                  {project?.issues.map(issue => (
-                    <div key={issue.key} className="bg-gray-50 rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <span className="text-sm font-medium text-blue-600">{issue.key}</span>
-                          <h5 className="font-medium text-gray-900">{issue.summary}</h5>
+                <p className="text-gray-600 mb-6">
+                  {selectedIndustry === 'healthcare'
+                    ? 'AI-powered patient intake and benefits navigation system for regional health network'
+                    : 'Document processing and customer service automation for regional bank'}
+                </p>
+
+                {contextIssues.length > 0 && (
+                  <>
+                    <h4 className="font-medium text-gray-900 mb-3">Recent Issues</h4>
+                    <div className="space-y-3">
+                      {contextIssues.map((issue) => (
+                        <div key={issue.key} className="bg-gray-50 rounded-lg p-4">
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <span className="text-sm font-medium text-blue-600">{issue.key}</span>
+                              <h5 className="font-medium text-gray-900">{issue.summary}</h5>
+                            </div>
+                            <span
+                              className={`text-xs px-2 py-1 rounded-full ${
+                                issue.priority === 'Critical'
+                                  ? 'bg-red-100 text-red-700'
+                                  : issue.priority === 'High'
+                                    ? 'bg-orange-100 text-orange-700'
+                                    : 'bg-yellow-100 text-yellow-700'
+                              }`}
+                            >
+                              {issue.priority}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-2">{issue.description}</p>
+                          <div className="flex flex-wrap gap-1">
+                            {issue.labels.map((label) => (
+                              <span
+                                key={label}
+                                className="text-xs px-2 py-0.5 bg-gray-200 text-gray-600 rounded"
+                              >
+                                {label}
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                        <span className={`text-xs px-2 py-1 rounded-full ${
-                          issue.priority === 'Critical' ? 'bg-red-100 text-red-700' :
-                          issue.priority === 'High' ? 'bg-orange-100 text-orange-700' :
-                          'bg-yellow-100 text-yellow-700'
-                        }`}>
-                          {issue.priority}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-600 mb-2">{issue.description}</p>
-                      <div className="flex flex-wrap gap-1">
-                        {issue.labels.map(label => (
-                          <span key={label} className="text-xs px-2 py-0.5 bg-gray-200 text-gray-600 rounded">
-                            {label}
-                          </span>
-                        ))}
-                      </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </>
+                )}
               </div>
-              
+
               <div className="bg-gray-50 px-6 py-4 border-t flex justify-between">
                 <button
                   onClick={() => {
                     setSelectedIndustry(null);
                     setCurrentStep('select');
                     setGeneratedContent({});
+                    setContextData(null);
+                    setArchitectureData(null);
                   }}
                   className="text-gray-600 hover:text-gray-900"
                 >
-                  ← Back to selection
+                  &larr; Back to selection
                 </button>
                 <div className="flex gap-3">
                   <button
@@ -572,61 +664,75 @@ Coordinate with legal to execute Business Associate Agreement
           </div>
         )}
 
-        {/* Generated Content Display */}
-        {(generatedContent[currentStep as keyof GeneratedContent] || streamingText) && currentStep !== 'complete' && (
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="bg-gray-50 px-6 py-4 border-b flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {currentStep === 'context' && <FileCode className="w-5 h-5 text-blue-600" />}
-                  {currentStep === 'architecture' && <Building2 className="w-5 h-5 text-purple-600" />}
-                  {currentStep === 'compliance' && <Shield className="w-5 h-5 text-red-600" />}
-                  {currentStep === 'plan' && <ClipboardList className="w-5 h-5 text-green-600" />}
-                  <h3 className="font-medium text-gray-900">
-                    {currentStep === 'context' && 'Project Context'}
-                    {currentStep === 'architecture' && 'Reference Architecture'}
-                    {currentStep === 'compliance' && 'Compliance Assessment'}
-                    {currentStep === 'plan' && 'Implementation Plan'}
-                  </h3>
-                </div>
-                {isGenerating && (
-                  <div className="flex items-center gap-2 text-amber-600">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-sm">Generating...</span>
-                  </div>
-                )}
-              </div>
-              
-              <div className="p-6 prose prose-sm max-w-none">
-                <pre className="whitespace-pre-wrap text-sm font-mono bg-gray-50 p-4 rounded-lg overflow-auto max-h-[600px]">
-                  {streamingText || generatedContent[currentStep as keyof GeneratedContent]}
-                </pre>
-              </div>
-              
-              {!isGenerating && (
-                <div className="bg-gray-50 px-6 py-4 border-t flex justify-end">
-                  {currentStep !== 'plan' ? (
-                    <button
-                      onClick={handleNextStep}
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
-                    >
-                      Next Step
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setCurrentStep('complete')}
-                      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      Complete Demo
-                    </button>
-                  )}
-                </div>
-              )}
+        {/* Error Display */}
+        {error && (
+          <div className="max-w-4xl mx-auto mb-4">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
+              Error: {error}
             </div>
           </div>
         )}
+
+        {/* Generated Content Display */}
+        {(generatedContent[currentStep as keyof GeneratedContent] || streamingText) &&
+          currentStep !== 'complete' && (
+            <div className="max-w-4xl mx-auto">
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="bg-gray-50 px-6 py-4 border-b flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {currentStep === 'context' && <FileCode className="w-5 h-5 text-blue-600" />}
+                    {currentStep === 'architecture' && (
+                      <Building2 className="w-5 h-5 text-purple-600" />
+                    )}
+                    {currentStep === 'compliance' && <Shield className="w-5 h-5 text-red-600" />}
+                    {currentStep === 'plan' && (
+                      <ClipboardList className="w-5 h-5 text-green-600" />
+                    )}
+                    <h3 className="font-medium text-gray-900">
+                      {currentStep === 'context' && 'Project Context'}
+                      {currentStep === 'architecture' && 'Reference Architecture'}
+                      {currentStep === 'compliance' && 'Compliance Assessment'}
+                      {currentStep === 'plan' && 'Implementation Plan'}
+                    </h3>
+                  </div>
+                  {isGenerating && (
+                    <div className="flex items-center gap-2 text-amber-600">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-sm">Generating...</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-6 prose prose-sm max-w-none">
+                  <pre className="whitespace-pre-wrap text-sm font-mono bg-gray-50 p-4 rounded-lg overflow-auto max-h-[600px]">
+                    {streamingText || generatedContent[currentStep as keyof GeneratedContent]}
+                  </pre>
+                </div>
+
+                {!isGenerating && (
+                  <div className="bg-gray-50 px-6 py-4 border-t flex justify-end">
+                    {currentStep !== 'plan' ? (
+                      <button
+                        onClick={handleNextStep}
+                        className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
+                      >
+                        Next Step
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setCurrentStep('complete')}
+                        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        Complete Demo
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
         {/* Completion State */}
         {currentStep === 'complete' && (
@@ -637,11 +743,11 @@ Coordinate with legal to execute Business Associate Agreement
               </div>
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Demo Complete!</h2>
               <p className="text-gray-600 mb-8 max-w-lg mx-auto">
-                This demonstration shows how an MCP server can help GSI partners accelerate 
-                Claude deployments by automatically generating compliant reference architectures 
-                from project requirements.
+                This demonstration shows how an MCP server can help GSI partners accelerate Claude
+                deployments by automatically generating compliant reference architectures from
+                project requirements.
               </p>
-              
+
               <div className="grid md:grid-cols-3 gap-4 mb-8">
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h4 className="font-medium text-gray-900 mb-1">Context Extraction</h4>
@@ -656,13 +762,15 @@ Coordinate with legal to execute Business Associate Agreement
                   <p className="text-sm text-gray-500">Implementation-ready deliverables</p>
                 </div>
               </div>
-              
+
               <div className="flex justify-center gap-4">
                 <button
                   onClick={() => {
                     setSelectedIndustry(null);
                     setCurrentStep('select');
                     setGeneratedContent({});
+                    setContextData(null);
+                    setArchitectureData(null);
                   }}
                   className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
                 >
@@ -679,17 +787,17 @@ Coordinate with legal to execute Business Associate Agreement
                 </a>
               </div>
             </div>
-            
+
             {/* About Section */}
             <div className="mt-12 text-left bg-white rounded-xl border border-gray-200 p-8">
               <h3 className="text-xl font-semibold text-gray-900 mb-4">About This Project</h3>
               <p className="text-gray-600 mb-6">
-                This demonstration was built to show how Anthropic's partner team could help Global System 
-                Integrators operationalize Claude deployments faster. The MCP server architecture enables 
-                Claude to read project context from enterprise tools (like Jira) and generate compliant, 
-                deployment-ready artifacts.
+                This demonstration was built to show how Anthropic&apos;s partner team could help Global
+                System Integrators operationalize Claude deployments faster. The MCP server
+                architecture enables Claude to read project context from enterprise tools (like Jira)
+                and generate compliant, deployment-ready artifacts.
               </p>
-              
+
               <div className="flex items-center gap-4 pt-4 border-t">
                 <div className="w-12 h-12 bg-gradient-to-br from-gray-700 to-gray-900 rounded-full flex items-center justify-center text-white font-semibold">
                   EG
@@ -699,7 +807,7 @@ Coordinate with legal to execute Business Associate Agreement
                   <p className="text-sm text-gray-500">Principal Solutions Architect</p>
                 </div>
                 <div className="ml-auto flex gap-3">
-                  <a 
+                  <a
                     href="https://linkedin.com/in/edgaile"
                     target="_blank"
                     rel="noopener noreferrer"
@@ -709,7 +817,7 @@ Coordinate with legal to execute Business Associate Agreement
                     LinkedIn
                     <ExternalLink className="w-3 h-3" />
                   </a>
-                  <a 
+                  <a
                     href="https://github.com/egaile"
                     target="_blank"
                     rel="noopener noreferrer"

@@ -1,5 +1,26 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractTextFromAdf(node: any): string {
+  if (typeof node === "string") return node;
+  if (!node || typeof node !== "object") return "";
+  if (node.type === "text") return node.text || "";
+  if (Array.isArray(node.content)) {
+    return node.content.map(extractTextFromAdf).join("");
+  }
+  return "";
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeDescription(desc: any): string | undefined {
+  if (!desc) return undefined;
+  if (typeof desc === "string") return desc;
+  if (typeof desc === "object" && desc.type === "doc") {
+    return extractTextFromAdf(desc) || undefined;
+  }
+  return undefined;
+}
+
 export interface JiraProject {
   key: string;
   name: string;
@@ -125,7 +146,7 @@ export class JiraClient {
     jql += ` ORDER BY ${orderBy}`;
 
     try {
-      const response = await this.client.post<JiraSearchResult>("/search", {
+      const response = await this.client.post<JiraSearchResult>("/search/jql", {
         jql,
         maxResults,
         fields: [
@@ -139,7 +160,14 @@ export class JiraClient {
           "priority"
         ]
       });
-      return response.data;
+      const issues = (response.data.issues ?? []).map(issue => ({
+        ...issue,
+        fields: {
+          ...issue.fields,
+          description: normalizeDescription(issue.fields.description)
+        }
+      }));
+      return { total: issues.length, issues };
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const axiosError = error as AxiosError;
@@ -154,7 +182,13 @@ export class JiraClient {
   async getIssue(issueKey: string): Promise<JiraIssue> {
     try {
       const response = await this.client.get<JiraIssue>(`/issue/${issueKey}`);
-      return response.data;
+      return {
+        ...response.data,
+        fields: {
+          ...response.data.fields,
+          description: normalizeDescription(response.data.fields.description)
+        }
+      };
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const axiosError = error as AxiosError;

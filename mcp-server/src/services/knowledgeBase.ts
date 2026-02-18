@@ -2,9 +2,15 @@ import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const knowledgePath = join(__dirname, "..", "knowledge");
+let knowledgePath = "";
+try {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  knowledgePath = join(__dirname, "..", "knowledge");
+} catch {
+  // Path resolution may fail in bundled contexts (e.g. Next.js webpack);
+  // use the constructor with pre-loaded data instead.
+}
 
 // Types for knowledge base content
 export interface ComplianceFrameworkData {
@@ -79,59 +85,66 @@ export interface IndustryData {
   stakeholders: Record<string, string[]>;
 }
 
-// Lazy loading of knowledge base
-let complianceData: Record<string, unknown> | null = null;
-let architecturesData: Record<string, unknown> | null = null;
-let industriesData: Record<string, unknown> | null = null;
-
-function loadComplianceData(): Record<string, unknown> {
-  if (!complianceData) {
-    const content = readFileSync(join(knowledgePath, "compliance.json"), "utf-8");
-    complianceData = JSON.parse(content);
-  }
-  return complianceData;
-}
-
-function loadArchitecturesData(): Record<string, unknown> {
-  if (!architecturesData) {
-    const content = readFileSync(join(knowledgePath, "architectures.json"), "utf-8");
-    architecturesData = JSON.parse(content);
-  }
-  return architecturesData;
-}
-
-function loadIndustriesData(): Record<string, unknown> {
-  if (!industriesData) {
-    const content = readFileSync(join(knowledgePath, "industries.json"), "utf-8");
-    industriesData = JSON.parse(content);
-  }
-  return industriesData;
+export interface KnowledgeBaseData {
+  compliance: Record<string, unknown>;
+  architectures: Record<string, unknown>;
+  industries: Record<string, unknown>;
 }
 
 export class KnowledgeBase {
+  private complianceData: Record<string, unknown> | null = null;
+  private architecturesData: Record<string, unknown> | null = null;
+  private industriesData: Record<string, unknown> | null = null;
+
+  constructor(data?: KnowledgeBaseData) {
+    if (data) {
+      this.complianceData = data.compliance;
+      this.architecturesData = data.architectures;
+      this.industriesData = data.industries;
+    }
+  }
+
+  private loadComplianceData(): Record<string, unknown> {
+    if (!this.complianceData) {
+      const content = readFileSync(join(knowledgePath, "compliance.json"), "utf-8");
+      this.complianceData = JSON.parse(content);
+    }
+    return this.complianceData!;
+  }
+
+  private loadArchitecturesData(): Record<string, unknown> {
+    if (!this.architecturesData) {
+      const content = readFileSync(join(knowledgePath, "architectures.json"), "utf-8");
+      this.architecturesData = JSON.parse(content);
+    }
+    return this.architecturesData!;
+  }
+
+  private loadIndustriesData(): Record<string, unknown> {
+    if (!this.industriesData) {
+      const content = readFileSync(join(knowledgePath, "industries.json"), "utf-8");
+      this.industriesData = JSON.parse(content);
+    }
+    return this.industriesData!;
+  }
+
   // Compliance methods
   getComplianceFramework(frameworkId: string): ComplianceFrameworkData | null {
-    const data = loadComplianceData();
+    const data = this.loadComplianceData();
     const frameworks = data.frameworks as Record<string, ComplianceFrameworkData>;
     return frameworks[frameworkId] || null;
   }
 
   getApplicableFrameworks(industry: string, dataTypes: string[]): string[] {
-    const data = loadComplianceData();
-    const matrix = data.complianceMatrix as Record<string, {
-      requiredFrameworks: string[];
-      recommendedFrameworks: string[];
-    }>;
-
     const applicable = new Set<string>();
 
     // Add industry-specific requirements
-    const industryData = loadIndustriesData();
+    const industryData = this.loadIndustriesData();
     const industries = industryData.industries as Record<string, IndustryData>;
     const industryInfo = industries[industry];
-    
+
     if (industryInfo) {
-      industryInfo.regulatoryContext.primary.forEach(f => 
+      industryInfo.regulatoryContext.primary.forEach(f =>
         applicable.add(f.toLowerCase())
       );
     }
@@ -172,13 +185,15 @@ export class KnowledgeBase {
 
       // Add architecture implications as requirements
       for (const [category, impl] of Object.entries(framework.architectureImplications)) {
-        requirements.push({
-          framework: frameworkId,
-          category,
-          requirement: impl.requirement,
-          implementation: impl.implementation.join("; "),
-          priority: category === "llmSpecific" ? "critical" : "high"
-        });
+        if (impl && typeof impl === 'object' && 'requirement' in impl && 'implementation' in impl) {
+          requirements.push({
+            framework: frameworkId,
+            category,
+            requirement: impl.requirement,
+            implementation: Array.isArray(impl.implementation) ? impl.implementation.join("; ") : String(impl.implementation),
+            priority: category === "llmSpecific" ? "critical" : "high"
+          });
+        }
       }
     }
 
@@ -187,25 +202,23 @@ export class KnowledgeBase {
 
   // Architecture methods
   getArchitecturePattern(patternId: string): ArchitecturePatternData | null {
-    const data = loadArchitecturesData();
+    const data = this.loadArchitecturesData();
     const patterns = data.patterns as Record<string, ArchitecturePatternData>;
     return patterns[patternId] || null;
   }
 
   getAllPatterns(): Record<string, ArchitecturePatternData> {
-    const data = loadArchitecturesData();
+    const data = this.loadArchitecturesData();
     return data.patterns as Record<string, ArchitecturePatternData>;
   }
 
   getPatternSelection(): Record<string, { choose_when: string[] }> {
-    const data = loadArchitecturesData();
+    const data = this.loadArchitecturesData();
     const selection = data.patternSelection as { criteria: Record<string, { choose_when: string[] }> };
     return selection.criteria;
   }
 
   recommendPattern(useCase: string, requirements: string[]): string {
-    const criteria = this.getPatternSelection();
-    
     // Simple keyword matching for pattern recommendation
     const useCaseLower = useCase.toLowerCase();
     const reqsLower = requirements.map(r => r.toLowerCase());
@@ -247,7 +260,7 @@ export class KnowledgeBase {
 
   // Industry methods
   getIndustry(industryId: string): IndustryData | null {
-    const data = loadIndustriesData();
+    const data = this.loadIndustriesData();
     const industries = data.industries as Record<string, IndustryData>;
     return industries[industryId] || null;
   }
@@ -273,7 +286,7 @@ export class KnowledgeBase {
     // Simple keyword matching
     for (const useCase of useCases) {
       const nameWords = useCase.name.toLowerCase().split(" ");
-      const matches = nameWords.filter(word => 
+      const matches = nameWords.filter(word =>
         descLower.includes(word) && word.length > 3
       );
       if (matches.length >= 2) {
@@ -300,5 +313,5 @@ export class KnowledgeBase {
   }
 }
 
-// Singleton instance
+// Singleton instance for standalone MCP server use
 export const knowledgeBase = new KnowledgeBase();
