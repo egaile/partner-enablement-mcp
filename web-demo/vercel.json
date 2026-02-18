@@ -1,0 +1,5 @@
+{
+  "framework": "nextjs",
+  "installCommand": "cd .. && npm install",
+  "buildCommand": "cd ../mcp-server && npm run build && cd ../web-demo && npm run build"
+}
