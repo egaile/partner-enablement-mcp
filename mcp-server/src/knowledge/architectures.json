@@ -1,0 +1,295 @@
+{
+  "patterns": {
+    "rag_document_qa": {
+      "name": "RAG-Based Document Q&A",
+      "description": "Retrieval-Augmented Generation for answering questions against a document corpus",
+      "useCases": [
+        "Policy and procedure lookups",
+        "Benefits documentation search",
+        "Clinical guideline reference",
+        "Regulatory compliance queries"
+      ],
+      "components": {
+        "ingestion": {
+          "description": "Document processing and embedding pipeline",
+          "services": {
+            "aws": ["S3", "Lambda", "Bedrock Embeddings", "OpenSearch Serverless"],
+            "gcp": ["Cloud Storage", "Cloud Functions", "Vertex AI Embeddings", "Vertex AI Vector Search"]
+          }
+        },
+        "vectorStore": {
+          "description": "Semantic search index for document retrieval",
+          "services": {
+            "aws": ["OpenSearch Serverless", "Amazon Kendra", "PostgreSQL with pgvector on RDS"],
+            "gcp": ["Vertex AI Vector Search", "AlloyDB with pgvector", "Cloud SQL with pgvector"]
+          }
+        },
+        "orchestration": {
+          "description": "Query processing and response generation",
+          "services": {
+            "aws": ["Lambda", "Step Functions", "ECS/Fargate"],
+            "gcp": ["Cloud Functions", "Cloud Run", "Workflows"]
+          }
+        },
+        "llm": {
+          "description": "Language model for response generation",
+          "services": {
+            "anthropic": ["Claude API direct", "AWS Bedrock Claude", "GCP Vertex AI Claude"]
+          }
+        }
+      },
+      "dataFlow": [
+        "1. User submits query via API/UI",
+        "2. Query embedded using same model as documents",
+        "3. Vector similarity search retrieves relevant chunks",
+        "4. Retrieved context + query sent to Claude",
+        "5. Claude generates response with citations",
+        "6. Response returned to user with source references"
+      ],
+      "mermaidDiagram": "graph TB\n    User[User] --> API[API Gateway]\n    API --> Orch[Orchestration Layer]\n    Orch --> Embed[Embedding Service]\n    Embed --> Vector[Vector Store]\n    Vector --> Orch\n    Orch --> Claude[Claude API]\n    Claude --> Orch\n    Orch --> API\n    API --> User\n    \n    subgraph Ingestion\n        Docs[Documents] --> Process[Processing Lambda]\n        Process --> Embed2[Embedding Service]\n        Embed2 --> Vector\n    end",
+      "securityConsiderations": [
+        "Document-level access control in vector store",
+        "Query filtering based on user permissions",
+        "Audit logging of all queries and responses",
+        "PII/PHI scanning before ingestion"
+      ],
+      "scalingConsiderations": [
+        "Vector store sizing based on document corpus",
+        "Embedding model throughput for ingestion",
+        "LLM rate limits and quota management",
+        "Caching for frequently asked questions"
+      ]
+    },
+    "conversational_agent": {
+      "name": "Conversational Agent with Tool Use",
+      "description": "Multi-turn conversational AI with ability to call external tools and APIs",
+      "useCases": [
+        "Patient intake and triage",
+        "Benefits enrollment assistance",
+        "Appointment scheduling",
+        "Claims status inquiries"
+      ],
+      "components": {
+        "conversationManagement": {
+          "description": "Session state and conversation history",
+          "services": {
+            "aws": ["DynamoDB", "ElastiCache Redis", "MemoryDB"],
+            "gcp": ["Firestore", "Memorystore Redis", "Bigtable"]
+          }
+        },
+        "toolRegistry": {
+          "description": "Available tools and their schemas",
+          "services": {
+            "aws": ["Lambda functions", "API Gateway", "Step Functions"],
+            "gcp": ["Cloud Functions", "Cloud Run", "API Gateway"]
+          }
+        },
+        "orchestration": {
+          "description": "Conversation flow and tool execution",
+          "services": {
+            "aws": ["ECS/Fargate", "Lambda", "App Runner"],
+            "gcp": ["Cloud Run", "GKE Autopilot", "Cloud Functions"]
+          }
+        },
+        "llm": {
+          "description": "Language model with tool use capability",
+          "services": {
+            "anthropic": ["Claude API with tool_use", "Bedrock Claude", "Vertex AI Claude"]
+          }
+        }
+      },
+      "dataFlow": [
+        "1. User sends message",
+        "2. Retrieve conversation history from session store",
+        "3. Build context with history + available tools",
+        "4. Claude determines if tool use needed",
+        "5. If tool needed: execute tool, return result to Claude",
+        "6. Claude generates response",
+        "7. Store updated conversation state",
+        "8. Return response to user"
+      ],
+      "mermaidDiagram": "graph TB\n    User[User] --> API[API Gateway]\n    API --> Orch[Orchestration]\n    Orch --> Session[Session Store]\n    Orch --> Claude[Claude API]\n    Claude --> |Tool Call| Tools[Tool Execution]\n    Tools --> |Tool Result| Claude\n    Claude --> Orch\n    Orch --> Session\n    Orch --> API\n    API --> User\n    \n    subgraph External Systems\n        Tools --> EHR[EHR System]\n        Tools --> Scheduling[Scheduling API]\n        Tools --> Claims[Claims System]\n    end",
+      "securityConsiderations": [
+        "Tool execution permissions and scoping",
+        "Session token management and expiration",
+        "Rate limiting per user/session",
+        "Input validation before tool execution",
+        "Audit logging of all tool calls"
+      ],
+      "humanInTheLoop": {
+        "required": true,
+        "implementation": [
+          "Confidence thresholds for escalation",
+          "Explicit handoff to human agents",
+          "Supervisor review for sensitive actions",
+          "Clear AI disclosure to users"
+        ]
+      }
+    },
+    "batch_processing": {
+      "name": "Batch Processing Pipeline",
+      "description": "Async processing of large document sets or data transformation tasks",
+      "useCases": [
+        "Claims processing assistance",
+        "Medical record summarization",
+        "Prior authorization review",
+        "Quality measure extraction"
+      ],
+      "components": {
+        "jobQueue": {
+          "description": "Work queue for processing tasks",
+          "services": {
+            "aws": ["SQS", "Step Functions", "Batch"],
+            "gcp": ["Cloud Tasks", "Pub/Sub", "Cloud Workflows"]
+          }
+        },
+        "processing": {
+          "description": "Worker nodes for LLM processing",
+          "services": {
+            "aws": ["Lambda", "ECS/Fargate", "Batch"],
+            "gcp": ["Cloud Functions", "Cloud Run Jobs", "GKE"]
+          }
+        },
+        "storage": {
+          "description": "Input/output document storage",
+          "services": {
+            "aws": ["S3", "RDS", "DynamoDB"],
+            "gcp": ["Cloud Storage", "Cloud SQL", "Firestore"]
+          }
+        },
+        "monitoring": {
+          "description": "Job progress and error tracking",
+          "services": {
+            "aws": ["CloudWatch", "X-Ray", "EventBridge"],
+            "gcp": ["Cloud Monitoring", "Cloud Trace", "Cloud Logging"]
+          }
+        }
+      },
+      "dataFlow": [
+        "1. Job submitted with document references",
+        "2. Job queued for processing",
+        "3. Worker picks up job from queue",
+        "4. Document retrieved from storage",
+        "5. Document processed through Claude API",
+        "6. Results stored and job marked complete",
+        "7. Notification sent to requestor"
+      ],
+      "mermaidDiagram": "graph LR\n    Submit[Job Submission] --> Queue[Job Queue]\n    Queue --> Worker[Worker Pool]\n    Worker --> Storage[(Document Storage)]\n    Worker --> Claude[Claude API]\n    Claude --> Worker\n    Worker --> Results[(Results Store)]\n    Worker --> Notify[Notification]\n    \n    subgraph Monitoring\n        Worker --> Metrics[Metrics]\n        Worker --> Logs[Logs]\n    end",
+      "securityConsiderations": [
+        "Job isolation and data segregation",
+        "Temporary credential management",
+        "Result encryption at rest",
+        "Retention and deletion policies"
+      ],
+      "scalingConsiderations": [
+        "Concurrency limits based on API quotas",
+        "Auto-scaling worker pool",
+        "Dead letter queue for failed jobs",
+        "Retry logic with exponential backoff"
+      ]
+    },
+    "human_in_the_loop": {
+      "name": "Human-in-the-Loop Review System",
+      "description": "AI-assisted processing with mandatory human review and approval",
+      "useCases": [
+        "Clinical decision support",
+        "Prior authorization decisions",
+        "Appeal review assistance",
+        "Quality assurance sampling"
+      ],
+      "components": {
+        "aiProcessing": {
+          "description": "Initial AI analysis and recommendation",
+          "services": {
+            "aws": ["Lambda", "ECS", "Bedrock"],
+            "gcp": ["Cloud Functions", "Cloud Run", "Vertex AI"]
+          }
+        },
+        "reviewQueue": {
+          "description": "Human review workflow management",
+          "services": {
+            "aws": ["Step Functions Human Tasks", "SQS + Custom UI"],
+            "gcp": ["Cloud Workflows + Custom UI", "Cloud Tasks"]
+          }
+        },
+        "reviewUI": {
+          "description": "Interface for human reviewers",
+          "services": {
+            "aws": ["Amplify", "CloudFront + S3"],
+            "gcp": ["Firebase Hosting", "Cloud Run"]
+          }
+        },
+        "decisionStore": {
+          "description": "Audit trail of decisions and rationale",
+          "services": {
+            "aws": ["DynamoDB", "RDS", "S3"],
+            "gcp": ["Firestore", "Cloud SQL", "Cloud Storage"]
+          }
+        }
+      },
+      "dataFlow": [
+        "1. Case submitted for processing",
+        "2. AI analyzes case and generates recommendation",
+        "3. Case queued for human review with AI summary",
+        "4. Reviewer examines case and AI recommendation",
+        "5. Reviewer approves, modifies, or rejects",
+        "6. Decision recorded with full audit trail",
+        "7. Outcome communicated to requestor"
+      ],
+      "mermaidDiagram": "graph TB\n    Case[Case Submission] --> AI[AI Processing]\n    AI --> |Recommendation| Queue[Review Queue]\n    Queue --> UI[Review Interface]\n    UI --> Reviewer[Human Reviewer]\n    Reviewer --> |Decision| Store[(Decision Store)]\n    Store --> Notify[Notification]\n    \n    subgraph Audit Trail\n        AI --> Audit[(Audit Log)]\n        Reviewer --> Audit\n    end",
+      "reviewerInterface": {
+        "mustInclude": [
+          "Original case data",
+          "AI analysis and recommendation",
+          "Confidence score and reasoning",
+          "Ability to view supporting evidence",
+          "Approval/rejection with required rationale",
+          "Escalation path for complex cases"
+        ]
+      },
+      "securityConsiderations": [
+        "Reviewer authentication and authorization",
+        "Case assignment and workload distribution",
+        "Time-based access expiration",
+        "Complete audit trail of all actions"
+      ]
+    }
+  },
+  "patternSelection": {
+    "guidance": "Select pattern based on primary use case characteristics",
+    "criteria": {
+      "rag_document_qa": {
+        "choose_when": [
+          "Primary need is answering questions from existing documents",
+          "Users need citations and source references",
+          "Document corpus is relatively static",
+          "Real-time responses required"
+        ]
+      },
+      "conversational_agent": {
+        "choose_when": [
+          "Multi-turn interactions required",
+          "Integration with external systems needed",
+          "Personalized, context-aware responses important",
+          "User experience requires natural dialogue"
+        ]
+      },
+      "batch_processing": {
+        "choose_when": [
+          "High volume document processing",
+          "Latency is not critical",
+          "Cost optimization important",
+          "Complex multi-step processing"
+        ]
+      },
+      "human_in_the_loop": {
+        "choose_when": [
+          "Decisions have significant impact",
+          "Regulatory requirements for human oversight",
+          "AI recommendations need validation",
+          "Building trust in new AI systems"
+        ]
+      }
+    }
+  }
+}

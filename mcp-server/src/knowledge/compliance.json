@@ -1,0 +1,262 @@
+{
+  "frameworks": {
+    "hipaa": {
+      "name": "HIPAA",
+      "fullName": "Health Insurance Portability and Accountability Act",
+      "applicableWhen": [
+        "Processing Protected Health Information (PHI)",
+        "Healthcare provider operations",
+        "Health plan administration",
+        "Healthcare clearinghouse functions",
+        "Business associate relationships"
+      ],
+      "keyRequirements": {
+        "privacy": {
+          "title": "Privacy Rule Requirements",
+          "items": [
+            "Minimum necessary standard - only access/disclose PHI needed for the task",
+            "Patient authorization required for most uses beyond treatment/payment/operations",
+            "Notice of Privacy Practices must be provided",
+            "Patient rights: access, amendment, accounting of disclosures",
+            "De-identification standards (Safe Harbor or Expert Determination)"
+          ]
+        },
+        "security": {
+          "title": "Security Rule Requirements",
+          "items": [
+            "Administrative safeguards: security management, workforce training, contingency planning",
+            "Physical safeguards: facility access controls, workstation security, device controls",
+            "Technical safeguards: access controls, audit controls, integrity controls, transmission security"
+          ]
+        },
+        "breach": {
+          "title": "Breach Notification Requirements",
+          "items": [
+            "Notify affected individuals within 60 days of discovery",
+            "Notify HHS for breaches affecting 500+ individuals",
+            "Document and retain breach investigation records for 6 years"
+          ]
+        }
+      },
+      "architectureImplications": {
+        "dataAtRest": {
+          "requirement": "Encryption required (addressable but strongly recommended)",
+          "implementation": [
+            "AES-256 encryption for all PHI storage",
+            "AWS: Enable default encryption on S3, RDS, EBS",
+            "GCP: Enable default encryption on Cloud Storage, Cloud SQL",
+            "Key management via AWS KMS or GCP Cloud KMS"
+          ]
+        },
+        "dataInTransit": {
+          "requirement": "Encryption required",
+          "implementation": [
+            "TLS 1.2+ for all data transmission",
+            "Certificate management and rotation",
+            "No PHI in URLs or query parameters"
+          ]
+        },
+        "accessControl": {
+          "requirement": "Unique user identification and role-based access",
+          "implementation": [
+            "RBAC with principle of least privilege",
+            "Multi-factor authentication for PHI access",
+            "Automatic session timeout (15-30 minutes recommended)",
+            "Emergency access procedures documented"
+          ]
+        },
+        "auditLogging": {
+          "requirement": "Audit controls to record and examine system activity",
+          "implementation": [
+            "Log all PHI access (read, write, delete)",
+            "Include user identity, timestamp, action, data accessed",
+            "Retain logs for minimum 6 years",
+            "Regular log review procedures",
+            "Tamper-evident log storage"
+          ]
+        },
+        "llmSpecific": {
+          "requirement": "Special considerations for AI/LLM deployments",
+          "implementation": [
+            "BAA required with LLM provider (Anthropic offers BAAs for enterprise)",
+            "PHI should not be used for model training without explicit authorization",
+            "Consider de-identification before LLM processing where possible",
+            "Implement human-in-the-loop for clinical decisions",
+            "Document AI system as part of risk assessment",
+            "Audit logging must include LLM interactions"
+          ]
+        }
+      },
+      "baaRequirements": {
+        "description": "Business Associate Agreement required when sharing PHI",
+        "mustInclude": [
+          "Permitted uses and disclosures of PHI",
+          "Safeguards the BA must implement",
+          "Subcontractor requirements",
+          "Breach notification obligations",
+          "Termination provisions"
+        ],
+        "anthropicNote": "Anthropic offers BAAs for Claude API enterprise customers. Contact sales for healthcare deployments."
+      }
+    },
+    "soc2": {
+      "name": "SOC 2",
+      "fullName": "Service Organization Control 2",
+      "applicableWhen": [
+        "SaaS or cloud service providers",
+        "Data center operations",
+        "Managed service providers",
+        "Any service handling customer data"
+      ],
+      "trustServiceCriteria": {
+        "security": {
+          "title": "Security (Required)",
+          "description": "Protection against unauthorized access",
+          "controls": [
+            "Logical and physical access controls",
+            "System operations monitoring",
+            "Change management procedures",
+            "Risk mitigation strategies"
+          ]
+        },
+        "availability": {
+          "title": "Availability",
+          "description": "System availability for operation and use",
+          "controls": [
+            "Performance monitoring",
+            "Disaster recovery planning",
+            "Incident response procedures",
+            "Backup and recovery testing"
+          ]
+        },
+        "processingIntegrity": {
+          "title": "Processing Integrity",
+          "description": "System processing is complete, valid, accurate, timely",
+          "controls": [
+            "Quality assurance procedures",
+            "Processing monitoring",
+            "Error handling and correction"
+          ]
+        },
+        "confidentiality": {
+          "title": "Confidentiality",
+          "description": "Information designated as confidential is protected",
+          "controls": [
+            "Data classification policies",
+            "Encryption requirements",
+            "Access restrictions",
+            "Secure disposal procedures"
+          ]
+        },
+        "privacy": {
+          "title": "Privacy",
+          "description": "Personal information handling meets privacy notice",
+          "controls": [
+            "Privacy notice and consent",
+            "Data collection limitations",
+            "Use and retention policies",
+            "Subject access rights"
+          ]
+        }
+      },
+      "architectureImplications": {
+        "accessControl": [
+          "Centralized identity management",
+          "Role-based access with regular reviews",
+          "Privileged access management",
+          "Segregation of duties"
+        ],
+        "monitoring": [
+          "Real-time security monitoring",
+          "Intrusion detection systems",
+          "Log aggregation and analysis",
+          "Alerting and escalation procedures"
+        ],
+        "changeManagement": [
+          "Documented change procedures",
+          "Testing and approval workflows",
+          "Rollback capabilities",
+          "Emergency change procedures"
+        ]
+      }
+    },
+    "fedramp": {
+      "name": "FedRAMP",
+      "fullName": "Federal Risk and Authorization Management Program",
+      "applicableWhen": [
+        "Cloud services for US federal agencies",
+        "Contractors handling federal data",
+        "State/local agencies adopting federal standards"
+      ],
+      "impactLevels": {
+        "low": {
+          "description": "Limited adverse effect from loss",
+          "controls": "125+ security controls",
+          "examples": ["Public-facing websites", "Non-sensitive data"]
+        },
+        "moderate": {
+          "description": "Serious adverse effect from loss",
+          "controls": "325+ security controls",
+          "examples": ["Most federal systems", "PII handling"]
+        },
+        "high": {
+          "description": "Severe or catastrophic effect from loss",
+          "controls": "421+ security controls",
+          "examples": ["Law enforcement", "Healthcare", "Financial"]
+        }
+      },
+      "architectureImplications": {
+        "dataResidency": "US-based data centers required",
+        "personnelSecurity": "Background checks for personnel with access",
+        "continuousMonitoring": "Ongoing assessment and authorization",
+        "incidentResponse": "Federal incident reporting requirements"
+      }
+    }
+  },
+  "complianceMatrix": {
+    "healthcare_chatbot": {
+      "description": "Conversational AI for patient interactions",
+      "requiredFrameworks": ["hipaa"],
+      "recommendedFrameworks": ["soc2"],
+      "keyConsiderations": [
+        "PHI handling in conversations requires BAA",
+        "Conversation logs are PHI - apply retention and access controls",
+        "Human oversight required for clinical guidance",
+        "Clear disclaimers about AI limitations"
+      ]
+    },
+    "clinical_documentation": {
+      "description": "AI-assisted clinical note generation",
+      "requiredFrameworks": ["hipaa"],
+      "recommendedFrameworks": ["soc2"],
+      "keyConsiderations": [
+        "Integration with EHR requires additional security review",
+        "Physician review and attestation required",
+        "Audit trail for all AI-generated content",
+        "Training data considerations if using customer data"
+      ]
+    },
+    "benefits_navigation": {
+      "description": "AI for health insurance benefits questions",
+      "requiredFrameworks": ["hipaa"],
+      "recommendedFrameworks": ["soc2"],
+      "keyConsiderations": [
+        "May handle PHI in benefit inquiries",
+        "Integration with claims systems",
+        "Accuracy requirements for coverage information",
+        "Escalation paths to human agents"
+      ]
+    },
+    "administrative_automation": {
+      "description": "Back-office process automation",
+      "requiredFrameworks": ["hipaa"],
+      "recommendedFrameworks": ["soc2"],
+      "keyConsiderations": [
+        "Depends on data accessed",
+        "May be able to use de-identified data",
+        "Workflow integration security",
+        "Error handling and human review"
+      ]
+    }
+  }
+}

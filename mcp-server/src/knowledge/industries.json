@@ -1,0 +1,267 @@
+{
+  "industries": {
+    "healthcare": {
+      "name": "Healthcare",
+      "description": "Healthcare providers, payers, and health technology companies",
+      "regulatoryContext": {
+        "primary": ["HIPAA"],
+        "secondary": ["SOC2", "HITRUST"],
+        "emerging": ["State privacy laws", "FDA guidance on AI/ML in healthcare"]
+      },
+      "commonUseCases": {
+        "patient_facing": {
+          "name": "Patient-Facing Applications",
+          "examples": [
+            {
+              "name": "Patient Intake Assistant",
+              "description": "Conversational AI to gather patient information before appointments",
+              "recommendedPattern": "conversational_agent",
+              "complianceNotes": [
+                "PHI collection requires BAA with LLM provider",
+                "Clear consent and privacy notice required",
+                "Data must flow directly to EHR with audit trail",
+                "Human handoff for clinical concerns"
+              ],
+              "technicalConsiderations": [
+                "Integration with EHR via FHIR APIs",
+                "Multi-language support for diverse populations",
+                "Accessibility compliance (WCAG)",
+                "Session timeout for security"
+              ],
+              "estimatedComplexity": "medium",
+              "typicalTimeline": "12-16 weeks"
+            },
+            {
+              "name": "Benefits Navigator",
+              "description": "AI assistant to help patients understand their insurance benefits",
+              "recommendedPattern": "rag_document_qa",
+              "complianceNotes": [
+                "Benefits documents may contain PHI references",
+                "Accuracy requirements for coverage information",
+                "Clear disclaimers about AI limitations",
+                "Escalation to human agents for complex questions"
+              ],
+              "technicalConsiderations": [
+                "Document ingestion for plan documents",
+                "Personalization based on member's specific plan",
+                "Integration with eligibility systems",
+                "Citation of source documents in responses"
+              ],
+              "estimatedComplexity": "medium",
+              "typicalTimeline": "10-14 weeks"
+            },
+            {
+              "name": "Symptom Checker / Triage",
+              "description": "AI-assisted symptom assessment and care navigation",
+              "recommendedPattern": "human_in_the_loop",
+              "complianceNotes": [
+                "Not a diagnostic tool - clear disclaimers required",
+                "Emergency symptoms must trigger immediate escalation",
+                "Clinical oversight and validation required",
+                "Audit trail for all assessments"
+              ],
+              "technicalConsiderations": [
+                "Integration with clinical knowledge bases",
+                "Structured data capture for downstream use",
+                "Multi-modal input (text, voice)",
+                "Real-time escalation workflows"
+              ],
+              "estimatedComplexity": "high",
+              "typicalTimeline": "16-24 weeks"
+            }
+          ]
+        },
+        "clinical": {
+          "name": "Clinical Applications",
+          "examples": [
+            {
+              "name": "Clinical Documentation Assistant",
+              "description": "AI-assisted generation of clinical notes and documentation",
+              "recommendedPattern": "human_in_the_loop",
+              "complianceNotes": [
+                "Physician review and attestation mandatory",
+                "AI-generated content must be clearly marked",
+                "Full audit trail of AI contributions",
+                "Training data considerations"
+              ],
+              "technicalConsiderations": [
+                "EHR integration via SMART on FHIR",
+                "Real-time vs. ambient listening modes",
+                "Specialty-specific templates",
+                "Voice recognition integration"
+              ],
+              "estimatedComplexity": "high",
+              "typicalTimeline": "20-28 weeks"
+            },
+            {
+              "name": "Prior Authorization Assistant",
+              "description": "AI support for prior auth request preparation and review",
+              "recommendedPattern": "human_in_the_loop",
+              "complianceNotes": [
+                "Decision support only - human decision required",
+                "Payer-specific requirements must be current",
+                "Appeal preparation assistance",
+                "Audit trail for regulatory review"
+              ],
+              "technicalConsiderations": [
+                "Integration with PA submission systems",
+                "Payer portal integrations",
+                "Document attachment handling",
+                "Status tracking and notifications"
+              ],
+              "estimatedComplexity": "high",
+              "typicalTimeline": "16-20 weeks"
+            }
+          ]
+        },
+        "administrative": {
+          "name": "Administrative Applications",
+          "examples": [
+            {
+              "name": "Claims Processing Assistant",
+              "description": "AI-assisted claims review and processing",
+              "recommendedPattern": "batch_processing",
+              "complianceNotes": [
+                "PHI handling throughout pipeline",
+                "Accuracy requirements for payment determinations",
+                "Audit trail for all processing steps",
+                "Error handling and exception routing"
+              ],
+              "technicalConsiderations": [
+                "High-volume batch processing",
+                "Integration with claims systems",
+                "Business rules engine integration",
+                "Exception queue management"
+              ],
+              "estimatedComplexity": "high",
+              "typicalTimeline": "20-28 weeks"
+            },
+            {
+              "name": "Medical Records Summarization",
+              "description": "AI-generated summaries of patient medical records",
+              "recommendedPattern": "batch_processing",
+              "complianceNotes": [
+                "Full PHI handling requirements",
+                "Clinical review of summaries recommended",
+                "Retention policies for generated summaries",
+                "Source attribution requirements"
+              ],
+              "technicalConsiderations": [
+                "Multiple document format handling",
+                "Chronological organization",
+                "Key finding extraction",
+                "Integration with care management systems"
+              ],
+              "estimatedComplexity": "medium",
+              "typicalTimeline": "12-16 weeks"
+            }
+          ]
+        }
+      },
+      "integrationPatterns": {
+        "ehr": {
+          "name": "EHR Integration",
+          "standards": ["FHIR R4", "SMART on FHIR", "CDS Hooks"],
+          "vendors": ["Epic", "Cerner", "Meditech", "Allscripts"],
+          "considerations": [
+            "Vendor-specific API limitations",
+            "App marketplace requirements",
+            "Clinical workflow integration points",
+            "Single sign-on requirements"
+          ]
+        },
+        "payer": {
+          "name": "Payer System Integration",
+          "standards": ["X12 EDI", "FHIR Da Vinci", "Portal APIs"],
+          "considerations": [
+            "Real-time vs. batch processing",
+            "Eligibility verification flows",
+            "Claims submission and status",
+            "Prior authorization workflows"
+          ]
+        }
+      },
+      "stakeholders": {
+        "clinical": ["CMO", "CMIO", "Clinical Informatics", "Nursing Leadership"],
+        "technical": ["CIO", "CISO", "Enterprise Architecture", "Integration Team"],
+        "business": ["COO", "Revenue Cycle", "Patient Experience", "Compliance"],
+        "governance": ["Privacy Officer", "Compliance Officer", "Legal", "Risk Management"]
+      }
+    },
+    "financial_services": {
+      "name": "Financial Services",
+      "description": "Banks, insurance, investment, and fintech companies",
+      "regulatoryContext": {
+        "primary": ["SOC2", "SOX"],
+        "secondary": ["GLBA", "PCI-DSS", "CCPA/CPRA"],
+        "emerging": ["AI/ML model governance", "Explainability requirements"]
+      },
+      "commonUseCases": {
+        "customer_facing": {
+          "name": "Customer-Facing Applications",
+          "examples": [
+            {
+              "name": "Customer Service Agent",
+              "description": "AI-powered customer service for account inquiries",
+              "recommendedPattern": "conversational_agent",
+              "complianceNotes": [
+                "PII handling requirements",
+                "Transaction authorization controls",
+                "Fraud detection integration",
+                "Regulatory disclosure requirements"
+              ],
+              "estimatedComplexity": "medium",
+              "typicalTimeline": "14-18 weeks"
+            },
+            {
+              "name": "Document Processing",
+              "description": "AI-assisted processing of financial documents",
+              "recommendedPattern": "batch_processing",
+              "complianceNotes": [
+                "Data extraction accuracy requirements",
+                "Audit trail for all processing",
+                "Retention and disposal policies"
+              ],
+              "estimatedComplexity": "medium",
+              "typicalTimeline": "12-16 weeks"
+            }
+          ]
+        }
+      },
+      "stakeholders": {
+        "technical": ["CIO", "CISO", "Enterprise Architecture"],
+        "business": ["COO", "Customer Experience", "Operations"],
+        "governance": ["Compliance", "Risk Management", "Legal", "Audit"]
+      }
+    }
+  },
+  "crossIndustryConsiderations": {
+    "dataResidency": {
+      "description": "Requirements for data location",
+      "considerations": [
+        "US-based processing for most regulated industries",
+        "Regional requirements (GDPR for EU data)",
+        "Cloud region selection",
+        "Cross-border data transfer restrictions"
+      ]
+    },
+    "modelGovernance": {
+      "description": "AI/ML model oversight requirements",
+      "considerations": [
+        "Model documentation and versioning",
+        "Bias testing and fairness assessment",
+        "Performance monitoring",
+        "Incident response for model failures"
+      ]
+    },
+    "vendorManagement": {
+      "description": "Third-party AI provider considerations",
+      "considerations": [
+        "Due diligence and security assessment",
+        "Contractual protections (BAA, DPA)",
+        "Exit strategy and data portability",
+        "Ongoing monitoring and review"
+      ]
+    }
+  }
+}
