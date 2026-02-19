@@ -324,24 +324,14 @@ export default function Home() {
               >
                 &larr; Back to scenarios
               </button>
-              <div className="flex gap-3">
-                <button
-                  onClick={handleRunAll}
-                  disabled={isGenerating}
-                  className="flex items-center gap-2 px-4 py-2 bg-claude-orange text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors text-sm font-medium"
-                >
-                  <Play className="w-4 h-4" />
-                  Run Full Demo
-                </button>
-                <button
-                  onClick={() => { setState((prev) => ({ ...prev, currentStep: 'context' })); generateStep('context'); }}
-                  disabled={isGenerating}
-                  className="flex items-center gap-2 px-4 py-2 bg-anthropic-900 text-white rounded-lg hover:bg-anthropic-800 disabled:opacity-50 transition-colors text-sm font-medium"
-                >
-                  Generate Context
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
+              <button
+                onClick={handleRunAll}
+                disabled={isGenerating}
+                className="flex items-center gap-2 px-4 py-2 bg-claude-orange text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors text-sm font-medium"
+              >
+                <Play className="w-4 h-4" />
+                Run Full Demo
+              </button>
             </div>
           </div>
         )}
