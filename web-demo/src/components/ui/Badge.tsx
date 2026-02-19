@@ -27,7 +27,7 @@ export function Badge({ children, variant = 'default', size = 'sm' }: BadgeProps
 // Convenience mappers for common use cases
 export function PriorityBadge({ priority }: { priority?: string }) {
   const variant =
-    priority === 'Critical' || priority === 'critical'
+    priority === 'Highest' || priority === 'Critical' || priority === 'critical'
       ? 'red'
       : priority === 'High' || priority === 'high'
         ? 'orange'
