@@ -97,8 +97,8 @@ export function CompleteStep({ data, onStartOver }: CompleteStepProps) {
       <Card>
         <h3 className="font-semibold text-gray-900 mb-3">About This Project</h3>
         <p className="text-sm text-gray-600 mb-5 leading-relaxed">
-          This demonstration was built to show how Anthropic&apos;s partner team could help Global
-          System Integrators operationalize Claude deployments faster. The MCP server architecture
+          This demonstration was built to show how Global System Integrators can
+          operationalize Claude deployments faster. The MCP server architecture
           enables Claude to read project context from enterprise tools (like Jira) and generate
           compliant, deployment-ready artifacts.
         </p>
