@@ -1,307 +1,53 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import {
-  Building2,
-  FileCode,
-  Shield,
-  ClipboardList,
-  Play,
-  ChevronRight,
-  Github,
-  Linkedin,
-  ExternalLink,
-  Loader2,
-  CheckCircle2,
-  RotateCcw,
-} from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { Play, ChevronRight, RotateCcw } from 'lucide-react';
+import type {
+  Step,
+  Industry,
+  DemoState,
+  ProjectContextData,
+  ArchitectureData,
+  ComplianceData,
+  PlanData,
+} from '@/types/api';
+import { SCENARIOS } from '@/lib/constants';
+import { Header } from '@/components/Header';
+import { StepProgress } from '@/components/StepProgress';
+import { HeroLanding } from '@/components/HeroLanding';
+import { ContextStep } from '@/components/steps/ContextStep';
+import { ArchitectureStep } from '@/components/steps/ArchitectureStep';
+import { ComplianceStep } from '@/components/steps/ComplianceStep';
+import { PlanStep } from '@/components/steps/PlanStep';
+import { CompleteStep } from '@/components/steps/CompleteStep';
 
-type Step = 'select' | 'context' | 'architecture' | 'compliance' | 'plan' | 'complete';
-
-interface GeneratedContent {
-  context?: string;
-  architecture?: string;
-  compliance?: string;
-  plan?: string;
-}
-
-interface ProjectContextData {
-  project: { key: string; name: string; description?: string; lead?: string };
-  issues: Array<{
-    key: string;
-    summary: string;
-    description?: string;
-    type: string;
-    status: string;
-    labels: string[];
-    priority?: string;
-  }>;
-  detectedCompliance: string[];
-  detectedIntegrations: string[];
-  detectedDataTypes: string[];
-  allLabels: string[];
-  summary: { totalIssues: number };
-}
-
-// Mermaid diagram component — dynamically imports mermaid to avoid SSR issues
-let mermaidInitialized = false;
-
-function MermaidDiagram({ chart }: { chart: string }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [svg, setSvg] = useState<string>('');
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const mermaid = (await import('mermaid')).default;
-        if (!mermaidInitialized) {
-          mermaid.initialize({ startOnLoad: false, theme: 'neutral' });
-          mermaidInitialized = true;
-        }
-        const id = `mermaid-${Date.now()}`;
-        const { svg: rendered } = await mermaid.render(id, chart);
-        if (!cancelled) setSvg(rendered);
-      } catch {
-        if (!cancelled) setSvg('');
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [chart]);
-
-  if (!svg) return <pre className="whitespace-pre-wrap text-sm font-mono bg-gray-50 p-4 rounded-lg">{chart}</pre>;
-  return <div ref={containerRef} className="my-4 overflow-auto" dangerouslySetInnerHTML={{ __html: svg }} />;
-}
-
-function formatContextMarkdown(data: ProjectContextData): string {
-  let md = `# Project Context: ${data.project.name}\n\n`;
-  md += `**Key:** ${data.project.key}\n`;
-  md += `**Lead:** ${data.project.lead || 'Not assigned'}\n\n`;
-
-  if (data.project.description) {
-    md += `## Description\n${data.project.description}\n\n`;
-  }
-
-  if (data.detectedCompliance.length > 0) {
-    md += `## Compliance Indicators\n`;
-    for (const indicator of data.detectedCompliance) {
-      md += `- ${indicator}\n`;
-    }
-    md += '\n';
-  }
-
-  if (data.detectedIntegrations.length > 0) {
-    md += `## Detected Integration Targets\n`;
-    for (const target of data.detectedIntegrations) {
-      md += `- ${target}\n`;
-    }
-    md += '\n';
-  }
-
-  if (data.issues.length > 0) {
-    md += `## Recent Issues (${data.issues.length})\n\n`;
-    for (const issue of data.issues) {
-      md += `### ${issue.key}: ${issue.summary}\n`;
-      md += `**Type:** ${issue.type} | **Status:** ${issue.status}`;
-      if (issue.priority) {
-        md += ` | **Priority:** ${issue.priority}`;
-      }
-      md += '\n';
-      if (issue.labels.length > 0) {
-        md += `**Labels:** ${issue.labels.join(', ')}\n`;
-      }
-      if (issue.description) {
-        md += `\n${issue.description.substring(0, 500)}${issue.description.length > 500 ? '...' : ''}\n`;
-      }
-      md += '\n';
-    }
-  }
-
-  return md;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function formatArchitectureMarkdown(data: any): string {
-  let md = `# Reference Architecture: ${data.patternName}\n\n`;
-  md += `## Pattern Selection\n`;
-  md += `**Recommended Pattern:** ${data.patternName}\n\n`;
-  md += `**Rationale:** ${data.rationale}\n\n`;
-
-  if (data.mermaidDiagram) {
-    md += `## Architecture Diagram\n`;
-    md += '```mermaid\n';
-    md += data.mermaidDiagram;
-    md += '\n```\n\n';
-  }
-
-  md += `## Components\n\n`;
-  for (const comp of data.components) {
-    md += `### ${comp.name}\n`;
-    md += `${comp.description}\n\n`;
-    const providers = Object.keys(comp.services).filter(k => k !== 'anthropic');
-    for (const provider of providers) {
-      if (comp.services[provider]?.length > 0) {
-        md += `**${provider.toUpperCase()} Services:**\n`;
-        for (const service of comp.services[provider]) {
-          md += `- ${service}\n`;
-        }
-      }
-    }
-    if (comp.services.anthropic?.length > 0) {
-      md += `\n**Anthropic Services:**\n`;
-      for (const service of comp.services.anthropic) {
-        md += `- ${service}\n`;
-      }
-    }
-    if (comp.considerations?.length > 0) {
-      md += `\n**Implementation Considerations:**\n`;
-      for (const c of comp.considerations) {
-        md += `- ${c}\n`;
-      }
-    }
-    md += '\n';
-  }
-
-  md += `## Data Flow\n`;
-  for (const step of data.dataFlow) {
-    md += `${step}\n`;
-  }
-  md += '\n';
-
-  md += `## Security Considerations\n`;
-  for (const c of data.securityConsiderations) {
-    md += `- ${c}\n`;
-  }
-  md += '\n';
-
-  if (data.scalingConsiderations?.length > 0) {
-    md += `## Scaling Considerations\n`;
-    for (const c of data.scalingConsiderations) {
-      md += `- ${c}\n`;
-    }
-  }
-
-  return md;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function formatComplianceMarkdown(data: any, industry: string, dataTypes: string[]): string {
-  let md = `# Compliance Assessment\n\n`;
-  md += `**Industry:** ${industry}\n`;
-  md += `**Data Types:** ${dataTypes.length > 0 ? dataTypes.join(', ') : 'Not specified'}\n\n`;
-
-  md += `## Applicable Frameworks\n\n`;
-  for (const fw of data.applicableFrameworks) {
-    md += `### ${fw.name}\n`;
-    md += `**Priority:** ${fw.priority}\n`;
-    md += `**Reason:** ${fw.applicabilityReason}\n\n`;
-  }
-
-  if (data.keyRequirements?.length > 0) {
-    md += `## Key Requirements\n\n`;
-    for (const req of data.keyRequirements) {
-      md += `### ${req.category}\n`;
-      md += `**Requirement:** ${req.requirement}\n`;
-      md += `**Implementation:** ${req.implementation}\n`;
-      md += `**Priority:** ${req.priority}\n\n`;
-    }
-  }
-
-  md += `## Risk Areas\n\n`;
-  for (const risk of data.riskAreas) {
-    md += `### ${risk.area}\n`;
-    md += `**Risk:** ${risk.risk}\n`;
-    md += `**Mitigation:** ${risk.mitigation}\n\n`;
-  }
-
-  if (data.checklist) {
-    md += `## Implementation Checklist\n\n`;
-    for (const item of data.checklist) {
-      md += `- [ ] **${item.category}:** ${item.item}\n`;
-    }
-  }
-
-  return md;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function formatPlanMarkdown(data: any, patternName: string): string {
-  let md = `# Implementation Plan\n\n`;
-  md += `## Summary\n`;
-  md += `- **Total Duration:** ${data.summary.totalWeeks} weeks (${data.summary.totalSprints} sprints)\n`;
-  md += `- **Team Size:** ${data.summary.teamSize}\n`;
-  md += `- **Architecture Pattern:** ${patternName}\n\n`;
-
-  md += `## Phases\n\n`;
-  for (const phase of data.phases) {
-    md += `### ${phase.name}\n`;
-    md += `${phase.description}\n\n`;
-    md += `**Duration:** ${phase.durationWeeks} weeks | **Sprints:** ${phase.sprints.length}\n\n`;
-
-    md += `**Milestones:**\n`;
-    for (const m of phase.milestones) {
-      md += `- ${m}\n`;
-    }
-    md += '\n';
-
-    md += `**Risk Factors:**\n`;
-    for (const r of phase.riskFactors) {
-      md += `- ${r}\n`;
-    }
-    md += '\n';
-  }
-
-  md += `## Skill Requirements\n\n`;
-  for (const skill of data.skillRequirements) {
-    md += `- **${skill.skill}** (${skill.level})\n`;
-    md += `  - Roles: ${skill.roles.join(', ')}\n`;
-  }
-  md += '\n';
-
-  if (data.jiraTickets) {
-    md += `## Jira Ticket Templates\n\n`;
-    for (const ticket of data.jiraTickets) {
-      md += `### [${ticket.type.toUpperCase()}] ${ticket.summary}\n`;
-      md += `${ticket.description}\n`;
-      md += `- **Labels:** ${ticket.labels.join(', ')}\n`;
-      if (ticket.estimateHours) {
-        md += `- **Estimate:** ${ticket.estimateHours} hours\n`;
-      }
-      md += '\n';
-    }
-  }
-
-  return md;
-}
-
-interface StepResult {
-  contextData?: ProjectContextData;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  architectureData?: any;
-}
+const STEP_ORDER: Step[] = ['select', 'context', 'architecture', 'compliance', 'plan', 'complete'];
 
 export default function Home() {
-  const [selectedIndustry, setSelectedIndustry] = useState<'healthcare' | 'financial' | null>(null);
-  const [currentStep, setCurrentStep] = useState<Step>('select');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedContent, setGeneratedContent] = useState<GeneratedContent>({});
-  const [streamingText, setStreamingText] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<DemoState>({
+    selectedIndustry: null,
+    currentStep: 'select',
+    isGenerating: false,
+    error: null,
+    data: { context: null, architecture: null, compliance: null, plan: null },
+  });
 
-  // Store intermediate data for chaining API calls
-  const [contextData, setContextData] = useState<ProjectContextData | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [architectureData, setArchitectureData] = useState<any>(null);
+  const { selectedIndustry, currentStep, isGenerating, error, data } = state;
 
-  const projectKey = selectedIndustry === 'healthcare' ? 'HEALTH' : 'FINSERV';
+  const projectKey = selectedIndustry
+    ? SCENARIOS.find((s) => s.industry === selectedIndustry)!.projectKey
+    : '';
 
-  // Auto-fetch context on industry selection (populates issue cards)
-  // Only sets contextData if generateStep hasn't already populated it
+  const completedSteps = new Set(
+    (['context', 'architecture', 'compliance', 'plan'] as const).filter(
+      (s) => data[s] !== null
+    )
+  );
+
+  // Auto-fetch context preview on industry selection
   useEffect(() => {
     if (!selectedIndustry) return;
-    const key = selectedIndustry === 'healthcare' ? 'HEALTH' : 'FINSERV';
+    const key = SCENARIOS.find((s) => s.industry === selectedIndustry)!.projectKey;
     let cancelled = false;
     (async () => {
       try {
@@ -311,631 +57,365 @@ export default function Home() {
           body: JSON.stringify({ projectKey: key, includeIssues: true, issueLimit: 10 }),
         });
         if (!res.ok) return;
-        const data: ProjectContextData = await res.json();
+        const ctxData: ProjectContextData = await res.json();
         if (!cancelled) {
-          setContextData(prev => prev ?? data);
+          setState((prev) => ({
+            ...prev,
+            data: { ...prev.data, context: prev.data.context ?? ctxData },
+          }));
         }
       } catch {
-        // Silently fail — issues will load when user clicks Generate
+        // Silent — will load when user clicks Generate
       }
     })();
     return () => { cancelled = true; };
   }, [selectedIndustry]);
 
-  const streamText = useCallback(async (text: string): Promise<void> => {
-    for (let i = 0; i < text.length; i += 3) {
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      setStreamingText(text.substring(0, i + 3));
-    }
-  }, []);
-
-  // Phase 4: generateStep accepts optional overrides and returns data for chaining
-  const generateStep = useCallback(async (
-    step: Step,
-    contextOverride?: ProjectContextData,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    architectureOverride?: any,
-  ): Promise<StepResult> => {
-    setIsGenerating(true);
-    setStreamingText('');
-    setError(null);
-
-    const result: StepResult = {};
-    const ctxData = contextOverride ?? contextData;
-    const archData = architectureOverride ?? architectureData;
-
-    try {
-      let markdown = '';
+  // Build request params for each step (used by ToolNarrative)
+  const getRequestParams = useCallback(
+    (step: Step, ctxOverride?: ProjectContextData, archOverride?: ArchitectureData) => {
+      const ctx = ctxOverride ?? data.context;
+      const arch = archOverride ?? data.architecture;
+      const industry = selectedIndustry === 'healthcare' ? 'healthcare' : 'financial_services';
+      const complianceTags = ctx?.allLabels.filter((l) =>
+        ['hipaa', 'soc2', 'fedramp', 'pci_dss', 'gdpr', 'ccpa'].includes(l)
+      ) || [];
 
       if (step === 'context') {
-        const res = await fetch('/api/tools/read-context', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ projectKey, includeIssues: true, issueLimit: 10 }),
-        });
-        if (!res.ok) throw new Error(`API error: ${res.status}`);
-        const data: ProjectContextData = await res.json();
-        setContextData(data);
-        result.contextData = data;
-        markdown = formatContextMarkdown(data);
+        return { projectKey, includeIssues: true, issueLimit: 10 };
+      }
+      const projectContext = {
+        projectKey,
+        industry,
+        useCaseDescription: ctx?.project.description || 'AI-powered enterprise application',
+        complianceTags,
+        cloudProvider: 'aws',
+        dataTypes: ctx?.detectedDataTypes || [],
+        integrationTargets: ctx?.detectedIntegrations || [],
+      };
+      if (step === 'architecture') {
+        return { projectContext, includeDiagram: true, includeAlternatives: true };
+      }
+      if (step === 'compliance') {
+        return { projectContext, detailLevel: 'detailed', includeChecklist: true };
+      }
+      if (step === 'plan') {
+        return {
+          projectContext,
+          architecturePattern: arch?.pattern || 'conversational_agent',
+          teamSize: 5,
+          sprintLengthWeeks: 2,
+          includeJiraTickets: true,
+        };
+      }
+      return {};
+    },
+    [selectedIndustry, projectKey, data.context, data.architecture]
+  );
 
-      } else if (step === 'architecture') {
-        const useCaseDesc = ctxData?.project.description || 'AI-powered enterprise application';
-        const complianceTags = ctxData?.allLabels.filter(l =>
-          ['hipaa', 'soc2', 'fedramp', 'pci_dss', 'gdpr', 'ccpa'].includes(l)
-        ) || [];
+  // Core API caller — returns typed data for chaining
+  const generateStep = useCallback(
+    async (
+      step: Step,
+      ctxOverride?: ProjectContextData,
+      archOverride?: ArchitectureData
+    ): Promise<{ context?: ProjectContextData; architecture?: ArchitectureData }> => {
+      setState((prev) => ({ ...prev, isGenerating: true, error: null }));
+
+      const ctx = ctxOverride ?? data.context;
+      const arch = archOverride ?? data.architecture;
+      const result: { context?: ProjectContextData; architecture?: ArchitectureData } = {};
+
+      try {
         const industry = selectedIndustry === 'healthcare' ? 'healthcare' : 'financial_services';
-
-        const res = await fetch('/api/tools/generate-architecture', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            projectContext: {
-              projectKey,
-              industry,
-              useCaseDescription: useCaseDesc,
-              complianceTags,
-              cloudProvider: 'aws',
-              dataTypes: ctxData?.detectedDataTypes || [],
-              integrationTargets: ctxData?.detectedIntegrations || [],
-            },
-            includeDiagram: true,
-            includeAlternatives: true,
-          }),
-        });
-        if (!res.ok) throw new Error(`API error: ${res.status}`);
-        const data = await res.json();
-        setArchitectureData(data);
-        result.architectureData = data;
-        markdown = formatArchitectureMarkdown(data);
-
-      } else if (step === 'compliance') {
-        const industry = selectedIndustry === 'healthcare' ? 'healthcare' : 'financial_services';
-        const complianceTags = ctxData?.allLabels.filter(l =>
-          ['hipaa', 'soc2', 'fedramp', 'pci_dss', 'gdpr', 'ccpa'].includes(l)
-        ) || [];
-
-        const res = await fetch('/api/tools/assess-compliance', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            projectContext: {
-              projectKey,
-              industry,
-              useCaseDescription: ctxData?.project.description || 'AI-powered enterprise application',
-              complianceTags,
-              cloudProvider: 'aws',
-              dataTypes: ctxData?.detectedDataTypes || [],
-              integrationTargets: ctxData?.detectedIntegrations || [],
-            },
-            detailLevel: 'detailed',
-            includeChecklist: true,
-          }),
-        });
-        if (!res.ok) throw new Error(`API error: ${res.status}`);
-        const data = await res.json();
-        markdown = formatComplianceMarkdown(
-          data,
-          industry,
-          ctxData?.detectedDataTypes || []
-        );
-
-      } else if (step === 'plan') {
-        const industry = selectedIndustry === 'healthcare' ? 'healthcare' : 'financial_services';
-        const complianceTags = ctxData?.allLabels.filter(l =>
+        const complianceTags = ctx?.allLabels.filter((l) =>
           ['hipaa', 'soc2', 'fedramp', 'pci_dss', 'gdpr', 'ccpa'].includes(l)
         ) || [];
 
-        const res = await fetch('/api/tools/create-plan', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            projectContext: {
-              projectKey,
-              industry,
-              useCaseDescription: ctxData?.project.description || 'AI-powered enterprise application',
-              complianceTags,
-              cloudProvider: 'aws',
-              dataTypes: ctxData?.detectedDataTypes || [],
-              integrationTargets: ctxData?.detectedIntegrations || [],
-            },
-            architecturePattern: archData?.pattern || 'conversational_agent',
-            teamSize: 5,
-            sprintLengthWeeks: 2,
-            includeJiraTickets: true,
-          }),
-        });
-        if (!res.ok) throw new Error(`API error: ${res.status}`);
-        const data = await res.json();
-        markdown = formatPlanMarkdown(
-          data,
-          archData?.patternName || archData?.pattern || 'Unknown'
-        );
+        if (step === 'context') {
+          const res = await fetch('/api/tools/read-context', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ projectKey, includeIssues: true, issueLimit: 10 }),
+          });
+          if (!res.ok) throw new Error(`API error: ${res.status}`);
+          const ctxData: ProjectContextData = await res.json();
+          result.context = ctxData;
+          setState((prev) => ({
+            ...prev,
+            data: { ...prev.data, context: ctxData },
+          }));
+        } else if (step === 'architecture') {
+          const res = await fetch('/api/tools/generate-architecture', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              projectContext: {
+                projectKey,
+                industry,
+                useCaseDescription: ctx?.project.description || 'AI-powered enterprise application',
+                complianceTags,
+                cloudProvider: 'aws',
+                dataTypes: ctx?.detectedDataTypes || [],
+                integrationTargets: ctx?.detectedIntegrations || [],
+              },
+              includeDiagram: true,
+              includeAlternatives: true,
+            }),
+          });
+          if (!res.ok) throw new Error(`API error: ${res.status}`);
+          const archData: ArchitectureData = await res.json();
+          result.architecture = archData;
+          setState((prev) => ({
+            ...prev,
+            data: { ...prev.data, architecture: archData },
+          }));
+        } else if (step === 'compliance') {
+          const res = await fetch('/api/tools/assess-compliance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              projectContext: {
+                projectKey,
+                industry,
+                useCaseDescription: ctx?.project.description || 'AI-powered enterprise application',
+                complianceTags,
+                cloudProvider: 'aws',
+                dataTypes: ctx?.detectedDataTypes || [],
+                integrationTargets: ctx?.detectedIntegrations || [],
+              },
+              detailLevel: 'detailed',
+              includeChecklist: true,
+            }),
+          });
+          if (!res.ok) throw new Error(`API error: ${res.status}`);
+          const compData: ComplianceData = await res.json();
+          setState((prev) => ({
+            ...prev,
+            data: { ...prev.data, compliance: compData },
+          }));
+        } else if (step === 'plan') {
+          const res = await fetch('/api/tools/create-plan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              projectContext: {
+                projectKey,
+                industry,
+                useCaseDescription: ctx?.project.description || 'AI-powered enterprise application',
+                complianceTags,
+                cloudProvider: 'aws',
+                dataTypes: ctx?.detectedDataTypes || [],
+                integrationTargets: ctx?.detectedIntegrations || [],
+              },
+              architecturePattern: arch?.pattern || 'conversational_agent',
+              teamSize: 5,
+              sprintLengthWeeks: 2,
+              includeJiraTickets: true,
+            }),
+          });
+          if (!res.ok) throw new Error(`API error: ${res.status}`);
+          const planData: PlanData = await res.json();
+          setState((prev) => ({
+            ...prev,
+            data: { ...prev.data, plan: planData },
+          }));
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Unknown error';
+        setState((prev) => ({ ...prev, error: msg }));
+      } finally {
+        setState((prev) => ({ ...prev, isGenerating: false }));
       }
 
-      await streamText(markdown);
-      setGeneratedContent((prev) => ({ ...prev, [step]: markdown }));
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
-      setError(msg);
-    } finally {
-      setIsGenerating(false);
-      setStreamingText('');
-    }
+      return result;
+    },
+    [projectKey, selectedIndustry, data.context, data.architecture]
+  );
 
-    return result;
-  }, [projectKey, contextData, architectureData, selectedIndustry, streamText]);
-
-  const handleSelectIndustry = (industry: 'healthcare' | 'financial') => {
-    setSelectedIndustry(industry);
-    setCurrentStep('context');
-    setGeneratedContent({});
-    setContextData(null);
-    setArchitectureData(null);
-    setError(null);
+  const handleSelectIndustry = (industry: Industry) => {
+    setState({
+      selectedIndustry: industry,
+      currentStep: 'context',
+      isGenerating: false,
+      error: null,
+      data: { context: null, architecture: null, compliance: null, plan: null },
+    });
   };
 
   const handleStartOver = () => {
-    setSelectedIndustry(null);
-    setCurrentStep('select');
-    setGeneratedContent({});
-    setContextData(null);
-    setArchitectureData(null);
-    setError(null);
-    setStreamingText('');
+    setState({
+      selectedIndustry: null,
+      currentStep: 'select',
+      isGenerating: false,
+      error: null,
+      data: { context: null, architecture: null, compliance: null, plan: null },
+    });
   };
 
-  // Phase 5.3: Move setCurrentStep before generateStep to avoid flash
   const handleNextStep = async () => {
-    const steps: Step[] = ['select', 'context', 'architecture', 'compliance', 'plan', 'complete'];
-    const currentIndex = steps.indexOf(currentStep);
-    const nextStep = steps[currentIndex + 1];
+    const idx = STEP_ORDER.indexOf(currentStep);
+    const next = STEP_ORDER[idx + 1];
+    if (!next) return;
 
-    if (nextStep && nextStep !== 'complete') {
-      setCurrentStep(nextStep);
-      await generateStep(nextStep);
+    if (next === 'complete') {
+      setState((prev) => ({ ...prev, currentStep: 'complete' }));
     } else {
-      setCurrentStep(nextStep);
+      setState((prev) => ({ ...prev, currentStep: next }));
+      await generateStep(next);
     }
   };
 
-  // Phase 4: handleRunAll threads data through steps to avoid stale closures
   const handleRunAll = async () => {
     const steps: Step[] = ['context', 'architecture', 'compliance', 'plan'];
-
     let ctx: ProjectContextData | undefined;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let arch: any;
+    let arch: ArchitectureData | undefined;
 
     for (const step of steps) {
-      setCurrentStep(step);
+      setState((prev) => ({ ...prev, currentStep: step }));
       const result = await generateStep(step, ctx, arch);
-      if (result.contextData) ctx = result.contextData;
-      if (result.architectureData) arch = result.architectureData;
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      if (result.context) ctx = result.context;
+      if (result.architecture) arch = result.architecture;
+      await new Promise((resolve) => setTimeout(resolve, 800));
     }
 
-    setCurrentStep('complete');
+    setState((prev) => ({ ...prev, currentStep: 'complete' }));
   };
-
-  const contextIssues = contextData?.issues || [];
 
   return (
     <main className="min-h-screen">
-      {/* Header */}
-      <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center">
-                <FileCode className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900">Partner Enablement Demo</h1>
-                <p className="text-sm text-gray-500">GSI Architecture Generator powered by Claude</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <a
-                href="https://github.com/egaile"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                <Github className="w-5 h-5" />
-              </a>
-              <a
-                href="https://linkedin.com/in/edgaile"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                <Linkedin className="w-5 h-5" />
-              </a>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Header />
 
-      {/* Progress Steps */}
-      {selectedIndustry && (
-        <div className="border-b bg-gray-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex items-center justify-between">
-              {['context', 'architecture', 'compliance', 'plan'].map((step, index) => {
-                const stepLabels: Record<string, string> = {
-                  context: 'Project Context',
-                  architecture: 'Architecture',
-                  compliance: 'Compliance',
-                  plan: 'Implementation',
-                };
-                const isActive = currentStep === step;
-                const isComplete = generatedContent[step as keyof GeneratedContent];
-
-                return (
-                  <div key={step} className="flex items-center">
-                    <div
-                      className={`flex items-center gap-2 px-4 py-2 rounded-full ${
-                        isActive
-                          ? 'bg-amber-100 text-amber-800'
-                          : isComplete
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-500'
-                      }`}
-                    >
-                      {isComplete && !isActive ? (
-                        <CheckCircle2 className="w-4 h-4" />
-                      ) : (
-                        <span className="w-5 h-5 rounded-full bg-current/20 flex items-center justify-center text-xs font-medium">
-                          {index + 1}
-                        </span>
-                      )}
-                      <span className="text-sm font-medium">{stepLabels[step]}</span>
-                    </div>
-                    {index < 3 && <ChevronRight className="w-5 h-5 text-gray-300 mx-2" />}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+      {selectedIndustry && currentStep !== 'select' && (
+        <StepProgress currentStep={currentStep} completedSteps={completedSteps} />
       )}
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {currentStep === 'select' && (
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Generate Compliant Reference Architectures
-            </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-8">
-              See how Claude can help GSIs translate project requirements into deployment-ready
-              architectures with compliance guidance and implementation plans.
-            </p>
-
-            <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-              <button
-                onClick={() => handleSelectIndustry('healthcare')}
-                className="card-hover bg-white rounded-xl border border-gray-200 p-8 text-left"
-              >
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-                  <Building2 className="w-6 h-6 text-blue-600" />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">Healthcare</h3>
-                <p className="text-gray-600 mb-4">
-                  Patient intake assistant with EHR integration. Includes HIPAA compliance guidance.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <span className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full">HIPAA</span>
-                  <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full">Epic EHR</span>
-                  <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">FHIR</span>
-                </div>
-              </button>
-
-              {/* Phase 3.2: Financial Services card enabled */}
-              <button
-                onClick={() => handleSelectIndustry('financial')}
-                className="card-hover bg-white rounded-xl border border-gray-200 p-8 text-left"
-              >
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-                  <Building2 className="w-6 h-6 text-green-600" />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">Financial Services</h3>
-                <p className="text-gray-600 mb-4">
-                  Document processing and customer service automation with compliance guidance.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full">SOC2</span>
-                  <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full">PCI-DSS</span>
-                </div>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {currentStep === 'context' && !generatedContent.context && (
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div className="bg-gray-50 px-6 py-4 border-b flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <FileCode className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-medium text-gray-900">Jira Project: {projectKey}</h3>
-                    <p className="text-sm text-gray-500">
-                      {selectedIndustry === 'healthcare' ? 'Healthcare AI Assistant' : 'Financial Services Automation'}
-                    </p>
-                  </div>
-                </div>
-                <span className="text-xs text-gray-400">
-                  {process.env.NEXT_PUBLIC_JIRA_CONFIGURED === 'true' ? 'Live Jira Data' : 'Demo Data'}
-                </span>
-              </div>
-
-              <div className="p-6">
-                <p className="text-gray-600 mb-6">
-                  {selectedIndustry === 'healthcare'
-                    ? 'AI-powered patient intake and benefits navigation system for regional health network'
-                    : 'Document processing and customer service automation for regional bank'}
-                </p>
-
-                {contextIssues.length > 0 && (
-                  <>
-                    <h4 className="font-medium text-gray-900 mb-3">Recent Issues</h4>
-                    <div className="space-y-3">
-                      {contextIssues.map((issue) => (
-                        <div key={issue.key} className="bg-gray-50 rounded-lg p-4">
-                          <div className="flex items-start justify-between mb-2">
-                            <div>
-                              <span className="text-sm font-medium text-blue-600">{issue.key}</span>
-                              <h5 className="font-medium text-gray-900">{issue.summary}</h5>
-                            </div>
-                            <span
-                              className={`text-xs px-2 py-1 rounded-full ${
-                                issue.priority === 'Critical'
-                                  ? 'bg-red-100 text-red-700'
-                                  : issue.priority === 'High'
-                                    ? 'bg-orange-100 text-orange-700'
-                                    : 'bg-yellow-100 text-yellow-700'
-                              }`}
-                            >
-                              {issue.priority}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-600 mb-2">{issue.description}</p>
-                          <div className="flex flex-wrap gap-1">
-                            {issue.labels.map((label) => (
-                              <span
-                                key={label}
-                                className="text-xs px-2 py-0.5 bg-gray-200 text-gray-600 rounded"
-                              >
-                                {label}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              <div className="bg-gray-50 px-6 py-4 border-t flex justify-between">
-                <button
-                  onClick={handleStartOver}
-                  className="text-gray-600 hover:text-gray-900"
-                >
-                  &larr; Back to selection
-                </button>
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleRunAll}
-                    disabled={isGenerating}
-                    className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
-                  >
-                    <Play className="w-4 h-4" />
-                    Run Full Demo
-                  </button>
-                  <button
-                    onClick={handleNextStep}
-                    disabled={isGenerating}
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50"
-                  >
-                    Generate Context
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Error Display */}
         {error && (
-          <div className="max-w-4xl mx-auto mb-4">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
-              Error: {error}
+          <div className="mb-5 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
+            Error: {error}
+          </div>
+        )}
+
+        {/* Landing */}
+        {currentStep === 'select' && (
+          <HeroLanding onSelectIndustry={handleSelectIndustry} />
+        )}
+
+        {/* Context - pre-generation preview */}
+        {currentStep === 'context' && !completedSteps.has('context') && !isGenerating && (
+          <div className="space-y-5 animate-fade-in">
+            {/* Show issue preview cards if auto-fetched */}
+            {data.context && data.context.issues.length > 0 && (
+              <ContextStep
+                data={data.context}
+                isGenerating={false}
+                projectKey={projectKey}
+                industry={selectedIndustry || 'healthcare'}
+                requestParams={getRequestParams('context')}
+              />
+            )}
+            {/* Action buttons */}
+            <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-5 py-4">
+              <button
+                onClick={handleStartOver}
+                className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                &larr; Back to scenarios
+              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleRunAll}
+                  disabled={isGenerating}
+                  className="flex items-center gap-2 px-4 py-2 bg-claude-orange text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors text-sm font-medium"
+                >
+                  <Play className="w-4 h-4" />
+                  Run Full Demo
+                </button>
+                <button
+                  onClick={() => { setState((prev) => ({ ...prev, currentStep: 'context' })); generateStep('context'); }}
+                  disabled={isGenerating}
+                  className="flex items-center gap-2 px-4 py-2 bg-anthropic-900 text-white rounded-lg hover:bg-anthropic-800 disabled:opacity-50 transition-colors text-sm font-medium"
+                >
+                  Generate Context
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Generated Content Display — Phase 2: ReactMarkdown + Mermaid */}
-        {(generatedContent[currentStep as keyof GeneratedContent] || streamingText) &&
-          currentStep !== 'complete' && (
-            <div className="max-w-4xl mx-auto">
-              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="bg-gray-50 px-6 py-4 border-b flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {currentStep === 'context' && <FileCode className="w-5 h-5 text-blue-600" />}
-                    {currentStep === 'architecture' && (
-                      <Building2 className="w-5 h-5 text-purple-600" />
-                    )}
-                    {currentStep === 'compliance' && <Shield className="w-5 h-5 text-red-600" />}
-                    {currentStep === 'plan' && (
-                      <ClipboardList className="w-5 h-5 text-green-600" />
-                    )}
-                    <h3 className="font-medium text-gray-900">
-                      {currentStep === 'context' && 'Project Context'}
-                      {currentStep === 'architecture' && 'Reference Architecture'}
-                      {currentStep === 'compliance' && 'Compliance Assessment'}
-                      {currentStep === 'plan' && 'Implementation Plan'}
-                    </h3>
-                  </div>
-                  {isGenerating && (
-                    <div className="flex items-center gap-2 text-amber-600">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span className="text-sm">Generating...</span>
-                    </div>
-                  )}
-                </div>
+        {/* Context - generated */}
+        {currentStep === 'context' && (completedSteps.has('context') || isGenerating) && (
+          <ContextStep
+            data={data.context}
+            isGenerating={isGenerating}
+            projectKey={projectKey}
+            industry={selectedIndustry || 'healthcare'}
+            requestParams={getRequestParams('context')}
+          />
+        )}
 
-                <div className="p-6 prose prose-sm max-w-none overflow-auto max-h-[600px]">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      code({ className, children, ...props }) {
-                        const match = /language-mermaid/.exec(className || '');
-                        if (match) {
-                          return <MermaidDiagram chart={String(children).replace(/\n$/, '')} />;
-                        }
-                        return (
-                          <code className={className} {...props}>
-                            {children}
-                          </code>
-                        );
-                      },
-                    }}
-                  >
-                    {streamingText || generatedContent[currentStep as keyof GeneratedContent] || ''}
-                  </ReactMarkdown>
-                </div>
+        {/* Architecture */}
+        {currentStep === 'architecture' && (
+          <ArchitectureStep
+            data={data.architecture}
+            isGenerating={isGenerating}
+            requestParams={getRequestParams('architecture')}
+          />
+        )}
 
-                {/* Phase 5.2: Start Over button added */}
-                {!isGenerating && (
-                  <div className="bg-gray-50 px-6 py-4 border-t flex justify-between">
-                    <button
-                      onClick={handleStartOver}
-                      className="flex items-center gap-2 text-gray-500 hover:text-gray-700"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                      Start Over
-                    </button>
-                    {currentStep !== 'plan' ? (
-                      <button
-                        onClick={handleNextStep}
-                        className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
-                      >
-                        Next Step
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => setCurrentStep('complete')}
-                        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                        Complete Demo
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
+        {/* Compliance */}
+        {currentStep === 'compliance' && (
+          <ComplianceStep
+            data={data.compliance}
+            isGenerating={isGenerating}
+            requestParams={getRequestParams('compliance')}
+          />
+        )}
+
+        {/* Plan */}
+        {currentStep === 'plan' && (
+          <PlanStep
+            data={data.plan}
+            isGenerating={isGenerating}
+            requestParams={getRequestParams('plan')}
+          />
+        )}
+
+        {/* Complete */}
+        {currentStep === 'complete' && (
+          <CompleteStep data={data} onStartOver={handleStartOver} />
+        )}
+
+        {/* Step Navigation */}
+        {selectedIndustry &&
+          currentStep !== 'select' &&
+          currentStep !== 'complete' &&
+          !isGenerating &&
+          completedSteps.has(currentStep) && (
+            <div className="flex items-center justify-between mt-6 bg-white rounded-xl border border-gray-200 px-5 py-4">
+              <button
+                onClick={handleStartOver}
+                className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Start Over
+              </button>
+              <button
+                onClick={handleNextStep}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  currentStep === 'plan'
+                    ? 'bg-green-600 text-white hover:bg-green-700'
+                    : 'bg-anthropic-900 text-white hover:bg-anthropic-800'
+                }`}
+              >
+                {currentStep === 'plan' ? 'Complete Demo' : 'Next Step'}
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
           )}
-
-        {/* Completion State */}
-        {currentStep === 'complete' && (
-          <div className="max-w-4xl mx-auto text-center">
-            <div className="bg-white rounded-xl border border-gray-200 p-12">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <CheckCircle2 className="w-8 h-8 text-green-600" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">Demo Complete!</h2>
-              <p className="text-gray-600 mb-8 max-w-lg mx-auto">
-                This demonstration shows how an MCP server can help GSI partners accelerate Claude
-                deployments by automatically generating compliant reference architectures from
-                project requirements.
-              </p>
-
-              <div className="grid md:grid-cols-3 gap-4 mb-8">
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900 mb-1">Context Extraction</h4>
-                  <p className="text-sm text-gray-500">Read project requirements from Jira</p>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900 mb-1">Architecture Generation</h4>
-                  <p className="text-sm text-gray-500">Pattern-matched reference architecture</p>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900 mb-1">Compliance & Planning</h4>
-                  <p className="text-sm text-gray-500">Implementation-ready deliverables</p>
-                </div>
-              </div>
-
-              <div className="flex justify-center gap-4">
-                <button
-                  onClick={handleStartOver}
-                  className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                >
-                  Try Another Vertical
-                </button>
-                <a
-                  href="https://github.com/egaile/partner-enablement-mcp"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800"
-                >
-                  <Github className="w-4 h-4" />
-                  View on GitHub
-                </a>
-              </div>
-            </div>
-
-            {/* About Section */}
-            <div className="mt-12 text-left bg-white rounded-xl border border-gray-200 p-8">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">About This Project</h3>
-              <p className="text-gray-600 mb-6">
-                This demonstration was built to show how Anthropic&apos;s partner team could help Global
-                System Integrators operationalize Claude deployments faster. The MCP server
-                architecture enables Claude to read project context from enterprise tools (like Jira)
-                and generate compliant, deployment-ready artifacts.
-              </p>
-
-              <div className="flex items-center gap-4 pt-4 border-t">
-                <div className="w-12 h-12 bg-gradient-to-br from-gray-700 to-gray-900 rounded-full flex items-center justify-center text-white font-semibold">
-                  EG
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">Ed Gaile</p>
-                  <p className="text-sm text-gray-500">Principal Solutions Architect</p>
-                </div>
-                <div className="ml-auto flex gap-3">
-                  <a
-                    href="https://linkedin.com/in/edgaile"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
-                  >
-                    <Linkedin className="w-4 h-4" />
-                    LinkedIn
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                  <a
-                    href="https://github.com/egaile"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-800"
-                  >
-                    <Github className="w-4 h-4" />
-                    GitHub
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </main>
   );
