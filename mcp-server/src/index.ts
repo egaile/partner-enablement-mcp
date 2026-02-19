@@ -105,7 +105,7 @@ Examples:
       if (allLabels.has("hipaa") || allLabels.has("phi")) {
         complianceIndicators.push("HIPAA compliance required");
       }
-      if (allLabels.has("pci") || allLabels.has("payment")) {
+      if (allLabels.has("pci") || allLabels.has("pci_dss") || allLabels.has("payment")) {
         complianceIndicators.push("PCI-DSS compliance may be required");
       }
       if (allLabels.has("soc2")) {
@@ -525,10 +525,10 @@ Returns:
 
       const output = {
         applicableFrameworks: frameworkDetails,
-        keyRequirements: requirements.map(r => ({
+        keyRequirements: detailLevel !== "summary" ? requirements.map(r => ({
           ...r,
           priority: r.priority as "critical" | "high" | "medium" | "low"
-        })),
+        })) : [],
         riskAreas,
         checklist
       };
@@ -657,12 +657,17 @@ Returns:
 
       const totalSprints = Math.ceil(totalWeeks / sprintLengthWeeks);
 
-      // Define phases
+      // Define phases — assign last phase as remainder to avoid ceiling overshoot
+      const discoveryWeeks = Math.ceil(totalWeeks * 0.2);
+      const foundationWeeks = Math.ceil(totalWeeks * 0.25);
+      const coreDevWeeks = Math.ceil(totalWeeks * 0.35);
+      const testingWeeks = Math.max(1, totalWeeks - discoveryWeeks - foundationWeeks - coreDevWeeks);
+
       const phases = [
         {
           name: "Discovery & Design",
           description: "Requirements gathering, architecture design, compliance planning",
-          durationWeeks: Math.ceil(totalWeeks * 0.2),
+          durationWeeks: discoveryWeeks,
           sprints: [] as Array<{ number: number; focus: string; deliverables: string[] }>,
           milestones: [
             "Architecture design approved",
@@ -677,7 +682,7 @@ Returns:
         {
           name: "Foundation & Infrastructure",
           description: "Core infrastructure, security controls, CI/CD pipeline",
-          durationWeeks: Math.ceil(totalWeeks * 0.25),
+          durationWeeks: foundationWeeks,
           sprints: [] as Array<{ number: number; focus: string; deliverables: string[] }>,
           milestones: [
             "Infrastructure deployed",
@@ -692,7 +697,7 @@ Returns:
         {
           name: "Core Development",
           description: "Primary feature development, integrations, LLM implementation",
-          durationWeeks: Math.ceil(totalWeeks * 0.35),
+          durationWeeks: coreDevWeeks,
           sprints: [] as Array<{ number: number; focus: string; deliverables: string[] }>,
           milestones: [
             "Core features functional",
@@ -707,7 +712,7 @@ Returns:
         {
           name: "Testing & Hardening",
           description: "Comprehensive testing, security audit, performance optimization",
-          durationWeeks: Math.ceil(totalWeeks * 0.2),
+          durationWeeks: testingWeeks,
           sprints: [] as Array<{ number: number; focus: string; deliverables: string[] }>,
           milestones: [
             "UAT complete",
@@ -893,13 +898,14 @@ async function runHTTP(): Promise<void> {
     res.json({ status: "healthy", server: "partner-enablement-mcp-server" });
   });
 
+  // Create a single transport and connect once — reuse across requests
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+    enableJsonResponse: true
+  });
+  await server.connect(transport);
+
   app.post("/mcp", async (req, res) => {
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: undefined,
-      enableJsonResponse: true
-    });
-    res.on("close", () => transport.close());
-    await server.connect(transport);
     await transport.handleRequest(req, res, req.body);
   });
 

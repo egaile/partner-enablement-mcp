@@ -5,6 +5,14 @@ const MAX_REQUESTS = 10;
 
 const hits = new Map<string, { count: number; resetAt: number }>();
 
+// Periodically prune expired entries to prevent unbounded memory growth
+setInterval(() => {
+  const now = Date.now();
+  hits.forEach((entry, ip) => {
+    if (now > entry.resetAt) hits.delete(ip);
+  });
+}, WINDOW_MS);
+
 export function rateLimit(request: Request): NextResponse | null {
   const forwarded = request.headers.get('x-forwarded-for');
   const ip = forwarded?.split(',')[0]?.trim() || 'unknown';

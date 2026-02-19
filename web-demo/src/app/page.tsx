@@ -46,6 +46,8 @@ interface ProjectContextData {
 }
 
 // Mermaid diagram component — dynamically imports mermaid to avoid SSR issues
+let mermaidInitialized = false;
+
 function MermaidDiagram({ chart }: { chart: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState<string>('');
@@ -55,7 +57,10 @@ function MermaidDiagram({ chart }: { chart: string }) {
     (async () => {
       try {
         const mermaid = (await import('mermaid')).default;
-        mermaid.initialize({ startOnLoad: false, theme: 'neutral' });
+        if (!mermaidInitialized) {
+          mermaid.initialize({ startOnLoad: false, theme: 'neutral' });
+          mermaidInitialized = true;
+        }
         const id = `mermaid-${Date.now()}`;
         const { svg: rendered } = await mermaid.render(id, chart);
         if (!cancelled) setSvg(rendered);
@@ -292,7 +297,8 @@ export default function Home() {
 
   const projectKey = selectedIndustry === 'healthcare' ? 'HEALTH' : 'FINSERV';
 
-  // Phase 5.1: Auto-fetch context on industry selection
+  // Auto-fetch context on industry selection (populates issue cards)
+  // Only sets contextData if generateStep hasn't already populated it
   useEffect(() => {
     if (!selectedIndustry) return;
     const key = selectedIndustry === 'healthcare' ? 'HEALTH' : 'FINSERV';
@@ -306,7 +312,9 @@ export default function Home() {
         });
         if (!res.ok) return;
         const data: ProjectContextData = await res.json();
-        if (!cancelled) setContextData(data);
+        if (!cancelled) {
+          setContextData(prev => prev ?? data);
+        }
       } catch {
         // Silently fail — issues will load when user clicks Generate
       }
@@ -394,7 +402,7 @@ export default function Home() {
             projectContext: {
               projectKey,
               industry,
-              useCaseDescription: ctxData?.project.description || '',
+              useCaseDescription: ctxData?.project.description || 'AI-powered enterprise application',
               complianceTags,
               cloudProvider: 'aws',
               dataTypes: ctxData?.detectedDataTypes || [],
@@ -425,7 +433,7 @@ export default function Home() {
             projectContext: {
               projectKey,
               industry,
-              useCaseDescription: ctxData?.project.description || '',
+              useCaseDescription: ctxData?.project.description || 'AI-powered enterprise application',
               complianceTags,
               cloudProvider: 'aws',
               dataTypes: ctxData?.detectedDataTypes || [],

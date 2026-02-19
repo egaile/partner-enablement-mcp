@@ -46,13 +46,18 @@ export async function POST(request: Request) {
 
     const totalSprints = Math.ceil(totalWeeks / sprintLengthWeeks);
 
-    // Define phases
+    // Define phases — assign last phase as remainder to avoid ceiling overshoot
+    const discoveryWeeks = Math.ceil(totalWeeks * 0.2);
+    const foundationWeeks = Math.ceil(totalWeeks * 0.25);
+    const coreDevWeeks = Math.ceil(totalWeeks * 0.35);
+    const testingWeeks = Math.max(1, totalWeeks - discoveryWeeks - foundationWeeks - coreDevWeeks);
+
     const phases = [
       {
         name: 'Discovery & Design',
         description:
           'Requirements gathering, architecture design, compliance planning',
-        durationWeeks: Math.ceil(totalWeeks * 0.2),
+        durationWeeks: discoveryWeeks,
         sprints: [] as Array<{
           number: number;
           focus: string;
@@ -72,7 +77,7 @@ export async function POST(request: Request) {
         name: 'Foundation & Infrastructure',
         description:
           'Core infrastructure, security controls, CI/CD pipeline',
-        durationWeeks: Math.ceil(totalWeeks * 0.25),
+        durationWeeks: foundationWeeks,
         sprints: [] as Array<{
           number: number;
           focus: string;
@@ -92,7 +97,7 @@ export async function POST(request: Request) {
         name: 'Core Development',
         description:
           'Primary feature development, integrations, LLM implementation',
-        durationWeeks: Math.ceil(totalWeeks * 0.35),
+        durationWeeks: coreDevWeeks,
         sprints: [] as Array<{
           number: number;
           focus: string;
@@ -112,7 +117,7 @@ export async function POST(request: Request) {
         name: 'Testing & Hardening',
         description:
           'Comprehensive testing, security audit, performance optimization',
-        durationWeeks: Math.ceil(totalWeeks * 0.2),
+        durationWeeks: testingWeeks,
         sprints: [] as Array<{
           number: number;
           focus: string;

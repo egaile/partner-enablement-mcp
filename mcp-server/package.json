@@ -35,9 +35,18 @@
   },
   "exports": {
     ".": "./dist/index.js",
-    "./services/knowledgeBase": "./src/services/knowledgeBase.ts",
-    "./services/jiraClient": "./src/services/jiraClient.ts",
-    "./schemas": "./src/schemas/index.ts",
+    "./services/knowledgeBase": {
+      "import": "./dist/services/knowledgeBase.js",
+      "default": "./src/services/knowledgeBase.ts"
+    },
+    "./services/jiraClient": {
+      "import": "./dist/services/jiraClient.js",
+      "default": "./src/services/jiraClient.ts"
+    },
+    "./schemas": {
+      "import": "./dist/schemas/index.js",
+      "default": "./src/schemas/index.ts"
+    },
     "./knowledge/*": "./src/knowledge/*"
   },
   "engines": {
