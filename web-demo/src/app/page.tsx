@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import {
   Building2,
   FileCode,
@@ -13,6 +15,7 @@ import {
   ExternalLink,
   Loader2,
   CheckCircle2,
+  RotateCcw,
 } from 'lucide-react';
 
 type Step = 'select' | 'context' | 'architecture' | 'compliance' | 'plan' | 'complete';
@@ -24,7 +27,6 @@ interface GeneratedContent {
   plan?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface ProjectContextData {
   project: { key: string; name: string; description?: string; lead?: string };
   issues: Array<{
@@ -43,6 +45,31 @@ interface ProjectContextData {
   summary: { totalIssues: number };
 }
 
+// Mermaid diagram component — dynamically imports mermaid to avoid SSR issues
+function MermaidDiagram({ chart }: { chart: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [svg, setSvg] = useState<string>('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const mermaid = (await import('mermaid')).default;
+        mermaid.initialize({ startOnLoad: false, theme: 'neutral' });
+        const id = `mermaid-${Date.now()}`;
+        const { svg: rendered } = await mermaid.render(id, chart);
+        if (!cancelled) setSvg(rendered);
+      } catch {
+        if (!cancelled) setSvg('');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [chart]);
+
+  if (!svg) return <pre className="whitespace-pre-wrap text-sm font-mono bg-gray-50 p-4 rounded-lg">{chart}</pre>;
+  return <div ref={containerRef} className="my-4 overflow-auto" dangerouslySetInnerHTML={{ __html: svg }} />;
+}
+
 function formatContextMarkdown(data: ProjectContextData): string {
   let md = `# Project Context: ${data.project.name}\n\n`;
   md += `**Key:** ${data.project.key}\n`;
@@ -55,7 +82,7 @@ function formatContextMarkdown(data: ProjectContextData): string {
   if (data.detectedCompliance.length > 0) {
     md += `## Compliance Indicators\n`;
     for (const indicator of data.detectedCompliance) {
-      md += `- ⚠️ ${indicator}\n`;
+      md += `- ${indicator}\n`;
     }
     md += '\n';
   }
@@ -162,8 +189,7 @@ function formatComplianceMarkdown(data: any, industry: string, dataTypes: string
 
   md += `## Applicable Frameworks\n\n`;
   for (const fw of data.applicableFrameworks) {
-    const icon = fw.priority === 'required' ? '🔴' : '🟡';
-    md += `### ${icon} ${fw.name}\n`;
+    md += `### ${fw.name}\n`;
     md += `**Priority:** ${fw.priority}\n`;
     md += `**Reason:** ${fw.applicabilityReason}\n\n`;
   }
@@ -180,7 +206,7 @@ function formatComplianceMarkdown(data: any, industry: string, dataTypes: string
 
   md += `## Risk Areas\n\n`;
   for (const risk of data.riskAreas) {
-    md += `### ⚠️ ${risk.area}\n`;
+    md += `### ${risk.area}\n`;
     md += `**Risk:** ${risk.risk}\n`;
     md += `**Mitigation:** ${risk.mitigation}\n\n`;
   }
@@ -211,21 +237,20 @@ function formatPlanMarkdown(data: any, patternName: string): string {
 
     md += `**Milestones:**\n`;
     for (const m of phase.milestones) {
-      md += `- ✓ ${m}\n`;
+      md += `- ${m}\n`;
     }
     md += '\n';
 
     md += `**Risk Factors:**\n`;
     for (const r of phase.riskFactors) {
-      md += `- ⚠️ ${r}\n`;
+      md += `- ${r}\n`;
     }
     md += '\n';
   }
 
   md += `## Skill Requirements\n\n`;
   for (const skill of data.skillRequirements) {
-    const icon = skill.level === 'required' ? '🔴' : '🟡';
-    md += `- ${icon} **${skill.skill}** (${skill.level})\n`;
+    md += `- **${skill.skill}** (${skill.level})\n`;
     md += `  - Roles: ${skill.roles.join(', ')}\n`;
   }
   md += '\n';
@@ -246,6 +271,12 @@ function formatPlanMarkdown(data: any, patternName: string): string {
   return md;
 }
 
+interface StepResult {
+  contextData?: ProjectContextData;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  architectureData?: any;
+}
+
 export default function Home() {
   const [selectedIndustry, setSelectedIndustry] = useState<'healthcare' | 'financial' | null>(null);
   const [currentStep, setCurrentStep] = useState<Step>('select');
@@ -261,6 +292,28 @@ export default function Home() {
 
   const projectKey = selectedIndustry === 'healthcare' ? 'HEALTH' : 'FINSERV';
 
+  // Phase 5.1: Auto-fetch context on industry selection
+  useEffect(() => {
+    if (!selectedIndustry) return;
+    const key = selectedIndustry === 'healthcare' ? 'HEALTH' : 'FINSERV';
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/tools/read-context', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectKey: key, includeIssues: true, issueLimit: 10 }),
+        });
+        if (!res.ok) return;
+        const data: ProjectContextData = await res.json();
+        if (!cancelled) setContextData(data);
+      } catch {
+        // Silently fail — issues will load when user clicks Generate
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedIndustry]);
+
   const streamText = useCallback(async (text: string): Promise<void> => {
     for (let i = 0; i < text.length; i += 3) {
       await new Promise((resolve) => setTimeout(resolve, 10));
@@ -268,10 +321,20 @@ export default function Home() {
     }
   }, []);
 
-  const generateStep = useCallback(async (step: Step) => {
+  // Phase 4: generateStep accepts optional overrides and returns data for chaining
+  const generateStep = useCallback(async (
+    step: Step,
+    contextOverride?: ProjectContextData,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    architectureOverride?: any,
+  ): Promise<StepResult> => {
     setIsGenerating(true);
     setStreamingText('');
     setError(null);
+
+    const result: StepResult = {};
+    const ctxData = contextOverride ?? contextData;
+    const archData = architectureOverride ?? architectureData;
 
     try {
       let markdown = '';
@@ -285,11 +348,12 @@ export default function Home() {
         if (!res.ok) throw new Error(`API error: ${res.status}`);
         const data: ProjectContextData = await res.json();
         setContextData(data);
+        result.contextData = data;
         markdown = formatContextMarkdown(data);
 
       } else if (step === 'architecture') {
-        const useCaseDesc = contextData?.project.description || 'AI-powered enterprise application';
-        const complianceTags = contextData?.allLabels.filter(l =>
+        const useCaseDesc = ctxData?.project.description || 'AI-powered enterprise application';
+        const complianceTags = ctxData?.allLabels.filter(l =>
           ['hipaa', 'soc2', 'fedramp', 'pci_dss', 'gdpr', 'ccpa'].includes(l)
         ) || [];
         const industry = selectedIndustry === 'healthcare' ? 'healthcare' : 'financial_services';
@@ -304,8 +368,8 @@ export default function Home() {
               useCaseDescription: useCaseDesc,
               complianceTags,
               cloudProvider: 'aws',
-              dataTypes: contextData?.detectedDataTypes || [],
-              integrationTargets: contextData?.detectedIntegrations || [],
+              dataTypes: ctxData?.detectedDataTypes || [],
+              integrationTargets: ctxData?.detectedIntegrations || [],
             },
             includeDiagram: true,
             includeAlternatives: true,
@@ -314,11 +378,12 @@ export default function Home() {
         if (!res.ok) throw new Error(`API error: ${res.status}`);
         const data = await res.json();
         setArchitectureData(data);
+        result.architectureData = data;
         markdown = formatArchitectureMarkdown(data);
 
       } else if (step === 'compliance') {
         const industry = selectedIndustry === 'healthcare' ? 'healthcare' : 'financial_services';
-        const complianceTags = contextData?.allLabels.filter(l =>
+        const complianceTags = ctxData?.allLabels.filter(l =>
           ['hipaa', 'soc2', 'fedramp', 'pci_dss', 'gdpr', 'ccpa'].includes(l)
         ) || [];
 
@@ -329,11 +394,11 @@ export default function Home() {
             projectContext: {
               projectKey,
               industry,
-              useCaseDescription: contextData?.project.description || '',
+              useCaseDescription: ctxData?.project.description || '',
               complianceTags,
               cloudProvider: 'aws',
-              dataTypes: contextData?.detectedDataTypes || [],
-              integrationTargets: contextData?.detectedIntegrations || [],
+              dataTypes: ctxData?.detectedDataTypes || [],
+              integrationTargets: ctxData?.detectedIntegrations || [],
             },
             detailLevel: 'detailed',
             includeChecklist: true,
@@ -344,12 +409,12 @@ export default function Home() {
         markdown = formatComplianceMarkdown(
           data,
           industry,
-          contextData?.detectedDataTypes || []
+          ctxData?.detectedDataTypes || []
         );
 
       } else if (step === 'plan') {
         const industry = selectedIndustry === 'healthcare' ? 'healthcare' : 'financial_services';
-        const complianceTags = contextData?.allLabels.filter(l =>
+        const complianceTags = ctxData?.allLabels.filter(l =>
           ['hipaa', 'soc2', 'fedramp', 'pci_dss', 'gdpr', 'ccpa'].includes(l)
         ) || [];
 
@@ -360,13 +425,13 @@ export default function Home() {
             projectContext: {
               projectKey,
               industry,
-              useCaseDescription: contextData?.project.description || '',
+              useCaseDescription: ctxData?.project.description || '',
               complianceTags,
               cloudProvider: 'aws',
-              dataTypes: contextData?.detectedDataTypes || [],
-              integrationTargets: contextData?.detectedIntegrations || [],
+              dataTypes: ctxData?.detectedDataTypes || [],
+              integrationTargets: ctxData?.detectedIntegrations || [],
             },
-            architecturePattern: architectureData?.pattern || 'conversational_agent',
+            architecturePattern: archData?.pattern || 'conversational_agent',
             teamSize: 5,
             sprintLengthWeeks: 2,
             includeJiraTickets: true,
@@ -376,7 +441,7 @@ export default function Home() {
         const data = await res.json();
         markdown = formatPlanMarkdown(
           data,
-          architectureData?.patternName || architectureData?.pattern || 'Unknown'
+          archData?.patternName || archData?.pattern || 'Unknown'
         );
       }
 
@@ -389,6 +454,8 @@ export default function Home() {
       setIsGenerating(false);
       setStreamingText('');
     }
+
+    return result;
   }, [projectKey, contextData, architectureData, selectedIndustry, streamText]);
 
   const handleSelectIndustry = (industry: 'healthcare' | 'financial') => {
@@ -400,31 +467,49 @@ export default function Home() {
     setError(null);
   };
 
+  const handleStartOver = () => {
+    setSelectedIndustry(null);
+    setCurrentStep('select');
+    setGeneratedContent({});
+    setContextData(null);
+    setArchitectureData(null);
+    setError(null);
+    setStreamingText('');
+  };
+
+  // Phase 5.3: Move setCurrentStep before generateStep to avoid flash
   const handleNextStep = async () => {
     const steps: Step[] = ['select', 'context', 'architecture', 'compliance', 'plan', 'complete'];
     const currentIndex = steps.indexOf(currentStep);
     const nextStep = steps[currentIndex + 1];
 
     if (nextStep && nextStep !== 'complete') {
+      setCurrentStep(nextStep);
       await generateStep(nextStep);
+    } else {
+      setCurrentStep(nextStep);
     }
-
-    setCurrentStep(nextStep);
   };
 
+  // Phase 4: handleRunAll threads data through steps to avoid stale closures
   const handleRunAll = async () => {
     const steps: Step[] = ['context', 'architecture', 'compliance', 'plan'];
 
+    let ctx: ProjectContextData | undefined;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let arch: any;
+
     for (const step of steps) {
       setCurrentStep(step);
-      await generateStep(step);
+      const result = await generateStep(step, ctx, arch);
+      if (result.contextData) ctx = result.contextData;
+      if (result.architectureData) arch = result.architectureData;
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
     setCurrentStep('complete');
   };
 
-  // For the initial context view, fetch issues from the API on first render
   const contextIssues = contextData?.issues || [];
 
   return (
@@ -539,17 +624,17 @@ export default function Home() {
                 </div>
               </button>
 
+              {/* Phase 3.2: Financial Services card enabled */}
               <button
                 onClick={() => handleSelectIndustry('financial')}
-                className="card-hover bg-white rounded-xl border border-gray-200 p-8 text-left opacity-50 cursor-not-allowed"
-                disabled
+                className="card-hover bg-white rounded-xl border border-gray-200 p-8 text-left"
               >
                 <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
                   <Building2 className="w-6 h-6 text-green-600" />
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">Financial Services</h3>
                 <p className="text-gray-600 mb-4">
-                  Document processing and customer service automation. Coming soon.
+                  Document processing and customer service automation with compliance guidance.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full">SOC2</span>
@@ -571,7 +656,7 @@ export default function Home() {
                   <div>
                     <h3 className="font-medium text-gray-900">Jira Project: {projectKey}</h3>
                     <p className="text-sm text-gray-500">
-                      {selectedIndustry === 'healthcare' ? 'Healthcare AI Assistant' : 'Financial Services'}
+                      {selectedIndustry === 'healthcare' ? 'Healthcare AI Assistant' : 'Financial Services Automation'}
                     </p>
                   </div>
                 </div>
@@ -630,13 +715,7 @@ export default function Home() {
 
               <div className="bg-gray-50 px-6 py-4 border-t flex justify-between">
                 <button
-                  onClick={() => {
-                    setSelectedIndustry(null);
-                    setCurrentStep('select');
-                    setGeneratedContent({});
-                    setContextData(null);
-                    setArchitectureData(null);
-                  }}
+                  onClick={handleStartOver}
                   className="text-gray-600 hover:text-gray-900"
                 >
                   &larr; Back to selection
@@ -673,7 +752,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Generated Content Display */}
+        {/* Generated Content Display — Phase 2: ReactMarkdown + Mermaid */}
         {(generatedContent[currentStep as keyof GeneratedContent] || streamingText) &&
           currentStep !== 'complete' && (
             <div className="max-w-4xl mx-auto">
@@ -703,14 +782,37 @@ export default function Home() {
                   )}
                 </div>
 
-                <div className="p-6 prose prose-sm max-w-none">
-                  <pre className="whitespace-pre-wrap text-sm font-mono bg-gray-50 p-4 rounded-lg overflow-auto max-h-[600px]">
-                    {streamingText || generatedContent[currentStep as keyof GeneratedContent]}
-                  </pre>
+                <div className="p-6 prose prose-sm max-w-none overflow-auto max-h-[600px]">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      code({ className, children, ...props }) {
+                        const match = /language-mermaid/.exec(className || '');
+                        if (match) {
+                          return <MermaidDiagram chart={String(children).replace(/\n$/, '')} />;
+                        }
+                        return (
+                          <code className={className} {...props}>
+                            {children}
+                          </code>
+                        );
+                      },
+                    }}
+                  >
+                    {streamingText || generatedContent[currentStep as keyof GeneratedContent] || ''}
+                  </ReactMarkdown>
                 </div>
 
+                {/* Phase 5.2: Start Over button added */}
                 {!isGenerating && (
-                  <div className="bg-gray-50 px-6 py-4 border-t flex justify-end">
+                  <div className="bg-gray-50 px-6 py-4 border-t flex justify-between">
+                    <button
+                      onClick={handleStartOver}
+                      className="flex items-center gap-2 text-gray-500 hover:text-gray-700"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      Start Over
+                    </button>
                     {currentStep !== 'plan' ? (
                       <button
                         onClick={handleNextStep}
@@ -765,13 +867,7 @@ export default function Home() {
 
               <div className="flex justify-center gap-4">
                 <button
-                  onClick={() => {
-                    setSelectedIndustry(null);
-                    setCurrentStep('select');
-                    setGeneratedContent({});
-                    setContextData(null);
-                    setArchitectureData(null);
-                  }}
+                  onClick={handleStartOver}
                   className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
                 >
                   Try Another Vertical

@@ -298,10 +298,31 @@ Returns:
       }
 
       // Build output
+      // Phase 6.5: Sort components to prioritize focusAreas
+      const focusAreas = params.focusAreas || [];
+      if (focusAreas.length > 0) {
+        const focusLower = focusAreas.map(f => f.toLowerCase());
+        components.sort((a, b) => {
+          const aMatch = focusLower.some(f => a.name.toLowerCase().includes(f) || a.description.toLowerCase().includes(f));
+          const bMatch = focusLower.some(f => b.name.toLowerCase().includes(f) || b.description.toLowerCase().includes(f));
+          if (aMatch && !bMatch) return -1;
+          if (!aMatch && bMatch) return 1;
+          return 0;
+        });
+      }
+
+      // Phase 6.4: Only append ellipsis when description exceeds 100 chars
+      const desc = projectContext.useCaseDescription;
+      const truncatedDesc = desc.length > 100 ? `${desc.substring(0, 100)}...` : desc;
+      let rationaleStr = `Based on the use case "${truncatedDesc}", the ${pattern.name} pattern is recommended because it ${pattern.useCases[0]?.toLowerCase() || "fits your requirements"}.`;
+      if (focusAreas.length > 0) {
+        rationaleStr += ` Focus areas: ${focusAreas.join(", ")}.`;
+      }
+
       const output = {
         pattern: recommendedPatternId,
         patternName: pattern.name,
-        rationale: `Based on the use case "${projectContext.useCaseDescription.substring(0, 100)}...", the ${pattern.name} pattern is recommended because it ${pattern.useCases[0]?.toLowerCase() || "fits your requirements"}.`,
+        rationale: rationaleStr,
         components,
         dataFlow: pattern.dataFlow,
         mermaidDiagram: params.includeDiagram ? pattern.mermaidDiagram : undefined,
@@ -714,14 +735,8 @@ Returns:
         }
       }
 
-      // Define skill requirements
-      const skillRequirements = [
-        { skill: "Cloud Architecture (AWS/GCP)", level: "required" as const, roles: ["Solutions Architect", "DevOps Engineer"] },
-        { skill: "LLM/AI Development", level: "required" as const, roles: ["AI Engineer", "Backend Developer"] },
-        { skill: "Security & Compliance", level: "required" as const, roles: ["Security Engineer", "Compliance Lead"] },
-        { skill: "Frontend Development", level: "preferred" as const, roles: ["Frontend Developer"] },
-        { skill: "Healthcare Domain Knowledge", level: "preferred" as const, roles: ["Business Analyst", "Product Owner"] }
-      ];
+      // Define skill requirements based on industry
+      const skillRequirements = knowledgeBase.getIndustrySkillRequirements(projectContext.industry);
 
       // Generate Jira tickets if requested
       const jiraTickets = params.includeJiraTickets ? [

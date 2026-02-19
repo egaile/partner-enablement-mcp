@@ -167,7 +167,7 @@ export class JiraClient {
           description: normalizeDescription(issue.fields.description)
         }
       }));
-      return { total: issues.length, issues };
+      return { total: response.data.total ?? issues.length, issues };
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const axiosError = error as AxiosError;
@@ -283,6 +283,16 @@ function getMockProject(projectKey: string): JiraProject {
         displayName: "Michael Torres",
         emailAddress: "mtorres@healthpayer.example"
       }
+    },
+    FINSERV: {
+      key: "FINSERV",
+      name: "Financial Services Automation",
+      description: "Document processing and customer service automation for regional bank with SOC2 and PCI-DSS compliance",
+      projectTypeKey: "software",
+      lead: {
+        displayName: "James Park",
+        emailAddress: "jpark@regionalbank.example"
+      }
     }
   };
 
@@ -392,12 +402,56 @@ function getMockIssues(projectKey: string): JiraIssue[] {
     }
   ];
 
+  const finservIssues: JiraIssue[] = [
+    {
+      key: "FINSERV-1",
+      fields: {
+        summary: "Customer Service AI Agent",
+        description: "Build conversational AI agent for handling customer account inquiries, balance checks, and transaction history. Must integrate with core banking APIs and implement fraud detection triggers. PII handling and SOC2 controls required throughout.",
+        issuetype: { name: "Epic" },
+        status: { name: "In Progress" },
+        labels: ["soc2", "pci_dss", "customer-facing", "customer-data"],
+        created: "2024-02-01T10:00:00.000Z",
+        updated: "2024-02-15T14:00:00.000Z",
+        priority: { name: "High" }
+      }
+    },
+    {
+      key: "FINSERV-2",
+      fields: {
+        summary: "Document Processing Pipeline",
+        description: "Implement batch processing pipeline for loan applications, account opening forms, and KYC documents. Must extract structured data, validate against business rules, and route exceptions to human reviewers. Audit trail required for all processing steps.",
+        issuetype: { name: "Epic" },
+        status: { name: "To Do" },
+        labels: ["soc2", "batch-processing", "document-ai", "customer-data"],
+        created: "2024-02-05T09:00:00.000Z",
+        updated: "2024-02-10T11:00:00.000Z",
+        priority: { name: "High" }
+      }
+    },
+    {
+      key: "FINSERV-3",
+      fields: {
+        summary: "Compliance & Security Infrastructure",
+        description: "Set up SOC2 and PCI-DSS compliant infrastructure including encryption, access controls, audit logging, and data retention policies. Configure network segmentation and implement least-privilege access for all services.",
+        issuetype: { name: "Epic" },
+        status: { name: "To Do" },
+        labels: ["soc2", "pci_dss", "infrastructure", "security", "compliance"],
+        created: "2024-02-08T08:00:00.000Z",
+        updated: "2024-02-08T08:00:00.000Z",
+        priority: { name: "Critical" }
+      }
+    }
+  ];
+
   if (projectKey === "HEALTH") {
     return healthcareIssues;
   } else if (projectKey === "CLAIMS") {
     return claimsIssues;
+  } else if (projectKey === "FINSERV") {
+    return finservIssues;
   }
-  
+
   return healthcareIssues; // Default to healthcare for demo
 }
 

@@ -1,18 +1,22 @@
 import { NextResponse } from 'next/server';
+import { ReadProjectContextInputSchema } from 'partner-enablement-mcp-server/schemas';
 import { jiraClient } from '../_shared';
+import { rateLimit } from '../_rateLimit';
 
 export async function POST(request: Request) {
+  const rateLimited = rateLimit(request);
+  if (rateLimited) return rateLimited;
+
   try {
     const body = await request.json();
-    const {
-      projectKey,
-      includeIssues = true,
-      issueLimit = 10,
-    } = body;
-
-    if (!projectKey) {
-      return NextResponse.json({ error: 'projectKey is required' }, { status: 400 });
+    const parsed = ReadProjectContextInputSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid input', details: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      );
     }
+    const { projectKey, includeIssues, issueLimit } = parsed.data;
 
     // Get project details
     const project = await jiraClient.getProject(projectKey);
@@ -55,7 +59,7 @@ export async function POST(request: Request) {
     if (allLabels.has('hipaa') || allLabels.has('phi')) {
       complianceIndicators.push('HIPAA compliance required');
     }
-    if (allLabels.has('pci') || allLabels.has('payment')) {
+    if (allLabels.has('pci') || allLabels.has('pci_dss') || allLabels.has('payment')) {
       complianceIndicators.push('PCI-DSS compliance may be required');
     }
     if (allLabels.has('soc2')) {
@@ -81,14 +85,20 @@ export async function POST(request: Request) {
     if (descriptionText.includes('salesforce')) {
       integrationTargets.push('Salesforce');
     }
+    if (descriptionText.includes('banking') || descriptionText.includes('core banking')) {
+      integrationTargets.push('Core Banking APIs');
+    }
 
     // Detect data types from labels and descriptions
     const dataTypes: string[] = [];
     if (allLabels.has('phi') || allLabels.has('hipaa')) {
       dataTypes.push('PHI');
     }
-    if (descriptionText.includes('pii') || descriptionText.includes('personal')) {
+    if (descriptionText.includes('pii') || descriptionText.includes('personal') || allLabels.has('customer-data')) {
       dataTypes.push('PII');
+    }
+    if (allLabels.has('pci_dss') || allLabels.has('payment') || descriptionText.includes('financial')) {
+      dataTypes.push('financial');
     }
 
     const output = {

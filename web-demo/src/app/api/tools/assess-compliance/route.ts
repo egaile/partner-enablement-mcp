@@ -1,21 +1,22 @@
 import { NextResponse } from 'next/server';
+import { AssessComplianceInputSchema } from 'partner-enablement-mcp-server/schemas';
 import { knowledgeBase } from '../_shared';
+import { rateLimit } from '../_rateLimit';
 
 export async function POST(request: Request) {
+  const rateLimited = rateLimit(request);
+  if (rateLimited) return rateLimited;
+
   try {
     const body = await request.json();
-    const {
-      projectContext,
-      detailLevel = 'detailed',
-      includeChecklist = true,
-    } = body;
-
-    if (!projectContext?.industry) {
+    const parsed = AssessComplianceInputSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'projectContext with industry is required' },
+        { error: 'Invalid input', details: parsed.error.flatten().fieldErrors },
         { status: 400 }
       );
     }
+    const { projectContext, detailLevel, includeChecklist } = parsed.data;
 
     // Determine applicable frameworks
     const applicableFrameworks = knowledgeBase.getApplicableFrameworks(
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
         name: fw?.name || fwId.toUpperCase(),
         applicabilityReason:
           fw?.applicableWhen?.[0] || 'Based on project industry',
-        priority: projectContext.complianceTags?.includes(fwId)
+        priority: projectContext.complianceTags?.includes(fwId as "hipaa" | "soc2" | "fedramp" | "pci_dss" | "gdpr" | "ccpa")
           ? ('required' as const)
           : ('recommended' as const),
       };
@@ -64,6 +65,15 @@ export async function POST(request: Request) {
       });
     }
 
+    if (applicableFrameworks.includes('pci_dss') || applicableFrameworks.includes('soc2')) {
+      riskAreas.push({
+        area: 'Customer Data in LLM Context',
+        risk: 'Sensitive financial or personal data may be included in prompts',
+        mitigation:
+          'Implement data classification; mask sensitive fields before LLM processing; maintain audit trail',
+      });
+    }
+
     if (
       projectContext.integrationTargets?.some(
         (t: string) =>
@@ -81,56 +91,16 @@ export async function POST(request: Request) {
     // Build checklist
     const checklist = includeChecklist
       ? [
-          {
-            item: 'BAA executed with LLM provider',
-            category: 'Legal',
-            completed: false,
-          },
-          {
-            item: 'Data encryption at rest configured',
-            category: 'Technical',
-            completed: false,
-          },
-          {
-            item: 'Data encryption in transit (TLS 1.2+)',
-            category: 'Technical',
-            completed: false,
-          },
-          {
-            item: 'Audit logging implemented',
-            category: 'Technical',
-            completed: false,
-          },
-          {
-            item: 'Access controls and RBAC configured',
-            category: 'Technical',
-            completed: false,
-          },
-          {
-            item: 'Security risk assessment completed',
-            category: 'Administrative',
-            completed: false,
-          },
-          {
-            item: 'Incident response plan documented',
-            category: 'Administrative',
-            completed: false,
-          },
-          {
-            item: 'Staff training completed',
-            category: 'Administrative',
-            completed: false,
-          },
-          {
-            item: 'Data retention policy defined',
-            category: 'Administrative',
-            completed: false,
-          },
-          {
-            item: 'Penetration testing scheduled',
-            category: 'Technical',
-            completed: false,
-          },
+          { item: 'BAA executed with LLM provider', category: 'Legal', completed: false },
+          { item: 'Data encryption at rest configured', category: 'Technical', completed: false },
+          { item: 'Data encryption in transit (TLS 1.2+)', category: 'Technical', completed: false },
+          { item: 'Audit logging implemented', category: 'Technical', completed: false },
+          { item: 'Access controls and RBAC configured', category: 'Technical', completed: false },
+          { item: 'Security risk assessment completed', category: 'Administrative', completed: false },
+          { item: 'Incident response plan documented', category: 'Administrative', completed: false },
+          { item: 'Staff training completed', category: 'Administrative', completed: false },
+          { item: 'Data retention policy defined', category: 'Administrative', completed: false },
+          { item: 'Penetration testing scheduled', category: 'Technical', completed: false },
         ]
       : undefined;
 

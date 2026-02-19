@@ -1,21 +1,22 @@
 import { NextResponse } from 'next/server';
+import { GenerateArchitectureInputSchema } from 'partner-enablement-mcp-server/schemas';
 import { knowledgeBase } from '../_shared';
+import { rateLimit } from '../_rateLimit';
 
 export async function POST(request: Request) {
+  const rateLimited = rateLimit(request);
+  if (rateLimited) return rateLimited;
+
   try {
     const body = await request.json();
-    const {
-      projectContext,
-      includeAlternatives = false,
-      includeDiagram = true,
-    } = body;
-
-    if (!projectContext?.useCaseDescription) {
+    const parsed = GenerateArchitectureInputSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'projectContext with useCaseDescription is required' },
+        { error: 'Invalid input', details: parsed.error.flatten().fieldErrors },
         { status: 400 }
       );
     }
+    const { projectContext, includeAlternatives, includeDiagram, focusAreas } = parsed.data;
 
     // Recommend pattern based on use case
     const recommendedPatternId = knowledgeBase.recommendPattern(
@@ -59,10 +60,31 @@ export async function POST(request: Request) {
       }
     }
 
+    // Phase 6.5: Sort components to prioritize focusAreas
+    const areas = focusAreas || [];
+    if (areas.length > 0) {
+      const focusLower = areas.map(f => f.toLowerCase());
+      components.sort((a, b) => {
+        const aMatch = focusLower.some(f => a.name.toLowerCase().includes(f) || a.description.toLowerCase().includes(f));
+        const bMatch = focusLower.some(f => b.name.toLowerCase().includes(f) || b.description.toLowerCase().includes(f));
+        if (aMatch && !bMatch) return -1;
+        if (!aMatch && bMatch) return 1;
+        return 0;
+      });
+    }
+
+    // Phase 6.4: Only append ellipsis when description exceeds 100 chars
+    const desc = projectContext.useCaseDescription;
+    const truncatedDesc = desc.length > 100 ? `${desc.substring(0, 100)}...` : desc;
+    let rationaleStr = `Based on the use case "${truncatedDesc}", the ${pattern.name} pattern is recommended because it ${pattern.useCases[0]?.toLowerCase() || 'fits your requirements'}.`;
+    if (areas.length > 0) {
+      rationaleStr += ` Focus areas: ${areas.join(', ')}.`;
+    }
+
     const output = {
       pattern: recommendedPatternId,
       patternName: pattern.name,
-      rationale: `Based on the use case "${projectContext.useCaseDescription.substring(0, 100)}...", the ${pattern.name} pattern is recommended because it ${pattern.useCases[0]?.toLowerCase() || 'fits your requirements'}.`,
+      rationale: rationaleStr,
       components,
       dataFlow: pattern.dataFlow,
       mermaidDiagram: includeDiagram ? pattern.mermaidDiagram : undefined,

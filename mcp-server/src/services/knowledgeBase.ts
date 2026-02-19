@@ -311,6 +311,49 @@ export class KnowledgeBase {
     const industry = this.getIndustry(industryId);
     return industry?.stakeholders || null;
   }
+
+  getIndustrySkillRequirements(industryId: string): Array<{
+    skill: string;
+    level: "required" | "preferred";
+    roles: string[];
+  }> {
+    const skills: Array<{ skill: string; level: "required" | "preferred"; roles: string[] }> = [
+      { skill: "Cloud Architecture (AWS/GCP)", level: "required", roles: ["Solutions Architect", "DevOps Engineer"] },
+      { skill: "LLM/AI Development", level: "required", roles: ["AI Engineer", "Backend Developer"] },
+      { skill: "Security & Compliance", level: "required", roles: ["Security Engineer", "Compliance Lead"] },
+      { skill: "Frontend Development", level: "preferred", roles: ["Frontend Developer"] },
+    ];
+
+    const industry = this.getIndustry(industryId);
+    if (!industry) {
+      return skills;
+    }
+
+    // Derive domain skill from industry
+    const domainSkillMap: Record<string, { skill: string; roles: string[] }> = {
+      healthcare: { skill: "Healthcare Domain Knowledge", roles: ["Business Analyst", "Product Owner", "Clinical SME"] },
+      financial_services: { skill: "Financial Services Domain Knowledge", roles: ["Business Analyst", "Product Owner", "Compliance Analyst"] },
+      education: { skill: "Education Domain Knowledge", roles: ["Business Analyst", "Product Owner"] },
+      public_sector: { skill: "Public Sector Domain Knowledge", roles: ["Business Analyst", "Product Owner"] },
+    };
+
+    const domainSkill = domainSkillMap[industryId];
+    if (domainSkill) {
+      skills.push({ skill: domainSkill.skill, level: "preferred", roles: domainSkill.roles });
+    }
+
+    // Add regulatory skill if primary regulations exist
+    if (industry.regulatoryContext.primary.length > 0) {
+      const regs = industry.regulatoryContext.primary.join("/");
+      skills.push({
+        skill: `${regs} Regulatory Expertise`,
+        level: "required",
+        roles: ["Compliance Lead", "Legal Counsel"],
+      });
+    }
+
+    return skills;
+  }
 }
 
 // Singleton instance for standalone MCP server use

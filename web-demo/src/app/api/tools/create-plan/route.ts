@@ -1,24 +1,29 @@
 import { NextResponse } from 'next/server';
+import { CreateImplementationPlanInputSchema } from 'partner-enablement-mcp-server/schemas';
 import { knowledgeBase } from '../_shared';
+import { rateLimit } from '../_rateLimit';
 
 export async function POST(request: Request) {
+  const rateLimited = rateLimit(request);
+  if (rateLimited) return rateLimited;
+
   try {
     const body = await request.json();
-    const {
-      projectContext,
-      architecturePattern,
-      teamSize = 5,
-      timelineWeeks,
-      includeJiraTickets = true,
-      sprintLengthWeeks = 2,
-    } = body;
-
-    if (!projectContext || !architecturePattern) {
+    const parsed = CreateImplementationPlanInputSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'projectContext and architecturePattern are required' },
+        { error: 'Invalid input', details: parsed.error.flatten().fieldErrors },
         { status: 400 }
       );
     }
+    const {
+      projectContext,
+      architecturePattern,
+      teamSize,
+      timelineWeeks,
+      includeJiraTickets,
+      sprintLengthWeeks,
+    } = parsed.data;
 
     // Get pattern for timeline estimation
     const pattern = knowledgeBase.getArchitecturePattern(architecturePattern);
@@ -147,34 +152,8 @@ export async function POST(request: Request) {
       }
     }
 
-    // Define skill requirements
-    const skillRequirements = [
-      {
-        skill: 'Cloud Architecture (AWS/GCP)',
-        level: 'required' as const,
-        roles: ['Solutions Architect', 'DevOps Engineer'],
-      },
-      {
-        skill: 'LLM/AI Development',
-        level: 'required' as const,
-        roles: ['AI Engineer', 'Backend Developer'],
-      },
-      {
-        skill: 'Security & Compliance',
-        level: 'required' as const,
-        roles: ['Security Engineer', 'Compliance Lead'],
-      },
-      {
-        skill: 'Frontend Development',
-        level: 'preferred' as const,
-        roles: ['Frontend Developer'],
-      },
-      {
-        skill: 'Healthcare Domain Knowledge',
-        level: 'preferred' as const,
-        roles: ['Business Analyst', 'Product Owner'],
-      },
-    ];
+    // Industry-aware skill requirements
+    const skillRequirements = knowledgeBase.getIndustrySkillRequirements(projectContext.industry);
 
     // Generate Jira tickets if requested
     const jiraTickets = includeJiraTickets
