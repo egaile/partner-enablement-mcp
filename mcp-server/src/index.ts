@@ -314,7 +314,7 @@ Returns:
       // Phase 6.4: Only append ellipsis when description exceeds 100 chars
       const desc = projectContext.useCaseDescription;
       const truncatedDesc = desc.length > 100 ? `${desc.substring(0, 100)}...` : desc;
-      let rationaleStr = `Based on the use case "${truncatedDesc}", the ${pattern.name} pattern is recommended because it ${pattern.useCases[0]?.toLowerCase() || "fits your requirements"}.`;
+      let rationaleStr = `Based on the use case "${truncatedDesc}", the ${pattern.name} pattern is recommended because it supports ${pattern.useCases[0]?.toLowerCase() || "your requirements"}.`;
       if (focusAreas.length > 0) {
         rationaleStr += ` Focus areas: ${focusAreas.join(", ")}.`;
       }
