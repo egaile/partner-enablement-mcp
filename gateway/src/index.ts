@@ -29,6 +29,27 @@ import type { AlertSeverity, AlertType } from "./schemas/index.js";
 async function main(): Promise<void> {
   const config = loadConfig();
   const app = express();
+
+  // CORS — allow dashboard and local dev origins
+  app.use((_req, res, next) => {
+    const origin = _req.headers.origin;
+    const allowed = [
+      "http://localhost:3001",
+      "https://dashboard-livid-eight-24.vercel.app",
+    ];
+    if (origin && (allowed.includes(origin) || origin.endsWith(".vercel.app"))) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, mcp-session-id");
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+    }
+    if (_req.method === "OPTIONS") {
+      res.status(204).end();
+      return;
+    }
+    next();
+  });
+
   app.use(express.json());
 
   // Health check (unauthenticated)

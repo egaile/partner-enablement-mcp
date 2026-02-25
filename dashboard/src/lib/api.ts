@@ -1,5 +1,5 @@
 const GATEWAY_URL =
-  process.env.GATEWAY_API_URL || "http://localhost:4000";
+  process.env.NEXT_PUBLIC_GATEWAY_API_URL || "http://localhost:4000";
 
 export async function gatewayFetch<T>(
   path: string,

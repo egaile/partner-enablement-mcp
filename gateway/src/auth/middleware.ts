@@ -1,7 +1,28 @@
 import type { Response, NextFunction } from "express";
 import { verifyToken } from "./clerk.js";
-import { getTenantForUser } from "../db/queries/tenants.js";
+import { getTenantForUser, type Tenant } from "../db/queries/tenants.js";
+import { getSupabaseClient } from "../db/client.js";
 import type { AuthenticatedRequest } from "./types.js";
+
+const DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001";
+
+async function autoProvisionUser(
+  clerkUserId: string
+): Promise<{ tenant: Tenant; role: string } | null> {
+  const db = getSupabaseClient();
+
+  // Add user to default tenant
+  const { error } = await db.from("tenant_users").insert({
+    tenant_id: DEFAULT_TENANT_ID,
+    clerk_user_id: clerkUserId,
+    role: "owner",
+  });
+
+  if (error) throw error;
+
+  console.log(`[auth] Auto-provisioned user ${clerkUserId} to default tenant`);
+  return getTenantForUser(clerkUserId);
+}
 
 /**
  * Dev mode: when CLERK_SECRET_KEY is "dev", skip Clerk verification
@@ -37,7 +58,17 @@ export async function requireAuth(
     userId = result.userId;
   }
 
-  const tenantResult = await getTenantForUser(userId);
+  let tenantResult = await getTenantForUser(userId);
+
+  // Auto-provision: if no tenant mapping exists, assign to default tenant
+  if (!tenantResult) {
+    try {
+      tenantResult = await autoProvisionUser(userId);
+    } catch (err) {
+      console.error("[auth] Auto-provision failed:", err);
+    }
+  }
+
   if (!tenantResult) {
     res.status(403).json({ error: "User is not associated with any tenant" });
     return;
