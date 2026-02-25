@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -17,14 +18,27 @@ import {
 import { createJiraClient } from "./services/jiraClient.js";
 import { knowledgeBase } from "./services/knowledgeBase.js";
 
-// Initialize MCP Server
-const server = new McpServer({
-  name: "partner-enablement-mcp-server",
-  version: "1.0.0"
-});
-
-// Initialize Jira client (uses mock if not configured)
+// Shared services (stateless, safe to reuse across sessions)
 const jiraClient = createJiraClient();
+
+/**
+ * Factory: create a fresh McpServer with all tools registered.
+ * Each MCP session needs its own McpServer instance because the SDK
+ * only allows one transport connection per Server instance.
+ */
+function createMcpServerInstance(): McpServer {
+  const server = new McpServer({
+    name: "partner-enablement-mcp-server",
+    version: "1.0.0"
+  });
+  registerTools(server);
+  return server;
+}
+
+// Module-level instance for stdio mode (single client)
+const server = createMcpServerInstance();
+
+function registerTools(server: McpServer): void {
 
 // =============================================================================
 // Tool: partner_read_project_context
@@ -881,6 +895,8 @@ Returns:
   }
 );
 
+} // end registerTools
+
 // =============================================================================
 // Server Transport Setup
 // =============================================================================
@@ -898,15 +914,53 @@ async function runHTTP(): Promise<void> {
     res.json({ status: "healthy", server: "partner-enablement-mcp-server" });
   });
 
-  // Create a single transport and connect once — reuse across requests
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: undefined,
-    enableJsonResponse: true
-  });
-  await server.connect(transport);
+  // Per-session McpServer + Transport pairs (SDK requires one Server per transport)
+  const sessions = new Map<string, { server: McpServer; transport: StreamableHTTPServerTransport }>();
 
-  app.post("/mcp", async (req, res) => {
-    await transport.handleRequest(req, res, req.body);
+  app.all("/mcp", async (req, res) => {
+    // Route to existing session
+    const sessionId = req.headers["mcp-session-id"] as string | undefined;
+    if (sessionId && sessions.has(sessionId)) {
+      const session = sessions.get(sessionId)!;
+      try {
+        await session.transport.handleRequest(req, res, req.body);
+      } catch (error) {
+        console.error("[mcp] handleRequest error:", error);
+        if (!res.headersSent) {
+          res.status(500).json({ error: String(error) });
+        }
+      }
+      return;
+    }
+
+    // New session — create fresh McpServer + Transport
+    if (req.method === "POST") {
+      try {
+        const sessionServer = createMcpServerInstance();
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => randomUUID(),
+          enableJsonResponse: true
+        });
+
+        transport.onclose = () => {
+          const sid = transport.sessionId;
+          if (sid) sessions.delete(sid);
+        };
+
+        await sessionServer.connect(transport);
+        await transport.handleRequest(req, res, req.body);
+
+        const sid = transport.sessionId;
+        if (sid) sessions.set(sid, { server: sessionServer, transport });
+      } catch (error) {
+        console.error("[mcp] handleRequest error:", error);
+        if (!res.headersSent) {
+          res.status(500).json({ error: String(error) });
+        }
+      }
+    } else {
+      res.status(400).json({ error: "No valid session. Send an initialize request first." });
+    }
   });
 
   const port = parseInt(process.env.PORT || "3000");

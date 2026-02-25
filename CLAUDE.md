@@ -6,9 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Partner Enablement MCP Server — a demonstration MCP server that helps GSIs (Global System Integrators) operationalize Claude deployments in enterprise environments. Built as a portfolio piece for an Anthropic Partner Solutions Architect application.
 
-Two independent packages in one repo:
+Four packages in one monorepo:
 - **`mcp-server/`** — TypeScript MCP server (stdio + HTTP transport)
 - **`web-demo/`** — Next.js 14 app that simulates the MCP experience for non-technical viewers
+- **`gateway/`** — MCP Security Gateway proxy engine (Express + MCP SDK)
+- **`dashboard/`** — Next.js 14 admin dashboard for the gateway (Clerk + Supabase)
 
 ## Development Commands
 
@@ -28,6 +30,20 @@ npm install
 npm run dev            # Next.js dev server
 npm run build          # Production build
 npm run lint           # next lint
+
+# Gateway
+cd gateway
+npm install
+npm run build          # tsc → dist/
+npm run dev            # tsx watch src/index.ts
+npm start              # node dist/index.js
+npm test               # vitest
+
+# Dashboard
+cd dashboard
+npm install
+npm run dev            # Next.js dev on :3001
+npm run build          # Production build
 ```
 
 ## Architecture
@@ -52,17 +68,57 @@ Key services:
 
 Single-page Next.js 14 App Router app. All logic is in `src/app/page.tsx` — a client component with simulated streaming (character-by-character reveal of hardcoded markdown content). No actual MCP or Claude API calls; purely for demonstration. Uses Tailwind CSS + lucide-react icons.
 
+### Gateway (`gateway/src/`)
+
+MCP Security Gateway — a transparent proxy that sits between AI agents and downstream MCP servers. Uses the low-level `Server` class (not `McpServer`) to intercept raw JSON-RPC `tools/list` and `tools/call` messages.
+
+**Proxy flow:** Auth (Clerk) → Policy evaluation → Injection scan → Drift check → Forward to downstream → Scan response → Audit log
+
+Key subsystems:
+- **`proxy/engine.ts`** — `GatewayProxyEngine`: creates MCP Server, registers ListTools/CallTool handlers, manages downstream connections
+- **`proxy/connection-manager.ts`** — `ConnectionManager`: connects to downstream MCP servers via stdio or HTTP, discovers tools, resolves namespaced tool names (`serverName__toolName`)
+- **`proxy/tool-interceptor.ts`** — `ToolInterceptor`: orchestrates the 9-step security pipeline per tool call
+- **`policy/engine.ts`** — `PolicyEngine`: evaluates rules from Supabase with LRU cache (30s TTL), picomatch for glob matching
+- **`security/scanner.ts`** — `PromptInjectionScanner`: runs 4 strategies (pattern-match, unicode, structural, exfiltration) against all string values in tool params
+- **`monitor/tool-snapshot.ts`** — SHA-256 hash comparison for tool definition drift detection
+- **`audit/logger.ts`** — `AuditLogger`: buffered writes (batch 50 or every 5s) to Supabase `audit_logs`
+- **`alerts/engine.ts`** — `AlertEngine`: fires alerts for injections, drift, policy violations
+- **`auth/middleware.ts`** — Express middleware: Clerk token → tenant lookup → `AuthenticatedRequest`
+- **`db/queries/`** — Supabase query modules for tenants, servers, policies, audit, snapshots, alerts
+
+**Database:** Supabase Postgres with RLS. Schema in `gateway/supabase/migrations/001_initial_schema.sql`. Tables: tenants, tenant_users, mcp_servers, tool_snapshots, policy_rules, audit_logs, alerts.
+
+### Dashboard (`dashboard/src/`)
+
+Next.js 14 admin dashboard for the gateway. Uses Clerk for auth, fetches data from the gateway REST API.
+
+**Pages:** Dashboard home (metrics), Servers (list/add/detail+tool inventory), Policies (list/create), Audit log (paginated table), Alerts (feed with acknowledge), Settings.
+
+**Components:** `layout/Sidebar.tsx` + `TopBar.tsx`, `dashboard/MetricCard.tsx` + `RecentActivity.tsx`, `servers/ServerCard.tsx` + `ToolInventory.tsx`, `policies/RuleBuilder.tsx`, `audit/LogTable.tsx`, `alerts/AlertFeed.tsx`.
+
 ## Environment Variables
 
 ```bash
-# Jira (optional — falls back to MockJiraClient with demo data)
+# MCP Server — Jira (optional — falls back to MockJiraClient with demo data)
 JIRA_HOST=your-domain.atlassian.net
 JIRA_EMAIL=your-email@example.com
 JIRA_API_TOKEN=your-api-token
-
-# Server
 PORT=3000              # HTTP mode port
 TRANSPORT=stdio        # "stdio" or "http"
+
+# Gateway
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+CLERK_SECRET_KEY=
+PORT=4000
+LOG_LEVEL=info
+
+# Dashboard
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
+CLERK_SECRET_KEY=
+GATEWAY_API_URL=http://localhost:4000
 ```
 
 ## Code Conventions
