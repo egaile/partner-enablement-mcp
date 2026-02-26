@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { ReadProjectContextInputSchema } from 'partner-enablement-mcp-server/schemas';
+import { MockJiraClient } from 'partner-enablement-mcp-server/services/jiraClient';
 import { jiraClient } from '../_shared';
 import { rateLimit } from '../_rateLimit';
+
+const mockFallback = new MockJiraClient();
 
 export async function POST(request: Request) {
   const rateLimited = rateLimit(request);
@@ -18,8 +21,16 @@ export async function POST(request: Request) {
     }
     const { projectKey, includeIssues, issueLimit } = parsed.data;
 
-    // Get project details
-    const project = await jiraClient.getProject(projectKey);
+    // Get project details — fall back to mock data if live Jira fails
+    let project;
+    let client = jiraClient;
+    try {
+      project = await jiraClient.getProject(projectKey);
+    } catch {
+      console.warn(`Live Jira failed for ${projectKey}, falling back to mock data`);
+      client = mockFallback;
+      project = await mockFallback.getProject(projectKey);
+    }
 
     // Get recent issues
     let issues: Array<{
@@ -33,7 +44,7 @@ export async function POST(request: Request) {
     }> = [];
 
     if (includeIssues) {
-      const searchResult = await jiraClient.searchIssues(projectKey, {
+      const searchResult = await client.searchIssues(projectKey, {
         maxResults: issueLimit,
       });
       issues = searchResult.issues.map((issue) => ({

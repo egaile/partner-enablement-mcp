@@ -266,20 +266,11 @@ export default function Home() {
     }
   };
 
-  const handleRunAll = async () => {
-    const steps: Step[] = ['context', 'architecture', 'compliance', 'plan'];
-    let ctx: ProjectContextData | undefined;
-    let arch: ArchitectureData | undefined;
-
-    for (const step of steps) {
-      setState((prev) => ({ ...prev, currentStep: step }));
-      const result = await generateStep(step, ctx, arch);
-      if (result.context) ctx = result.context;
-      if (result.architecture) arch = result.architecture;
-      await new Promise((resolve) => setTimeout(resolve, 800));
-    }
-
-    setState((prev) => ({ ...prev, currentStep: 'complete' }));
+  const handleRunDemo = async () => {
+    // Start the demo by generating the first step (context)
+    // User then clicks "Next Step" to advance through each step
+    setState((prev) => ({ ...prev, currentStep: 'context' }));
+    await generateStep('context');
   };
 
   return (
@@ -325,12 +316,12 @@ export default function Home() {
                 &larr; Back to scenarios
               </button>
               <button
-                onClick={handleRunAll}
+                onClick={handleRunDemo}
                 disabled={isGenerating}
                 className="flex items-center gap-2 px-4 py-2 bg-claude-orange text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors text-sm font-medium"
               >
                 <Play className="w-4 h-4" />
-                Run Full Demo
+                Run Demo
               </button>
             </div>
           </div>
