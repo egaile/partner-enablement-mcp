@@ -1,10 +1,19 @@
 import { notFound } from "next/navigation";
-import { getDocSections, getDocContent, getDocBySlug, getDocPagination } from "@/lib/docs";
+import { getAllDocs, getDocSections, getDocContent, getDocBySlug, getDocPagination } from "@/lib/docs";
 import DocsLanding from "@/components/docs/DocsLanding";
 import FaqPage from "@/components/docs/FaqPage";
 import MarkdownRenderer from "@/components/docs/MarkdownRenderer";
 import DocPagination from "@/components/docs/DocPagination";
 import { faqData } from "@/lib/faq-data";
+
+export function generateStaticParams() {
+  const docs = getAllDocs();
+  return [
+    { slug: [] },
+    { slug: ["faq"] },
+    ...docs.map((d) => ({ slug: d.slug.split("/") })),
+  ];
+}
 
 interface DocsPageProps {
   params: { slug?: string[] };
