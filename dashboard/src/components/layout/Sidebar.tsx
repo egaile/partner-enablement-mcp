@@ -15,6 +15,7 @@ import {
   PanelLeftOpen,
   CheckCircle,
   Wrench,
+  BookOpen,
 } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,7 @@ const navItems = [
   { href: "/approvals", label: "Approvals", icon: CheckCircle },
   { href: "/audit", label: "Audit Log", icon: ScrollText },
   { href: "/alerts", label: "Alerts", icon: Bell, showBadge: true },
+  { href: "/docs", label: "Documentation", icon: BookOpen },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

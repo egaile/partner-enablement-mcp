@@ -12,6 +12,7 @@ import {
   Plus,
   FlaskConical,
   CheckCircle,
+  BookOpen,
 } from "lucide-react";
 import {
   CommandDialog,
@@ -50,6 +51,12 @@ const pages = [
   { label: "Audit Log", href: "/audit", icon: ScrollText },
   { label: "Alerts", href: "/alerts", icon: Bell },
   { label: "Settings", href: "/settings", icon: Settings },
+  { label: "Documentation", href: "/docs", icon: BookOpen },
+  { label: "Docs: Getting Started", href: "/docs/guides/getting-started", icon: BookOpen },
+  { label: "Docs: Policy Rules", href: "/docs/guides/policy-rules", icon: BookOpen },
+  { label: "Docs: Threat Model", href: "/docs/security/threat-model", icon: BookOpen },
+  { label: "Docs: API Reference", href: "/docs/api/reference", icon: BookOpen },
+  { label: "Docs: FAQ", href: "/docs/faq", icon: BookOpen },
 ];
 
 export default function CommandPalette() {
