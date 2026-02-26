@@ -12,12 +12,12 @@ interface DocsSidebarProps {
 
 export default function DocsSidebar({ sections }: DocsSidebarProps) {
   const pathname = usePathname();
+  // Default all sections expanded to avoid SSG/hydration mismatch
+  // (usePathname in useState initializer can differ between build and client)
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
-    // Default: expand the section that contains the current page
     const init: Record<string, boolean> = {};
     for (const section of sections) {
-      const isActive = section.entries.some((e) => pathname === `/docs/${e.slug}`);
-      init[section.slug] = isActive || section.slug === "guides";
+      init[section.slug] = true;
     }
     return init;
   });
