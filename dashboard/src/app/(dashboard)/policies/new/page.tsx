@@ -5,6 +5,7 @@ import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 import RuleBuilder from "@/components/policies/RuleBuilder";
 import { gatewayFetch } from "@/lib/api";
 
@@ -14,7 +15,8 @@ export default function NewPolicyPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  async function handleSubmit(rule: Record<string, unknown>) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async function handleSubmit(rule: any) {
     setSubmitting(true);
     setError("");
     try {
@@ -24,16 +26,19 @@ export default function NewPolicyPage() {
         method: "POST",
         body: JSON.stringify(rule),
       });
+      toast.success("Policy created successfully");
       router.push("/policies");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create policy");
+      const msg = err instanceof Error ? err.message : "Failed to create policy";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="max-w-lg space-y-6">
+    <div className="max-w-2xl space-y-6">
       <div className="flex items-center gap-3">
         <Link href="/policies" className="text-gray-400 hover:text-gray-600">
           <ArrowLeft className="w-5 h-5" />

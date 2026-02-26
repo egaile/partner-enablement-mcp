@@ -2,6 +2,8 @@ import { generateCorrelationId } from "../audit/correlation.js";
 import { AuditLogger } from "../audit/logger.js";
 import { PolicyEngine } from "../policy/engine.js";
 import { getScanner } from "../security/scanner.js";
+import { scanForPii, redactPii } from "../security/pii-scanner.js";
+import { RateLimiter } from "../security/rate-limiter.js";
 import { checkToolDrift } from "../monitor/tool-snapshot.js";
 import { AlertEngine } from "../alerts/engine.js";
 import type { DownstreamConnection } from "./connection-manager.js";
@@ -21,6 +23,7 @@ export class ToolInterceptor {
   private policyEngine: PolicyEngine;
   private auditLogger: AuditLogger;
   private alertEngine: AlertEngine;
+  private rateLimiter: RateLimiter;
 
   constructor(
     policyEngine: PolicyEngine,
@@ -30,10 +33,12 @@ export class ToolInterceptor {
     this.policyEngine = policyEngine;
     this.auditLogger = auditLogger;
     this.alertEngine = alertEngine;
+    this.rateLimiter = new RateLimiter();
+    this.rateLimiter.start();
   }
 
   /**
-   * Run the 9-step security pipeline for a tool call.
+   * Run the security pipeline for a tool call.
    * Returns the downstream response or a blocked response.
    */
   async intercept(
@@ -70,7 +75,6 @@ export class ToolInterceptor {
       auditBase.policyRuleId = decision.ruleId ?? undefined;
 
       if (decision.action === "deny") {
-        // Fire policy violation alert
         if (decision.ruleName) {
           this.alertEngine
             .firePolicyViolation(tenant.tenantId, {
@@ -108,6 +112,58 @@ export class ToolInterceptor {
         };
       }
 
+      // Step 1.5: Rate limiting (if policy specifies maxCallsPerMinute)
+      if (decision.modifiers?.maxCallsPerMinute) {
+        const key = RateLimiter.buildKey(
+          tenant.tenantId,
+          tenant.userId,
+          connection.serverName,
+          toolName
+        );
+        const rateResult = this.rateLimiter.check(
+          key,
+          decision.modifiers.maxCallsPerMinute
+        );
+
+        if (!rateResult.allowed) {
+          this.alertEngine
+            .fireRateLimitExceeded(tenant.tenantId, {
+              serverId: connection.serverId,
+              toolName,
+              correlationId,
+              userId: tenant.userId,
+              currentRate: rateResult.current,
+              limitPerMinute: rateResult.limit,
+            })
+            .catch((err) =>
+              console.error("[alert] Failed to fire rate limit alert:", err)
+            );
+
+          const latencyMs = performance.now() - startTime;
+          this.logAudit({
+            ...(auditBase as AuditEntry),
+            policyDecision: "deny",
+            latencyMs,
+            success: false,
+            errorMessage: `Rate limit exceeded: ${rateResult.current}/${rateResult.limit} per minute`,
+          });
+
+          return {
+            allowed: false,
+            correlationId,
+            response: {
+              content: [
+                {
+                  type: "text",
+                  text: `Rate limit exceeded (${rateResult.limit}/min). Please try again later.`,
+                },
+              ],
+              isError: true,
+            },
+          };
+        }
+      }
+
       // Step 2: Scan request for injection
       const scanner = getScanner();
       const scanResult = scanner.scan(params);
@@ -118,7 +174,6 @@ export class ToolInterceptor {
       }
 
       if (scanner.shouldBlock(scanResult)) {
-        // Fire injection alert
         this.alertEngine
           .fireInjectionAlert(tenant.tenantId, scanResult, {
             serverId: connection.serverId,
@@ -153,6 +208,10 @@ export class ToolInterceptor {
         };
       }
 
+      // Step 2.5: PII detection in request
+      const piiResult = scanForPii(params);
+      auditBase.requestPiiDetected = piiResult.detected;
+
       // Step 3: Check tool drift
       const toolDef = connection.tools.get(toolName);
       if (toolDef) {
@@ -164,7 +223,6 @@ export class ToolInterceptor {
         auditBase.driftDetected = drift.drifted;
 
         if (drift.drifted && drift.severity === "critical") {
-          // Fire drift alert and block
           this.alertEngine
             .fireDriftAlert(tenant.tenantId, drift, {
               serverId: connection.serverId,
@@ -197,7 +255,6 @@ export class ToolInterceptor {
             },
           };
         } else if (drift.drifted) {
-          // Non-critical drift — alert but allow
           this.alertEngine
             .fireDriftAlert(tenant.tenantId, drift, {
               serverId: connection.serverId,
@@ -227,10 +284,23 @@ export class ToolInterceptor {
         const responseScan = scanner.scan(responseTexts);
         if (responseScan.indicators.length > 0) {
           auditBase.threatsDetected += responseScan.indicators.length;
-          // Log but don't block response — flag for review
           console.warn(
             `[gateway] Threats detected in response for ${toolName}: ${responseScan.indicators.length} indicators`
           );
+        }
+
+        // Step 5.5: PII detection in response
+        const responsePii = scanForPii(responseTexts);
+        auditBase.responsePiiDetected = responsePii.detected;
+
+        // Apply PII redaction if policy requires it
+        if (decision.modifiers?.redactPII && responsePii.detected) {
+          for (let i = 0; i < result.content.length; i++) {
+            const item = result.content[i] as { type?: string; text?: string };
+            if (item.type === "text" && item.text) {
+              (item as { text: string }).text = redactPii(item.text);
+            }
+          }
         }
       }
 
@@ -252,6 +322,19 @@ export class ToolInterceptor {
       const latencyMs = performance.now() - startTime;
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
+
+      // Fire server error alert for downstream failures
+      this.alertEngine
+        .fireServerError(tenant.tenantId, {
+          serverId: connection.serverId,
+          serverName: connection.serverName,
+          correlationId,
+          errorMessage,
+          errorType: "tool_call_failure",
+        })
+        .catch((err) =>
+          console.error("[alert] Failed to fire server error alert:", err)
+        );
 
       this.logAudit({
         ...(auditBase as AuditEntry),

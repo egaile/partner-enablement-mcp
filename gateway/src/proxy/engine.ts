@@ -8,6 +8,7 @@ import { ToolInterceptor } from "./tool-interceptor.js";
 import { PolicyEngine } from "../policy/engine.js";
 import { AuditLogger } from "../audit/logger.js";
 import { AlertEngine } from "../alerts/engine.js";
+import { HealthChecker } from "../monitor/health-checker.js";
 import {
   getEnabledServersForTenant,
   type McpServerRecord,
@@ -25,6 +26,7 @@ export class GatewayProxyEngine {
   private policyEngine: PolicyEngine;
   private auditLogger: AuditLogger;
   private alertEngine: AlertEngine;
+  private healthChecker: HealthChecker | null = null;
 
   // Track which tenant this engine instance serves
   private tenantContext: TenantContext | null = null;
@@ -47,6 +49,10 @@ export class GatewayProxyEngine {
 
   getAuditLogger(): AuditLogger {
     return this.auditLogger;
+  }
+
+  getHealthChecker(): HealthChecker | null {
+    return this.healthChecker;
   }
 
   /**
@@ -87,8 +93,28 @@ export class GatewayProxyEngine {
         console.error(
           `[gateway] Failed to connect to "${servers[i].name}": ${result.reason}`
         );
+        // Fire server error alert for connection failures
+        this.alertEngine
+          .fireServerError(tenantId, {
+            serverId: servers[i].id,
+            serverName: servers[i].name,
+            errorMessage: String(result.reason),
+            errorType: "connection_failure",
+          })
+          .catch((err) =>
+            console.error("[alert] Failed to fire server error alert:", err)
+          );
       }
     }
+
+    // Start health checker for connected servers
+    this.healthChecker = new HealthChecker(
+      this.connectionManager,
+      this.alertEngine,
+      tenantId,
+      60_000
+    );
+    this.healthChecker.start();
   }
 
   /**
@@ -99,6 +125,7 @@ export class GatewayProxyEngine {
   }
 
   async shutdown(): Promise<void> {
+    this.healthChecker?.stop();
     await this.auditLogger.flush();
     this.auditLogger.stop();
     await this.connectionManager.disconnectAll();

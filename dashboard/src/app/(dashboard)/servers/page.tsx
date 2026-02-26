@@ -1,10 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Server } from "lucide-react";
+import { toast } from "sonner";
 import ServerCard from "@/components/servers/ServerCard";
+import { ServerCardSkeleton } from "@/components/shared/skeletons";
+import EmptyState from "@/components/shared/EmptyState";
+import SearchInput from "@/components/shared/SearchInput";
 import { gatewayFetch } from "@/lib/api";
 
 interface ServerRecord {
@@ -12,31 +16,50 @@ interface ServerRecord {
   name: string;
   transport: "stdio" | "http";
   enabled: boolean;
+  toolCount?: number;
 }
+
+type StatusFilter = "all" | "active" | "disabled";
 
 export default function ServersPage() {
   const { getToken } = useAuth();
   const [servers, setServers] = useState<ServerRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+
+  const load = useCallback(async () => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const data = await gatewayFetch<{ servers: ServerRecord[] }>(
+        "/api/servers",
+        token
+      );
+      setServers(data.servers);
+    } catch (err) {
+      console.error("Failed to load servers:", err);
+      toast.error("Failed to load servers");
+    } finally {
+      setLoading(false);
+    }
+  }, [getToken]);
 
   useEffect(() => {
-    async function load() {
-      try {
-        const token = await getToken();
-        if (!token) return;
-        const data = await gatewayFetch<{ servers: ServerRecord[] }>(
-          "/api/servers",
-          token
-        );
-        setServers(data.servers);
-      } catch (err) {
-        console.error("Failed to load servers:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
     load();
-  }, [getToken]);
+  }, [load]);
+
+  const filtered = servers.filter((s) => {
+    const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus =
+      statusFilter === "all" ||
+      (statusFilter === "active" && s.enabled) ||
+      (statusFilter === "disabled" && !s.enabled);
+    return matchesSearch && matchesStatus;
+  });
+
+  const activeCount = servers.filter((s) => s.enabled).length;
+  const disabledCount = servers.filter((s) => !s.enabled).length;
 
   return (
     <div className="space-y-6">
@@ -51,16 +74,57 @@ export default function ServersPage() {
         </Link>
       </div>
 
+      {!loading && servers.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+            {([
+              { value: "all" as StatusFilter, label: `All (${servers.length})` },
+              { value: "active" as StatusFilter, label: `Active (${activeCount})` },
+              { value: "disabled" as StatusFilter, label: `Disabled (${disabledCount})` },
+            ]).map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => setStatusFilter(tab.value)}
+                className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                  statusFilter === tab.value
+                    ? "bg-white shadow-sm font-medium text-gray-900"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <SearchInput
+            placeholder="Search servers..."
+            value={search}
+            onChange={setSearch}
+            className="flex-1 min-w-[200px]"
+          />
+        </div>
+      )}
+
       {loading ? (
-        <div className="text-gray-400 text-sm">Loading servers...</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <ServerCardSkeleton key={i} />
+          ))}
+        </div>
       ) : servers.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">
-          <p>No servers registered yet.</p>
-          <p className="text-sm mt-1">Add your first MCP server to get started.</p>
+        <EmptyState
+          icon={Server}
+          title="No servers registered"
+          description="Add your first MCP server to start securing tool calls through the gateway."
+          actionLabel="Add Server"
+          actionHref="/servers/new"
+        />
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-8 text-gray-400 text-sm">
+          No servers matching your filters
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {servers.map((s) => (
+          {filtered.map((s) => (
             <ServerCard key={s.id} {...s} />
           ))}
         </div>

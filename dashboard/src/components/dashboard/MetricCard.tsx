@@ -1,3 +1,4 @@
+import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 interface MetricCardProps {
@@ -17,19 +18,34 @@ const colorMap = {
   gray: "bg-gray-50 text-gray-600",
 };
 
+const trendConfig = {
+  up: { icon: TrendingUp, color: "text-green-500" },
+  down: { icon: TrendingDown, color: "text-red-500" },
+  neutral: { icon: Minus, color: "text-gray-400" },
+};
+
 export default function MetricCard({
   title,
   value,
   subtitle,
   icon: Icon,
+  trend,
   color = "blue",
 }: MetricCardProps) {
+  const TrendIcon = trend ? trendConfig[trend].icon : null;
+  const trendColor = trend ? trendConfig[trend].color : "";
+
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-6">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-gray-500">{title}</p>
-          <p className="text-2xl font-semibold mt-1">{value}</p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-2xl font-semibold">{value}</p>
+            {TrendIcon && (
+              <TrendIcon className={`w-4 h-4 ${trendColor}`} />
+            )}
+          </div>
           {subtitle && (
             <p className="text-xs text-gray-400 mt-1">{subtitle}</p>
           )}

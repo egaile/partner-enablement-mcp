@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@clerk/nextjs";
-import { Activity, ShieldAlert, Server, Clock } from "lucide-react";
+import { Activity, ShieldAlert, Server, Clock, Plus, Shield, ScrollText, TrendingUp, TrendingDown } from "lucide-react";
+import Link from "next/link";
 import MetricCard from "@/components/dashboard/MetricCard";
 import RecentActivity from "@/components/dashboard/RecentActivity";
+import { DashboardSkeleton } from "@/components/shared/skeletons";
 import { gatewayFetch } from "@/lib/api";
 
 interface Metrics {
@@ -23,67 +25,104 @@ interface AuditLogEntry {
   created_at: string;
 }
 
+const timeRanges = [
+  { label: "1h", value: "1h", ms: 3600000 },
+  { label: "6h", value: "6h", ms: 21600000 },
+  { label: "24h", value: "24h", ms: 86400000 },
+  { label: "7d", value: "7d", ms: 604800000 },
+];
+
+const quickActions = [
+  { label: "Add Server", href: "/servers/new", icon: Server },
+  { label: "Create Policy", href: "/policies/new", icon: Shield },
+  { label: "View Audit Log", href: "/audit", icon: ScrollText },
+];
+
 export default function DashboardPage() {
   const { getToken } = useAuth();
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [recentLogs, setRecentLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState("24h");
+
+  const load = useCallback(async () => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+
+      const since = new Date(
+        Date.now() - (timeRanges.find((t) => t.value === timeRange)?.ms ?? 86400000)
+      ).toISOString();
+
+      const [metricsData, auditData] = await Promise.all([
+        gatewayFetch<Metrics>(`/api/audit/metrics?since=${since}`, token),
+        gatewayFetch<{ data: AuditLogEntry[] }>(
+          "/api/audit?limit=10",
+          token
+        ),
+      ]);
+
+      setMetrics(metricsData);
+      setRecentLogs(auditData.data);
+    } catch (err) {
+      console.error("Failed to load dashboard:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [getToken, timeRange]);
 
   useEffect(() => {
-    async function load() {
-      try {
-        const token = await getToken();
-        if (!token) return;
-
-        const [metricsData, auditData] = await Promise.all([
-          gatewayFetch<Metrics>("/api/audit/metrics", token),
-          gatewayFetch<{ data: AuditLogEntry[] }>(
-            "/api/audit?limit=10",
-            token
-          ),
-        ]);
-
-        setMetrics(metricsData);
-        setRecentLogs(auditData.data);
-      } catch (err) {
-        console.error("Failed to load dashboard:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
     load();
-  }, [getToken]);
+    const interval = setInterval(load, 30000);
+    return () => clearInterval(interval);
+  }, [load]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64 text-gray-400">
-        Loading dashboard...
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold">Dashboard</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">Dashboard</h2>
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+          {timeRanges.map((range) => (
+            <button
+              key={range.value}
+              onClick={() => { setLoading(true); setTimeRange(range.value); }}
+              className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                timeRange === range.value
+                  ? "bg-white shadow-sm font-medium text-gray-900"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {range.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
-          title="Total Calls (24h)"
+          title={`Total Calls (${timeRange})`}
           value={metrics?.totalCalls ?? 0}
           icon={Activity}
           color="blue"
+          trend={metrics && metrics.totalCalls > 0 ? "up" : "neutral"}
         />
         <MetricCard
           title="Blocked Calls"
           value={metrics?.blockedCalls ?? 0}
           icon={ShieldAlert}
           color="red"
+          trend={metrics && metrics.blockedCalls > 0 ? "up" : "neutral"}
         />
         <MetricCard
           title="Threats Detected"
           value={metrics?.threatsDetected ?? 0}
           icon={Server}
           color="orange"
+          trend={metrics && metrics.threatsDetected > 0 ? "up" : "neutral"}
         />
         <MetricCard
           title="Avg Latency"
@@ -91,6 +130,22 @@ export default function DashboardPage() {
           icon={Clock}
           color="green"
         />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {quickActions.map(({ label, href, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className="flex items-center gap-3 bg-white rounded-lg border border-gray-200 p-4 hover:border-gray-300 transition-colors"
+          >
+            <div className="p-2 rounded-lg bg-gray-50">
+              <Icon className="w-4 h-4 text-gray-600" />
+            </div>
+            <span className="text-sm font-medium">{label}</span>
+            <Plus className="w-4 h-4 text-gray-400 ml-auto" />
+          </Link>
+        ))}
       </div>
 
       <RecentActivity

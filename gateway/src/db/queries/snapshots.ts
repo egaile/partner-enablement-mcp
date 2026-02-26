@@ -87,3 +87,23 @@ export async function approveSnapshot(
 
   if (error) throw error;
 }
+
+export async function approveSnapshotWithNewHash(
+  id: string,
+  tenantId: string,
+  newHash: string,
+  newDefinition: Record<string, unknown>
+): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .from("tool_snapshots")
+    .update({
+      approved: true,
+      definition_hash: newHash,
+      definition: newDefinition,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("tenant_id", tenantId);
+
+  if (error) throw error;
+}

@@ -89,6 +89,76 @@ export class AlertEngine {
     });
   }
 
+  async fireRateLimitExceeded(
+    tenantId: string,
+    context: {
+      serverId: string;
+      toolName: string;
+      correlationId: string;
+      userId: string;
+      currentRate: number;
+      limitPerMinute: number;
+    }
+  ): Promise<AlertRecord> {
+    return createAlert({
+      tenantId,
+      type: "rate_limit_exceeded" as AlertType,
+      severity: "medium" as AlertSeverity,
+      title: `Rate limit exceeded for ${context.toolName}`,
+      details: {
+        userId: context.userId,
+        currentRate: context.currentRate,
+        limitPerMinute: context.limitPerMinute,
+      },
+      serverId: context.serverId,
+      toolName: context.toolName,
+      correlationId: context.correlationId,
+    });
+  }
+
+  async fireAuthFailure(
+    tenantId: string,
+    context: {
+      reason: string;
+      ipAddress?: string;
+    }
+  ): Promise<AlertRecord> {
+    return createAlert({
+      tenantId,
+      type: "auth_failure" as AlertType,
+      severity: "high" as AlertSeverity,
+      title: `Authentication failure: ${context.reason}`,
+      details: {
+        reason: context.reason,
+        ipAddress: context.ipAddress,
+      },
+    });
+  }
+
+  async fireServerError(
+    tenantId: string,
+    context: {
+      serverId: string;
+      serverName: string;
+      correlationId?: string;
+      errorMessage: string;
+      errorType: string;
+    }
+  ): Promise<AlertRecord> {
+    return createAlert({
+      tenantId,
+      type: "server_error" as AlertType,
+      severity: "high" as AlertSeverity,
+      title: `Server error: ${context.serverName}`,
+      details: {
+        errorMessage: context.errorMessage,
+        errorType: context.errorType,
+      },
+      serverId: context.serverId,
+      correlationId: context.correlationId,
+    });
+  }
+
   private mapThreatSeverity(
     severity: string
   ): AlertSeverity {

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { gatewayFetch } from "@/lib/api";
 
 export default function NewServerPage() {
@@ -45,9 +46,12 @@ export default function NewServerPage() {
         body: JSON.stringify(body),
       });
 
+      toast.success("Server added successfully");
       router.push("/servers");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create server");
+      const msg = err instanceof Error ? err.message : "Failed to create server";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
