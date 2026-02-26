@@ -97,38 +97,38 @@ export default function PolicySimulatorPage() {
   const decisionColor = (decision: string) => {
     switch (decision) {
       case "allow":
-        return "bg-green-100 text-green-700";
+        return "bg-emerald-500/15 text-emerald-400";
       case "deny":
-        return "bg-red-100 text-red-700";
+        return "bg-red-500/15 text-red-400";
       case "require_approval":
-        return "bg-yellow-100 text-yellow-700";
+        return "bg-amber-500/15 text-amber-400";
       case "log_only":
-        return "bg-blue-100 text-blue-700";
+        return "bg-cyan-500/15 text-cyan-400";
       default:
-        return "bg-gray-100 text-gray-700";
+        return "bg-muted text-muted-foreground";
     }
   };
 
   const DecisionIcon = ({ decision }: { decision: string }) => {
     switch (decision) {
       case "allow":
-        return <CheckCircle className="w-5 h-5 text-green-600" />;
+        return <CheckCircle className="w-5 h-5 text-emerald-400" />;
       case "deny":
-        return <XCircle className="w-5 h-5 text-red-600" />;
+        return <XCircle className="w-5 h-5 text-red-400" />;
       case "require_approval":
-        return <Shield className="w-5 h-5 text-yellow-600" />;
+        return <Shield className="w-5 h-5 text-amber-400" />;
       default:
-        return <Shield className="w-5 h-5 text-blue-600" />;
+        return <Shield className="w-5 h-5 text-cyan-400" />;
     }
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Link href="/policies" className="text-gray-400 hover:text-gray-600">
+        <Link href="/policies" className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <h2 className="text-xl font-semibold">Policy Simulator</h2>
+        <h2 className="text-xl font-semibold text-foreground">Policy Simulator</h2>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -177,7 +177,7 @@ export default function PolicySimulatorPage() {
                     setParamsJson(e.target.value);
                     clearResults();
                   }}
-                  className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 font-mono"
+                  className="flex w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50 font-mono"
                   placeholder={'{\n  "projectKey": "HEALTH",\n  "responseFormat": "markdown"\n}'}
                 />
               </div>
@@ -227,7 +227,7 @@ export default function PolicySimulatorPage() {
                       {result.decision.replace("_", " ").toUpperCase()}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-400 mt-2">
+                  <p className="text-xs text-muted-foreground mt-2">
                     Evaluated at {new Date(result.evaluatedAt).toLocaleString()}
                   </p>
                 </CardContent>
@@ -242,7 +242,7 @@ export default function PolicySimulatorPage() {
                 </CardHeader>
                 <CardContent>
                   {result.matchedRules.length === 0 ? (
-                    <p className="text-sm text-gray-400">
+                    <p className="text-sm text-muted-foreground">
                       No rules matched this tool call. Default action applied.
                     </p>
                   ) : (
@@ -250,13 +250,13 @@ export default function PolicySimulatorPage() {
                       {result.matchedRules.map((rule) => (
                         <div
                           key={rule.id}
-                          className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2"
+                          className="flex items-center justify-between rounded-lg border border-border/50 px-3 py-2"
                         >
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-400 font-mono w-8">
+                            <span className="text-xs text-muted-foreground font-mono w-8">
                               #{rule.priority}
                             </span>
-                            <span className="text-sm font-medium">
+                            <span className="text-sm font-medium text-foreground">
                               {rule.name}
                             </span>
                           </div>
@@ -280,13 +280,13 @@ export default function PolicySimulatorPage() {
                 </CardHeader>
                 <CardContent>
                   {result.scanResults.clean ? (
-                    <div className="flex items-center gap-2 text-green-600">
+                    <div className="flex items-center gap-2 text-emerald-400">
                       <CheckCircle className="w-4 h-4" />
                       <span className="text-sm">No threats detected</span>
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-red-600">
+                      <div className="flex items-center gap-2 text-red-400">
                         <AlertTriangle className="w-4 h-4" />
                         <span className="text-sm font-medium">
                           {result.scanResults.threats.length} threat(s) detected
@@ -296,7 +296,7 @@ export default function PolicySimulatorPage() {
                         {result.scanResults.threats.map((threat, i) => (
                           <li
                             key={i}
-                            className="text-sm text-red-600 list-disc"
+                            className="text-sm text-red-400 list-disc"
                           >
                             {threat}
                           </li>
@@ -310,13 +310,13 @@ export default function PolicySimulatorPage() {
           ) : (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="rounded-full bg-gray-100 p-4 mb-4">
-                  <Shield className="w-8 h-8 text-gray-400" />
+                <div className="rounded-full bg-muted p-4 mb-4">
+                  <Shield className="w-8 h-8 text-muted-foreground" />
                 </div>
-                <h3 className="text-sm font-medium text-gray-900 mb-1">
+                <h3 className="text-sm font-medium text-foreground mb-1">
                   No simulation results yet
                 </h3>
-                <p className="text-sm text-gray-500 max-w-sm">
+                <p className="text-sm text-muted-foreground max-w-sm">
                   Fill in the server name, tool name, and optional parameters,
                   then click Evaluate to see which policies would apply.
                 </p>

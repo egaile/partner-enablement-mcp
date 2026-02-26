@@ -20,59 +20,59 @@ export default function LogTable({ logs }: LogTableProps) {
   const decisionColor = (d: string) => {
     switch (d) {
       case "allow":
-        return "text-green-600";
+        return "text-emerald-400";
       case "deny":
-        return "text-red-600";
+        return "text-red-400";
       default:
-        return "text-yellow-600";
+        return "text-amber-400";
     }
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <div className="bg-card rounded-xl border border-border overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
-              <th className="text-left px-4 py-3 text-gray-500 font-medium">
+            <tr className="border-b border-border bg-muted/50">
+              <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">
                 Time
               </th>
-              <th className="text-left px-4 py-3 text-gray-500 font-medium">
+              <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">
                 Server / Tool
               </th>
-              <th className="text-left px-4 py-3 text-gray-500 font-medium">
+              <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">
                 Decision
               </th>
-              <th className="text-left px-4 py-3 text-gray-500 font-medium">
+              <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">
                 Threats
               </th>
-              <th className="text-left px-4 py-3 text-gray-500 font-medium">
+              <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">
                 Latency
               </th>
-              <th className="text-left px-4 py-3 text-gray-500 font-medium">
+              <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">
                 Status
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-border/50">
             {logs.length === 0 ? (
               <tr>
                 <td
                   colSpan={6}
-                  className="px-4 py-8 text-center text-gray-400"
+                  className="px-4 py-8 text-center text-muted-foreground"
                 >
                   No audit logs found
                 </td>
               </tr>
             ) : (
               logs.map((log) => (
-                <tr key={log.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                <tr key={log.id} className="hover:bg-muted/30">
+                  <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
                     {new Date(log.created_at).toLocaleString()}
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-gray-400">{log.server_name}/</span>
-                    <span className="font-medium">{log.tool_name}</span>
+                    <span className="text-muted-foreground">{log.server_name}/</span>
+                    <span className="font-medium text-foreground">{log.tool_name}</span>
                   </td>
                   <td className="px-4 py-3">
                     <span className={`font-medium ${decisionColor(log.policy_decision)}`}>
@@ -81,21 +81,21 @@ export default function LogTable({ logs }: LogTableProps) {
                   </td>
                   <td className="px-4 py-3">
                     {log.threats_detected > 0 ? (
-                      <span className="text-red-600 font-medium">
+                      <span className="text-red-400 font-medium">
                         {log.threats_detected}
                       </span>
                     ) : (
-                      <span className="text-gray-300">0</span>
+                      <span className="text-muted-foreground/50">0</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-gray-500">
+                  <td className="px-4 py-3 text-muted-foreground">
                     {Math.round(log.latency_ms)}ms
                   </td>
                   <td className="px-4 py-3">
                     {log.success ? (
-                      <span className="text-green-600 text-xs">OK</span>
+                      <span className="text-emerald-400 text-xs">OK</span>
                     ) : (
-                      <span className="text-red-600 text-xs" title={log.error_message ?? ""}>
+                      <span className="text-red-400 text-xs" title={log.error_message ?? ""}>
                         Error
                       </span>
                     )}

@@ -49,10 +49,10 @@ interface AuditLogEntry {
 }
 
 const healthDot: Record<string, string> = {
-  healthy: "bg-green-500",
-  degraded: "bg-yellow-500",
-  unreachable: "bg-red-500",
-  unknown: "bg-gray-400",
+  healthy: "bg-emerald-400",
+  degraded: "bg-amber-400",
+  unreachable: "bg-red-400",
+  unknown: "bg-muted-foreground",
 };
 
 const healthLabel: Record<string, string> = {
@@ -178,14 +178,14 @@ export default function ServerDetailPage() {
   }
 
   if (!server) {
-    return <div className="text-gray-400">Server not found</div>;
+    return <div className="text-muted-foreground">Server not found</div>;
   }
 
   const decisionColor = (d: string) => {
     switch (d) {
-      case "allow": return "text-green-600";
-      case "deny": return "text-red-600";
-      default: return "text-yellow-600";
+      case "allow": return "text-emerald-400";
+      case "deny": return "text-red-400";
+      default: return "text-amber-400";
     }
   };
 
@@ -193,18 +193,18 @@ export default function ServerDetailPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/servers" className="text-gray-400 hover:text-gray-600">
+          <Link href="/servers" className="text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-5 h-5" />
           </Link>
-          <h2 className="text-xl font-semibold">{server.name}</h2>
+          <h2 className="text-xl font-semibold text-foreground">{server.name}</h2>
           <div className="flex items-center gap-1.5 ml-2">
             <span className={`w-2 h-2 rounded-full ${healthDot[health.status]}`} />
-            <span className="text-xs text-gray-500">{healthLabel[health.status]}</span>
+            <span className="text-xs text-muted-foreground">{healthLabel[health.status]}</span>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">{server.enabled ? "Enabled" : "Disabled"}</span>
+            <span className="text-sm text-muted-foreground">{server.enabled ? "Enabled" : "Disabled"}</span>
             <Switch checked={server.enabled} onCheckedChange={handleToggleEnabled} />
           </div>
         </div>
@@ -212,43 +212,43 @@ export default function ServerDetailPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-6">
-          <div className="bg-white rounded-lg border border-gray-200 p-5 space-y-3">
-            <h3 className="font-medium">Server Details</h3>
+          <div className="bg-card rounded-xl border border-border p-5 space-y-3">
+            <h3 className="font-medium text-foreground">Server Details</h3>
             <dl className="text-sm space-y-2">
               <div className="flex justify-between">
-                <dt className="text-gray-500">Transport</dt>
-                <dd>{server.transport}</dd>
+                <dt className="text-muted-foreground">Transport</dt>
+                <dd className="text-foreground">{server.transport}</dd>
               </div>
               {server.url && (
                 <div className="flex justify-between">
-                  <dt className="text-gray-500">URL</dt>
-                  <dd className="font-mono text-xs">{server.url}</dd>
+                  <dt className="text-muted-foreground">URL</dt>
+                  <dd className="font-mono text-xs text-foreground">{server.url}</dd>
                 </div>
               )}
               {server.command && (
                 <div className="flex justify-between">
-                  <dt className="text-gray-500">Command</dt>
-                  <dd className="font-mono text-xs">
+                  <dt className="text-muted-foreground">Command</dt>
+                  <dd className="font-mono text-xs text-foreground">
                     {server.command} {server.args?.join(" ")}
                   </dd>
                 </div>
               )}
               <div className="flex justify-between">
-                <dt className="text-gray-500">Added</dt>
-                <dd>{new Date(server.created_at).toLocaleDateString()}</dd>
+                <dt className="text-muted-foreground">Added</dt>
+                <dd className="text-foreground">{new Date(server.created_at).toLocaleDateString()}</dd>
               </div>
               {health.latencyMs !== undefined && (
                 <div className="flex justify-between">
-                  <dt className="text-gray-500">Latency</dt>
-                  <dd>{Math.round(health.latencyMs)}ms</dd>
+                  <dt className="text-muted-foreground">Latency</dt>
+                  <dd className="text-foreground">{Math.round(health.latencyMs)}ms</dd>
                 </div>
               )}
             </dl>
 
-            <div className="pt-3 border-t border-gray-100">
+            <div className="pt-3 border-t border-border/50">
               <button
                 onClick={() => setDeleteOpen(true)}
-                className="flex items-center gap-2 text-sm text-red-600 hover:text-red-800"
+                className="flex items-center gap-2 text-sm text-red-400 hover:text-red-300"
               >
                 <Trash2 className="w-4 h-4" />
                 Delete Server
@@ -258,27 +258,27 @@ export default function ServerDetailPage() {
 
           {/* Recent Audit Entries */}
           {recentAudit.length > 0 && (
-            <div className="bg-white rounded-lg border border-gray-200">
-              <div className="p-4 border-b border-gray-200">
-                <h3 className="font-medium">Recent Activity</h3>
+            <div className="bg-card rounded-xl border border-border">
+              <div className="p-4 border-b border-border">
+                <h3 className="font-medium text-foreground">Recent Activity</h3>
               </div>
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-border/50">
                 {recentAudit.map((entry) => (
                   <div key={entry.id} className="px-4 py-2.5 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm">{entry.tool_name}</span>
+                      <span className="text-sm text-foreground">{entry.tool_name}</span>
                       <span className={`text-xs font-medium ${decisionColor(entry.policy_decision)}`}>
                         {entry.policy_decision}
                       </span>
                     </div>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-muted-foreground">
                       {new Date(entry.created_at).toLocaleString()}
                     </span>
                   </div>
                 ))}
               </div>
-              <div className="p-3 border-t border-gray-100">
-                <Link href={`/audit?serverId=${id}`} className="text-xs text-gray-500 hover:text-gray-700">
+              <div className="p-3 border-t border-border/50">
+                <Link href={`/audit?serverId=${id}`} className="text-xs text-muted-foreground hover:text-foreground">
                   View all audit entries
                 </Link>
               </div>

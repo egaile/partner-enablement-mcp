@@ -3,10 +3,10 @@ import { BookOpen, ShieldCheck, Settings2, Code2, HelpCircle } from "lucide-reac
 import type { DocSection } from "@/lib/docs";
 
 const sectionIcons: Record<string, React.ReactNode> = {
-  guides: <BookOpen className="w-6 h-6 text-blue-500" />,
-  admin: <Settings2 className="w-6 h-6 text-purple-500" />,
-  security: <ShieldCheck className="w-6 h-6 text-red-500" />,
-  api: <Code2 className="w-6 h-6 text-green-500" />,
+  guides: <BookOpen className="w-6 h-6 text-cyan-400" />,
+  admin: <Settings2 className="w-6 h-6 text-purple-400" />,
+  security: <ShieldCheck className="w-6 h-6 text-red-400" />,
+  api: <Code2 className="w-6 h-6 text-emerald-400" />,
 };
 
 const sectionDescriptions: Record<string, string> = {
@@ -24,8 +24,8 @@ export default function DocsLanding({ sections }: DocsLandingProps) {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Documentation</h1>
-        <p className="text-gray-600 text-lg">
+        <h1 className="text-3xl font-bold text-foreground mb-2">Documentation</h1>
+        <p className="text-muted-foreground text-lg">
           Everything you need to configure, secure, and operate the MCP Security Gateway.
         </p>
       </div>
@@ -35,18 +35,18 @@ export default function DocsLanding({ sections }: DocsLandingProps) {
           <Link
             key={section.slug}
             href={`/docs/${section.entries[0]?.slug}`}
-            className="group block p-5 bg-white border border-gray-200 rounded-lg hover:border-orange-300 hover:shadow-sm transition-all"
+            className="group block p-5 bg-card border border-border rounded-lg hover:border-cyan-500/30 hover:shadow-glow-sm transition-all"
           >
             <div className="flex items-start gap-3">
               <div className="mt-0.5">{sectionIcons[section.slug]}</div>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">
+                <h2 className="text-lg font-semibold text-foreground group-hover:text-cyan-400 transition-colors">
                   {section.label}
                 </h2>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-muted-foreground mt-1">
                   {sectionDescriptions[section.slug]}
                 </p>
-                <p className="text-xs text-gray-400 mt-2">
+                <p className="text-xs text-muted-foreground mt-2">
                   {section.entries.length} {section.entries.length === 1 ? "page" : "pages"}
                 </p>
               </div>
@@ -55,26 +55,26 @@ export default function DocsLanding({ sections }: DocsLandingProps) {
         ))}
       </div>
 
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-5">
+      <div className="bg-card border border-border rounded-lg p-5">
         <div className="flex items-center gap-2 mb-3">
-          <HelpCircle className="w-5 h-5 text-orange-500" />
-          <h2 className="text-lg font-semibold text-gray-900">Frequently Asked Questions</h2>
+          <HelpCircle className="w-5 h-5 text-cyan-400" />
+          <h2 className="text-lg font-semibold text-foreground">Frequently Asked Questions</h2>
         </div>
-        <p className="text-sm text-gray-600 mb-3">
+        <p className="text-sm text-muted-foreground mb-3">
           Quick answers to common questions about the gateway, policies, security scanning, and more.
         </p>
         <Link
           href="/docs/faq"
-          className="inline-flex items-center text-sm font-medium text-orange-600 hover:text-orange-700"
+          className="inline-flex items-center text-sm font-medium text-cyan-400 hover:text-cyan-300"
         >
           Browse FAQ &rarr;
         </Link>
       </div>
 
-      <div className="mt-8 p-4 border border-blue-100 bg-blue-50 rounded-lg">
-        <p className="text-sm text-blue-800">
+      <div className="mt-8 p-4 border border-cyan-500/20 bg-cyan-500/10 rounded-lg">
+        <p className="text-sm text-cyan-300">
           <strong>Start here:</strong>{" "}
-          <Link href="/docs/guides/getting-started" className="underline underline-offset-2 hover:text-blue-900">
+          <Link href="/docs/guides/getting-started" className="underline underline-offset-2 hover:text-cyan-200">
             Getting Started
           </Link>{" "}
           walks you through your first gateway setup in under 10 minutes.

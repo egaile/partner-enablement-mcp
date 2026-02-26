@@ -97,13 +97,13 @@ export default function PoliciesPage() {
   const actionBadge = (action: string) => {
     switch (action) {
       case "allow":
-        return "bg-green-100 text-green-700";
+        return "bg-emerald-500/15 text-emerald-400";
       case "deny":
-        return "bg-red-100 text-red-700";
+        return "bg-red-500/15 text-red-400";
       case "require_approval":
-        return "bg-yellow-100 text-yellow-700";
+        return "bg-amber-500/15 text-amber-400";
       default:
-        return "bg-gray-100 text-gray-700";
+        return "bg-muted text-muted-foreground";
     }
   };
 
@@ -118,10 +118,10 @@ export default function PoliciesPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Policy Rules</h2>
+        <h2 className="text-xl font-semibold text-foreground">Policy Rules</h2>
         <Link
           href="/policies/new"
-          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-800"
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm hover:bg-primary/90"
         >
           <Plus className="w-4 h-4" />
           Create Rule
@@ -139,7 +139,7 @@ export default function PoliciesPage() {
           <select
             value={filterAction}
             onChange={(e) => setFilterAction(e.target.value)}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+            className="px-3 py-2 border border-border rounded-lg text-sm bg-muted/50 text-foreground"
           >
             {actionOptions.map((a) => (
               <option key={a} value={a}>
@@ -161,11 +161,11 @@ export default function PoliciesPage() {
           actionHref="/policies/new"
         />
       ) : filtered.length === 0 ? (
-        <div className="text-center py-8 text-gray-400 text-sm">
+        <div className="text-center py-8 text-muted-foreground text-sm">
           No policies matching your filters
         </div>
       ) : (
-        <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
+        <div className="bg-card rounded-xl border border-border divide-y divide-border/50">
           {filtered.map((p) => (
             <div
               key={p.id}
@@ -178,10 +178,10 @@ export default function PoliciesPage() {
                 />
                 <div className="min-w-0">
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-gray-400 font-mono w-8">
+                    <span className="text-xs text-muted-foreground font-mono w-8">
                       #{p.priority}
                     </span>
-                    <span className="text-sm font-medium">{p.name}</span>
+                    <span className="text-sm font-medium text-foreground">{p.name}</span>
                     <span
                       className={`text-xs px-2 py-0.5 rounded-full ${actionBadge(p.action)}`}
                     >
@@ -189,7 +189,7 @@ export default function PoliciesPage() {
                     </span>
                   </div>
                   {p.description && (
-                    <p className="text-xs text-gray-400 mt-1 ml-11 truncate">
+                    <p className="text-xs text-muted-foreground mt-1 ml-11 truncate">
                       {p.description}
                     </p>
                   )}
@@ -197,7 +197,7 @@ export default function PoliciesPage() {
               </div>
               <button
                 onClick={() => setDeleteTarget(p)}
-                className="text-gray-400 hover:text-red-600 ml-3"
+                className="text-muted-foreground hover:text-red-400 ml-3"
               >
                 <Trash2 className="w-4 h-4" />
               </button>

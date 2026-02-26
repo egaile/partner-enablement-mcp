@@ -5,6 +5,10 @@ const config: Config = {
     content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
   theme: {
   	extend: {
+  		fontFamily: {
+  			sans: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
+  			mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+  		},
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
@@ -51,7 +55,17 @@ const config: Config = {
   				'4': 'hsl(var(--chart-4))',
   				'5': 'hsl(var(--chart-5))'
   			}
-  		}
+  		},
+  		boxShadow: {
+  			'glow': '0 0 20px -5px hsl(185 70% 48% / 0.4)',
+  			'glow-sm': '0 0 10px -3px hsl(185 70% 48% / 0.3)',
+  			'glow-lg': '0 0 30px -5px hsl(185 70% 48% / 0.5)',
+  			'dark-sm': '0 1px 2px 0 rgb(0 0 0 / 0.3)',
+  			'dark-md': '0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.2)',
+  		},
+  		animation: {
+  			'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+  		},
   	}
   },
   plugins: [require("tailwindcss-animate")],

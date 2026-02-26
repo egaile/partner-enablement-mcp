@@ -84,16 +84,16 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Dashboard</h2>
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+        <h2 className="text-xl font-semibold text-foreground">Dashboard</h2>
+        <div className="flex gap-1 bg-muted rounded-lg p-0.5">
           {timeRanges.map((range) => (
             <button
               key={range.value}
               onClick={() => { setLoading(true); setTimeRange(range.value); }}
               className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
                 timeRange === range.value
-                  ? "bg-white shadow-sm font-medium text-gray-900"
-                  : "text-gray-500 hover:text-gray-700"
+                  ? "bg-card shadow-sm font-medium text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {range.label}
@@ -137,13 +137,13 @@ export default function DashboardPage() {
           <Link
             key={href}
             href={href}
-            className="flex items-center gap-3 bg-white rounded-lg border border-gray-200 p-4 hover:border-gray-300 transition-colors"
+            className="flex items-center gap-3 bg-card rounded-xl border border-border p-4 hover:border-cyan-500/30 hover:shadow-glow-sm transition-all"
           >
-            <div className="p-2 rounded-lg bg-gray-50">
-              <Icon className="w-4 h-4 text-gray-600" />
+            <div className="p-2 rounded-lg bg-muted/50">
+              <Icon className="w-4 h-4 text-muted-foreground" />
             </div>
-            <span className="text-sm font-medium">{label}</span>
-            <Plus className="w-4 h-4 text-gray-400 ml-auto" />
+            <span className="text-sm font-medium text-foreground">{label}</span>
+            <Plus className="w-4 h-4 text-muted-foreground ml-auto" />
           </Link>
         ))}
       </div>

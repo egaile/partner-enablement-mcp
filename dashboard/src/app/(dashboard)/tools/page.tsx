@@ -38,22 +38,22 @@ interface ToolRow {
 
 function ToolTableSkeleton() {
   return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <div className="bg-card rounded-xl border border-border overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
+            <tr className="border-b border-border bg-muted/50">
               {["Tool Name", "Server", "Hash", "Status", "Action"].map((h) => (
                 <th
                   key={h}
-                  className="text-left px-4 py-3 text-gray-500 font-medium"
+                  className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider"
                 >
                   {h}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-border/50">
             {Array.from({ length: 5 }).map((_, i) => (
               <tr key={i}>
                 <td className="px-4 py-3">
@@ -177,7 +177,7 @@ export default function ToolsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Tool Approval Queue</h2>
+        <h2 className="text-xl font-semibold text-foreground">Tool Approval Queue</h2>
         {!loading && (
           <Badge variant="secondary">
             {unapproved.length} unapproved
@@ -194,52 +194,52 @@ export default function ToolsPage() {
           description="No unapproved or drifted tool snapshots found across your servers. New tools will appear here when they are discovered."
         />
       ) : (
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left px-4 py-3 text-gray-500 font-medium">
+                <tr className="border-b border-border bg-muted/50">
+                  <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">
                     <div className="flex items-center gap-1.5">
                       <Wrench className="w-3.5 h-3.5" />
                       Tool Name
                     </div>
                   </th>
-                  <th className="text-left px-4 py-3 text-gray-500 font-medium">
+                  <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">
                     Server
                   </th>
-                  <th className="text-left px-4 py-3 text-gray-500 font-medium">
+                  <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">
                     Hash
                   </th>
-                  <th className="text-left px-4 py-3 text-gray-500 font-medium">
+                  <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="text-left px-4 py-3 text-gray-500 font-medium">
+                  <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">
                     Action
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border/50">
                 {unapproved.map((tool) => (
-                  <tr key={tool.snapshotId} className="hover:bg-gray-50">
+                  <tr key={tool.snapshotId} className="hover:bg-muted/30">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <Wrench className="w-4 h-4 text-gray-400" />
-                        <span className="font-medium">{tool.toolName}</span>
+                        <Wrench className="w-4 h-4 text-muted-foreground" />
+                        <span className="font-medium text-foreground">{tool.toolName}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">
+                    <td className="px-4 py-3 text-muted-foreground">
                       {tool.serverName}
                     </td>
                     <td className="px-4 py-3">
-                      <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded font-mono">
+                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono text-foreground">
                         {tool.hash.slice(0, 12)}
                       </code>
                     </td>
                     <td className="px-4 py-3">
                       <Badge
                         variant="secondary"
-                        className="bg-yellow-100 text-yellow-700 hover:bg-yellow-100"
+                        className="bg-amber-500/15 text-amber-400 hover:bg-amber-500/15"
                       >
                         <AlertTriangle className="w-3 h-3 mr-1" />
                         Unapproved
@@ -268,54 +268,54 @@ export default function ToolsPage() {
       {/* Show approved tools below for reference */}
       {!loading && tools.filter((t) => t.approved).length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-sm font-medium text-gray-500">
+          <h3 className="text-sm font-medium text-muted-foreground">
             Approved Tools ({tools.filter((t) => t.approved).length})
           </h3>
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50">
-                    <th className="text-left px-4 py-3 text-gray-500 font-medium">
+                  <tr className="border-b border-border bg-muted/50">
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">
                       Tool Name
                     </th>
-                    <th className="text-left px-4 py-3 text-gray-500 font-medium">
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">
                       Server
                     </th>
-                    <th className="text-left px-4 py-3 text-gray-500 font-medium">
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">
                       Hash
                     </th>
-                    <th className="text-left px-4 py-3 text-gray-500 font-medium">
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">
                       Status
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border/50">
                   {tools
                     .filter((t) => t.approved)
                     .map((tool) => (
                       <tr
                         key={tool.snapshotId}
-                        className="hover:bg-gray-50 opacity-70"
+                        className="hover:bg-muted/30 opacity-70"
                       >
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
-                            <Wrench className="w-4 h-4 text-gray-400" />
-                            <span>{tool.toolName}</span>
+                            <Wrench className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-foreground">{tool.toolName}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-gray-600">
+                        <td className="px-4 py-3 text-muted-foreground">
                           {tool.serverName}
                         </td>
                         <td className="px-4 py-3">
-                          <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded font-mono">
+                          <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono text-foreground">
                             {tool.hash.slice(0, 12)}
                           </code>
                         </td>
                         <td className="px-4 py-3">
                           <Badge
                             variant="secondary"
-                            className="bg-green-100 text-green-700 hover:bg-green-100"
+                            className="bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/15"
                           >
                             <CheckCircle className="w-3 h-3 mr-1" />
                             Approved

@@ -11,17 +11,17 @@ interface MetricCardProps {
 }
 
 const colorMap = {
-  blue: "bg-blue-50 text-blue-600",
-  green: "bg-green-50 text-green-600",
-  red: "bg-red-50 text-red-600",
-  orange: "bg-orange-50 text-orange-600",
-  gray: "bg-gray-50 text-gray-600",
+  blue: "bg-cyan-500/15 text-cyan-400",
+  green: "bg-emerald-500/15 text-emerald-400",
+  red: "bg-red-500/15 text-red-400",
+  orange: "bg-amber-500/15 text-amber-400",
+  gray: "bg-muted text-muted-foreground",
 };
 
 const trendConfig = {
-  up: { icon: TrendingUp, color: "text-green-500" },
-  down: { icon: TrendingDown, color: "text-red-500" },
-  neutral: { icon: Minus, color: "text-gray-400" },
+  up: { icon: TrendingUp, color: "text-emerald-400" },
+  down: { icon: TrendingDown, color: "text-red-400" },
+  neutral: { icon: Minus, color: "text-muted-foreground" },
 };
 
 export default function MetricCard({
@@ -36,18 +36,18 @@ export default function MetricCard({
   const trendColor = trend ? trendConfig[trend].color : "";
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
+    <div className="bg-card rounded-xl border border-border p-6 hover:border-cyan-500/30 hover:shadow-glow-sm transition-all">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-gray-500">{title}</p>
+          <p className="text-sm text-muted-foreground">{title}</p>
           <div className="flex items-center gap-2 mt-1">
-            <p className="text-2xl font-semibold">{value}</p>
+            <p className="text-2xl font-semibold text-foreground">{value}</p>
             {TrendIcon && (
               <TrendIcon className={`w-4 h-4 ${trendColor}`} />
             )}
           </div>
           {subtitle && (
-            <p className="text-xs text-gray-400 mt-1">{subtitle}</p>
+            <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
           )}
         </div>
         <div className={`p-3 rounded-lg ${colorMap[color]}`}>

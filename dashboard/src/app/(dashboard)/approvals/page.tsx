@@ -79,7 +79,7 @@ export default function ApprovalsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Approval Queue</h2>
+        <h2 className="text-xl font-semibold text-foreground">Approval Queue</h2>
         <Badge variant="secondary">{approvals.filter((a) => a.status === "pending" && !isExpired(a)).length} pending</Badge>
       </div>
 
@@ -98,14 +98,14 @@ export default function ApprovalsPage() {
             return (
               <div
                 key={a.id}
-                className={`bg-white rounded-lg border border-gray-200 p-4 ${
+                className={`bg-card rounded-xl border border-border p-4 ${
                   a.status !== "pending" || expired ? "opacity-60" : ""
                 }`}
               >
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">
+                      <span className="text-sm font-medium text-foreground">
                         {a.serverName}/{a.toolName}
                       </span>
                       <Badge
@@ -120,25 +120,25 @@ export default function ApprovalsPage() {
                         }
                         className={
                           a.status === "approved"
-                            ? "bg-green-100 text-green-700 hover:bg-green-100"
+                            ? "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/15"
                             : expired
-                              ? "bg-gray-100 text-gray-500"
+                              ? "bg-muted text-muted-foreground"
                               : ""
                         }
                       >
                         {expired ? "expired" : a.status}
                       </Badge>
                     </div>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       Requested by {a.userId} at{" "}
                       {new Date(a.requestedAt).toLocaleString()}
                     </p>
                     {Object.keys(a.params).length > 0 && (
                       <details className="mt-2">
-                        <summary className="text-xs text-gray-400 cursor-pointer">
+                        <summary className="text-xs text-muted-foreground cursor-pointer">
                           View parameters
                         </summary>
-                        <pre className="mt-1 text-xs bg-gray-50 rounded p-2 overflow-auto max-h-32">
+                        <pre className="mt-1 text-xs bg-muted rounded p-2 overflow-auto max-h-32 text-foreground">
                           {JSON.stringify(a.params, null, 2)}
                         </pre>
                       </details>
@@ -151,7 +151,7 @@ export default function ApprovalsPage() {
                         size="sm"
                         variant="outline"
                         onClick={() => handleAction(a.id, "reject")}
-                        className="text-red-600 hover:text-red-700"
+                        className="text-red-400 hover:text-red-300"
                       >
                         <XCircle className="w-4 h-4 mr-1" />
                         Reject
@@ -167,7 +167,7 @@ export default function ApprovalsPage() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
+                <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <Clock className="w-3 h-3" />
                     Expires {new Date(a.expiresAt).toLocaleString()}

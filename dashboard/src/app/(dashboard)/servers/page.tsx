@@ -64,10 +64,10 @@ export default function ServersPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">MCP Servers</h2>
+        <h2 className="text-xl font-semibold text-foreground">MCP Servers</h2>
         <Link
           href="/servers/new"
-          className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-800 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm hover:bg-primary/90 transition-colors"
         >
           <Plus className="w-4 h-4" />
           Add Server
@@ -76,7 +76,7 @@ export default function ServersPage() {
 
       {!loading && servers.length > 0 && (
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+          <div className="flex gap-1 bg-muted rounded-lg p-0.5">
             {([
               { value: "all" as StatusFilter, label: `All (${servers.length})` },
               { value: "active" as StatusFilter, label: `Active (${activeCount})` },
@@ -87,8 +87,8 @@ export default function ServersPage() {
                 onClick={() => setStatusFilter(tab.value)}
                 className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
                   statusFilter === tab.value
-                    ? "bg-white shadow-sm font-medium text-gray-900"
-                    : "text-gray-500 hover:text-gray-700"
+                    ? "bg-card shadow-sm font-medium text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {tab.label}
@@ -119,7 +119,7 @@ export default function ServersPage() {
           actionHref="/servers/new"
         />
       ) : filtered.length === 0 ? (
-        <div className="text-center py-8 text-gray-400 text-sm">
+        <div className="text-center py-8 text-muted-foreground text-sm">
           No servers matching your filters
         </div>
       ) : (

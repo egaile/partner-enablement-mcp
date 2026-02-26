@@ -148,18 +148,18 @@ export default function AuditPage() {
 
   const decisionColor = (d: string) => {
     switch (d) {
-      case "allow": return "text-green-600";
-      case "deny": return "text-red-600";
-      default: return "text-yellow-600";
+      case "allow": return "text-emerald-400";
+      case "deny": return "text-red-400";
+      default: return "text-amber-400";
     }
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Audit Log</h2>
+        <h2 className="text-xl font-semibold text-foreground">Audit Log</h2>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-400">{count} entries</span>
+          <span className="text-sm text-muted-foreground">{count} entries</span>
           <Button size="sm" variant="outline" onClick={exportCSV} disabled={logs.length === 0}>
             <Download className="w-3.5 h-3.5 mr-1" /> CSV
           </Button>
@@ -171,7 +171,7 @@ export default function AuditPage() {
         <select
           value={filterServer}
           onChange={(e) => setFilterServer(e.target.value)}
-          className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+          className="px-3 py-2 border border-border rounded-lg text-sm bg-muted/50 text-foreground"
         >
           <option value="">All Servers</option>
           {servers.map((s) => (
@@ -187,7 +187,7 @@ export default function AuditPage() {
         <select
           value={filterDecision}
           onChange={(e) => setFilterDecision(e.target.value)}
-          className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+          className="px-3 py-2 border border-border rounded-lg text-sm bg-muted/50 text-foreground"
         >
           {decisions.map((d) => (
             <option key={d} value={d}>{d === "all" ? "All Decisions" : d}</option>
@@ -196,7 +196,7 @@ export default function AuditPage() {
         <select
           value={limit}
           onChange={(e) => setLimit(Number(e.target.value))}
-          className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white ml-auto"
+          className="px-3 py-2 border border-border rounded-lg text-sm bg-muted/50 text-foreground ml-auto"
         >
           {pageSizes.map((s) => (
             <option key={s} value={s}>{s} per page</option>
@@ -214,41 +214,41 @@ export default function AuditPage() {
         />
       ) : (
         <>
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="bg-card rounded-xl border border-border overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-200 bg-gray-50">
+                  <tr className="border-b border-border bg-muted/50">
                     <th className="w-8 px-2 py-3" />
-                    <th className="text-left px-4 py-3 text-gray-500 font-medium">Time</th>
-                    <th className="text-left px-4 py-3 text-gray-500 font-medium">Server / Tool</th>
-                    <th className="text-left px-4 py-3 text-gray-500 font-medium">Decision</th>
-                    <th className="text-left px-4 py-3 text-gray-500 font-medium">Threats</th>
-                    <th className="text-left px-4 py-3 text-gray-500 font-medium">Latency</th>
-                    <th className="text-left px-4 py-3 text-gray-500 font-medium">Status</th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">Time</th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">Server / Tool</th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">Decision</th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">Threats</th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">Latency</th>
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-border/50">
                   {logs.map((log) => (
                     <>
                       <tr
                         key={log.id}
-                        className="hover:bg-gray-50 cursor-pointer"
+                        className="hover:bg-muted/30 cursor-pointer"
                         onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
                       >
-                        <td className="px-2 py-3 text-gray-400">
+                        <td className="px-2 py-3 text-muted-foreground">
                           {expandedId === log.id ? (
                             <ChevronDown className="w-4 h-4" />
                           ) : (
                             <ChevronRight className="w-4 h-4" />
                           )}
                         </td>
-                        <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                        <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
                           {new Date(log.created_at).toLocaleString()}
                         </td>
                         <td className="px-4 py-3">
-                          <span className="text-gray-400">{log.server_name}/</span>
-                          <span className="font-medium">{log.tool_name}</span>
+                          <span className="text-muted-foreground">{log.server_name}/</span>
+                          <span className="font-medium text-foreground">{log.tool_name}</span>
                         </td>
                         <td className="px-4 py-3">
                           <span className={`font-medium ${decisionColor(log.policy_decision)}`}>
@@ -257,57 +257,57 @@ export default function AuditPage() {
                         </td>
                         <td className="px-4 py-3">
                           {log.threats_detected > 0 ? (
-                            <span className="text-red-600 font-medium">{log.threats_detected}</span>
+                            <span className="text-red-400 font-medium">{log.threats_detected}</span>
                           ) : (
-                            <span className="text-gray-300">0</span>
+                            <span className="text-muted-foreground/50">0</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-gray-500">
+                        <td className="px-4 py-3 text-muted-foreground">
                           {Math.round(log.latency_ms)}ms
                         </td>
                         <td className="px-4 py-3">
                           {log.success ? (
-                            <span className="text-green-600 text-xs">OK</span>
+                            <span className="text-emerald-400 text-xs">OK</span>
                           ) : (
-                            <span className="text-red-600 text-xs">Error</span>
+                            <span className="text-red-400 text-xs">Error</span>
                           )}
                         </td>
                       </tr>
                       {expandedId === log.id && (
-                        <tr key={`${log.id}-detail`} className="bg-gray-50">
+                        <tr key={`${log.id}-detail`} className="bg-muted/30">
                           <td colSpan={7} className="px-6 py-4">
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
                               <div>
-                                <span className="text-gray-400 block mb-1">Correlation ID</span>
-                                <code className="bg-gray-100 px-2 py-0.5 rounded font-mono text-gray-700">
+                                <span className="text-muted-foreground block mb-1">Correlation ID</span>
+                                <code className="bg-muted px-2 py-0.5 rounded font-mono text-foreground">
                                   {log.correlation_id}
                                 </code>
                               </div>
                               <div>
-                                <span className="text-gray-400 block mb-1">Drift Detected</span>
-                                <span className={log.drift_detected ? "text-yellow-600 font-medium" : "text-gray-500"}>
+                                <span className="text-muted-foreground block mb-1">Drift Detected</span>
+                                <span className={log.drift_detected ? "text-amber-400 font-medium" : "text-muted-foreground"}>
                                   {log.drift_detected ? "Yes" : "No"}
                                 </span>
                               </div>
                               {log.policy_rule_id && (
                                 <div>
-                                  <span className="text-gray-400 block mb-1">Policy Rule ID</span>
-                                  <code className="bg-gray-100 px-2 py-0.5 rounded font-mono text-gray-700">
+                                  <span className="text-muted-foreground block mb-1">Policy Rule ID</span>
+                                  <code className="bg-muted px-2 py-0.5 rounded font-mono text-foreground">
                                     {log.policy_rule_id}
                                   </code>
                                 </div>
                               )}
                               {log.error_message && (
                                 <div>
-                                  <span className="text-gray-400 block mb-1">Error</span>
-                                  <span className="text-red-600">{log.error_message}</span>
+                                  <span className="text-muted-foreground block mb-1">Error</span>
+                                  <span className="text-red-400">{log.error_message}</span>
                                 </div>
                               )}
                             </div>
                             {log.threat_details ? (
                               <div className="mt-3">
-                                <span className="text-xs text-gray-400 block mb-1">Threat Details</span>
-                                <pre className="text-xs bg-gray-100 rounded p-3 overflow-x-auto font-mono text-gray-700">
+                                <span className="text-xs text-muted-foreground block mb-1">Threat Details</span>
+                                <pre className="text-xs bg-muted rounded p-3 overflow-x-auto font-mono text-foreground">
                                   {JSON.stringify(log.threat_details, null, 2)}
                                 </pre>
                               </div>
@@ -328,13 +328,13 @@ export default function AuditPage() {
               <button
                 onClick={() => goToPage(currentPage - 1)}
                 disabled={currentPage === 1}
-                className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-30 hover:bg-gray-50"
+                className="px-3 py-1.5 text-sm border border-border rounded-lg disabled:opacity-30 hover:bg-muted/30 text-foreground"
               >
                 Previous
               </button>
               {getPageNumbers().map((page, i) =>
                 page === "..." ? (
-                  <span key={`ellipsis-${i}`} className="px-2 py-1.5 text-sm text-gray-400">
+                  <span key={`ellipsis-${i}`} className="px-2 py-1.5 text-sm text-muted-foreground">
                     ...
                   </span>
                 ) : (
@@ -343,8 +343,8 @@ export default function AuditPage() {
                     onClick={() => goToPage(page)}
                     className={`px-3 py-1.5 text-sm rounded-lg ${
                       page === currentPage
-                        ? "bg-gray-900 text-white"
-                        : "border hover:bg-gray-50"
+                        ? "bg-primary text-primary-foreground"
+                        : "border border-border hover:bg-muted/30 text-foreground"
                     }`}
                   >
                     {page}
@@ -354,7 +354,7 @@ export default function AuditPage() {
               <button
                 onClick={() => goToPage(currentPage + 1)}
                 disabled={currentPage >= totalPages}
-                className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-30 hover:bg-gray-50"
+                className="px-3 py-1.5 text-sm border border-border rounded-lg disabled:opacity-30 hover:bg-muted/30 text-foreground"
               >
                 Next
               </button>

@@ -65,17 +65,17 @@ export default function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
   const NavContent = ({ isCollapsed = false }: { isCollapsed?: boolean }) => (
     <>
-      <div className={`border-b border-gray-800 ${isCollapsed ? "p-3" : "p-6"}`}>
+      <div className={`border-b border-border/50 ${isCollapsed ? "p-3" : "p-6"}`}>
         <h1
-          className={`font-bold text-white flex items-center ${
+          className={`font-bold text-foreground flex items-center ${
             isCollapsed ? "justify-center" : "gap-2 text-lg"
           }`}
         >
-          <Shield className="w-5 h-5 text-orange-400 flex-shrink-0" />
+          <Shield className="w-5 h-5 text-cyan-400 flex-shrink-0" />
           {!isCollapsed && "MCP Gateway"}
         </h1>
         {!isCollapsed && (
-          <p className="text-xs text-gray-500 mt-1">Security Dashboard</p>
+          <p className="text-xs text-muted-foreground mt-1">Security Dashboard</p>
         )}
       </div>
 
@@ -92,8 +92,8 @@ export default function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
                 isCollapsed ? "justify-center px-3 py-2.5" : "px-6 py-2.5"
               } ${
                 active
-                  ? "bg-gray-800 text-white border-r-2 border-orange-400"
-                  : "hover:bg-gray-800/50 hover:text-white"
+                  ? "bg-cyan-500/10 text-cyan-400 border-r-2 border-cyan-400"
+                  : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
               }`}
               title={isCollapsed ? label : undefined}
             >
@@ -115,10 +115,10 @@ export default function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       </nav>
 
       {!isCollapsed && (
-        <div className="p-3 border-t border-gray-800">
+        <div className="p-3 border-t border-border/50">
           <button
             onClick={() => setCollapsed(true)}
-            className="hidden lg:flex items-center gap-2 text-xs text-gray-500 hover:text-gray-300 w-full px-3 py-1.5"
+            className="hidden lg:flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground w-full px-3 py-1.5"
           >
             <PanelLeftClose className="w-4 h-4" />
             Collapse
@@ -126,10 +126,10 @@ export default function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
         </div>
       )}
       {isCollapsed && (
-        <div className="p-3 border-t border-gray-800 flex justify-center">
+        <div className="p-3 border-t border-border/50 flex justify-center">
           <button
             onClick={() => setCollapsed(false)}
-            className="hidden lg:block text-gray-500 hover:text-gray-300"
+            className="hidden lg:block text-muted-foreground hover:text-foreground"
             title="Expand sidebar"
           >
             <PanelLeftOpen className="w-4 h-4" />
@@ -143,7 +143,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
     <>
       {/* Desktop sidebar */}
       <aside
-        className={`hidden lg:flex bg-gray-900 text-gray-300 flex-col min-h-screen transition-all duration-200 ${
+        className={`hidden lg:flex bg-background/80 backdrop-blur-xl border-r border-border/50 text-muted-foreground flex-col min-h-screen transition-all duration-200 ${
           collapsed ? "w-16" : "w-64"
         }`}
       >
@@ -152,7 +152,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
 
       {/* Mobile sidebar via Sheet */}
       <Sheet open={mobileOpen} onOpenChange={(open) => !open && onMobileClose?.()}>
-        <SheetContent side="left" className="w-64 p-0 bg-gray-900 text-gray-300 border-r-0">
+        <SheetContent side="left" className="w-64 p-0 bg-background text-muted-foreground border-r-0">
           <NavContent />
         </SheetContent>
       </Sheet>

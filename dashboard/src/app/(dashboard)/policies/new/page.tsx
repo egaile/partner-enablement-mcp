@@ -40,13 +40,13 @@ export default function NewPolicyPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center gap-3">
-        <Link href="/policies" className="text-gray-400 hover:text-gray-600">
+        <Link href="/policies" className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <h2 className="text-xl font-semibold">Create Policy Rule</h2>
+        <h2 className="text-xl font-semibold text-foreground">Create Policy Rule</h2>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-400">{error}</p>}
 
       <RuleBuilder onSubmit={handleSubmit} submitting={submitting} />
     </div>

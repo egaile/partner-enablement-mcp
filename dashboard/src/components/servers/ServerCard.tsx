@@ -19,26 +19,26 @@ export default function ServerCard({
   return (
     <Link
       href={`/servers/${id}`}
-      className="block bg-white rounded-lg border border-gray-200 p-5 hover:border-gray-300 transition-colors"
+      className="block bg-card rounded-xl border border-border p-5 hover:border-cyan-500/30 hover:shadow-glow-sm transition-all"
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div
-            className={`p-2 rounded-lg ${enabled ? "bg-green-50 text-green-600" : "bg-gray-100 text-gray-400"}`}
+            className={`p-2 rounded-lg ${enabled ? "bg-emerald-500/15 text-emerald-400" : "bg-muted text-muted-foreground"}`}
           >
             <Server className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="font-medium text-gray-900">{name}</h3>
+            <h3 className="font-medium text-foreground">{name}</h3>
             <div className="flex items-center gap-2 mt-1">
               {transport === "http" ? (
-                <Wifi className="w-3 h-3 text-gray-400" />
+                <Wifi className="w-3 h-3 text-muted-foreground" />
               ) : (
-                <Terminal className="w-3 h-3 text-gray-400" />
+                <Terminal className="w-3 h-3 text-muted-foreground" />
               )}
-              <span className="text-xs text-gray-400">{transport}</span>
+              <span className="text-xs text-muted-foreground">{transport}</span>
               {toolCount !== undefined && (
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-muted-foreground">
                   {toolCount} tool{toolCount !== 1 ? "s" : ""}
                 </span>
               )}
@@ -48,8 +48,8 @@ export default function ServerCard({
         <span
           className={`text-xs px-2 py-0.5 rounded-full ${
             enabled
-              ? "bg-green-100 text-green-700"
-              : "bg-gray-100 text-gray-500"
+              ? "bg-emerald-500/15 text-emerald-400"
+              : "bg-muted text-muted-foreground"
           }`}
         >
           {enabled ? "Active" : "Disabled"}

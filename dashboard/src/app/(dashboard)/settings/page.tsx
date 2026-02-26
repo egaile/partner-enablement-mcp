@@ -131,7 +131,7 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <h2 className="text-xl font-semibold">Settings</h2>
+      <h2 className="text-xl font-semibold text-foreground">Settings</h2>
 
       <Tabs defaultValue="account">
         <TabsList className="grid w-full grid-cols-5">
@@ -154,16 +154,16 @@ export default function SettingsPage() {
 
         {/* Account Tab */}
         <TabsContent value="account">
-          <div className="bg-white rounded-lg border border-gray-200 p-5 space-y-4">
-            <h3 className="font-medium">Account</h3>
+          <div className="bg-card rounded-xl border border-border p-5 space-y-4">
+            <h3 className="font-medium text-foreground">Account</h3>
             <dl className="text-sm space-y-2">
               <div className="flex justify-between">
-                <dt className="text-gray-500">Email</dt>
-                <dd>{user?.primaryEmailAddress?.emailAddress ?? "—"}</dd>
+                <dt className="text-muted-foreground">Email</dt>
+                <dd className="text-foreground">{user?.primaryEmailAddress?.emailAddress ?? "—"}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-gray-500">User ID</dt>
-                <dd className="font-mono text-xs">{user?.id ?? "—"}</dd>
+                <dt className="text-muted-foreground">User ID</dt>
+                <dd className="font-mono text-xs text-foreground">{user?.id ?? "—"}</dd>
               </div>
             </dl>
           </div>
@@ -171,16 +171,16 @@ export default function SettingsPage() {
 
         {/* Team Tab */}
         <TabsContent value="team">
-          <div className="bg-white rounded-lg border border-gray-200 p-5 space-y-4">
-            <h3 className="font-medium">Team Members</h3>
+          <div className="bg-card rounded-xl border border-border p-5 space-y-4">
+            <h3 className="font-medium text-foreground">Team Members</h3>
             {members.length === 0 ? (
-              <p className="text-sm text-gray-400">No team members found.</p>
+              <p className="text-sm text-muted-foreground">No team members found.</p>
             ) : (
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-border/50">
                 {members.map((m) => (
                   <div key={m.id} className="flex items-center justify-between py-2">
                     <div>
-                      <span className="text-sm font-mono">
+                      <span className="text-sm font-mono text-foreground">
                         {m.clerkUserId || m.clerk_user_id}
                       </span>
                     </div>
@@ -196,19 +196,19 @@ export default function SettingsPage() {
 
         {/* API Keys Tab */}
         <TabsContent value="api-keys">
-          <div className="bg-white rounded-lg border border-gray-200 p-5 space-y-4">
-            <h3 className="font-medium">API Keys</h3>
-            <p className="text-sm text-gray-500">
+          <div className="bg-card rounded-xl border border-border p-5 space-y-4">
+            <h3 className="font-medium text-foreground">API Keys</h3>
+            <p className="text-sm text-muted-foreground">
               Use API keys for programmatic access to the gateway REST API.
             </p>
 
             {newKeyValue && (
-              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                <p className="text-xs text-green-700 mb-1 font-medium">
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                <p className="text-xs text-emerald-400 mb-1 font-medium">
                   New API key created. Copy it now — it won&apos;t be shown again.
                 </p>
                 <div className="flex items-center gap-2">
-                  <code className="text-sm bg-white px-2 py-1 rounded border flex-1 font-mono">
+                  <code className="text-sm bg-muted px-2 py-1 rounded border border-border flex-1 font-mono text-foreground">
                     {newKeyValue}
                   </code>
                   <Button
@@ -238,19 +238,19 @@ export default function SettingsPage() {
             <Separator />
 
             {apiKeys.length === 0 ? (
-              <p className="text-sm text-gray-400">No API keys created yet.</p>
+              <p className="text-sm text-muted-foreground">No API keys created yet.</p>
             ) : (
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-border/50">
                 {apiKeys.map((k) => (
                   <div key={k.id} className="flex items-center justify-between py-2">
                     <div>
-                      <span className="text-sm font-medium">{k.name}</span>
+                      <span className="text-sm font-medium text-foreground">{k.name}</span>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <code className="text-xs text-gray-400">
+                        <code className="text-xs text-muted-foreground">
                           {k.keyPrefix || k.key_prefix}...
                         </code>
                         {(k.lastUsedAt || k.last_used_at) && (
-                          <span className="text-xs text-gray-400">
+                          <span className="text-xs text-muted-foreground">
                             Last used: {new Date(k.lastUsedAt || k.last_used_at!).toLocaleDateString()}
                           </span>
                         )}
@@ -259,7 +259,7 @@ export default function SettingsPage() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="text-red-500 hover:text-red-700"
+                      className="text-red-400 hover:text-red-300"
                       onClick={() => setDeleteKeyTarget(k)}
                     >
                       <Trash2 className="w-4 h-4" />
@@ -273,13 +273,13 @@ export default function SettingsPage() {
 
         {/* Gateway Tab */}
         <TabsContent value="gateway">
-          <div className="bg-white rounded-lg border border-gray-200 p-5 space-y-4">
-            <h3 className="font-medium">Gateway Connection</h3>
+          <div className="bg-card rounded-xl border border-border p-5 space-y-4">
+            <h3 className="font-medium text-foreground">Gateway Connection</h3>
             <dl className="text-sm space-y-2">
               <div className="flex justify-between items-center">
-                <dt className="text-gray-500">Gateway URL</dt>
+                <dt className="text-muted-foreground">Gateway URL</dt>
                 <dd className="flex items-center gap-2">
-                  <code className="text-xs bg-gray-50 px-2 py-1 rounded">{GATEWAY_URL}</code>
+                  <code className="text-xs bg-muted px-2 py-1 rounded text-foreground">{GATEWAY_URL}</code>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -290,12 +290,12 @@ export default function SettingsPage() {
                 </dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-gray-500">MCP Proxy</dt>
-                <dd className="font-mono text-xs">{GATEWAY_URL}/mcp</dd>
+                <dt className="text-muted-foreground">MCP Proxy</dt>
+                <dd className="font-mono text-xs text-foreground">{GATEWAY_URL}/mcp</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-gray-500">Health Check</dt>
-                <dd className="font-mono text-xs">{GATEWAY_URL}/health</dd>
+                <dt className="text-muted-foreground">Health Check</dt>
+                <dd className="font-mono text-xs text-foreground">{GATEWAY_URL}/health</dd>
               </div>
             </dl>
           </div>
@@ -303,9 +303,9 @@ export default function SettingsPage() {
 
         {/* General Tab */}
         <TabsContent value="general">
-          <div className="bg-white rounded-lg border border-gray-200 p-5 space-y-4">
-            <h3 className="font-medium">General Settings</h3>
-            <p className="text-sm text-gray-500">
+          <div className="bg-card rounded-xl border border-border p-5 space-y-4">
+            <h3 className="font-medium text-foreground">General Settings</h3>
+            <p className="text-sm text-muted-foreground">
               Advanced gateway settings are managed via environment variables.
               See the deployment documentation for configuration options.
             </p>

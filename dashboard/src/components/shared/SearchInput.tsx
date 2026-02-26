@@ -34,7 +34,7 @@ export default function SearchInput({
 
   return (
     <div className={`relative ${className ?? "w-64"}`}>
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
       <Input
         value={local}
         onChange={(e) => setLocal(e.target.value)}
@@ -47,7 +47,7 @@ export default function SearchInput({
             setLocal("");
             onChange("");
           }}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
         >
           <X className="w-4 h-4" />
         </button>

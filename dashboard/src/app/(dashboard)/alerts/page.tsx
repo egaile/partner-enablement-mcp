@@ -132,12 +132,12 @@ export default function AlertsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Alerts</h2>
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+        <h2 className="text-xl font-semibold text-foreground">Alerts</h2>
+        <div className="flex gap-1 bg-muted rounded-lg p-0.5">
           <button
             onClick={() => setFilter("open")}
             className={`px-3 py-1.5 text-sm rounded-md ${
-              filter === "open" ? "bg-white shadow-sm font-medium" : "text-gray-500"
+              filter === "open" ? "bg-card shadow-sm font-medium text-foreground" : "text-muted-foreground"
             }`}
           >
             Open
@@ -145,7 +145,7 @@ export default function AlertsPage() {
           <button
             onClick={() => setFilter("all")}
             className={`px-3 py-1.5 text-sm rounded-md ${
-              filter === "all" ? "bg-white shadow-sm font-medium" : "text-gray-500"
+              filter === "all" ? "bg-card shadow-sm font-medium text-foreground" : "text-muted-foreground"
             }`}
           >
             All
@@ -158,7 +158,7 @@ export default function AlertsPage() {
         <select
           value={filterSeverity}
           onChange={(e) => setFilterSeverity(e.target.value)}
-          className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+          className="px-3 py-2 border border-border rounded-lg text-sm bg-muted/50 text-foreground"
         >
           {severities.map((s) => (
             <option key={s} value={s}>{s === "all" ? "All Severities" : s}</option>
@@ -167,7 +167,7 @@ export default function AlertsPage() {
         <select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value)}
-          className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+          className="px-3 py-2 border border-border rounded-lg text-sm bg-muted/50 text-foreground"
         >
           {alertTypes.map((t) => (
             <option key={t} value={t}>
@@ -210,9 +210,9 @@ export default function AlertsPage() {
               type="checkbox"
               checked={selected.size > 0 && selected.size === alerts.filter((a) => !a.acknowledged).length}
               onChange={toggleSelectAll}
-              className="rounded border-gray-300"
+              className="rounded border-border"
             />
-            <span className="text-xs text-gray-500">Select all unacknowledged</span>
+            <span className="text-xs text-muted-foreground">Select all unacknowledged</span>
           </div>
 
           <AlertFeed
@@ -228,17 +228,17 @@ export default function AlertsPage() {
               <button
                 onClick={() => setOffset(Math.max(0, offset - limit))}
                 disabled={offset === 0}
-                className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-30 hover:bg-gray-50"
+                className="px-3 py-1.5 text-sm border border-border rounded-lg disabled:opacity-30 hover:bg-muted/30 text-foreground"
               >
                 Previous
               </button>
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-muted-foreground">
                 Page {currentPage} of {totalPages}
               </span>
               <button
                 onClick={() => setOffset(offset + limit)}
                 disabled={currentPage >= totalPages}
-                className="px-3 py-1.5 text-sm border rounded-lg disabled:opacity-30 hover:bg-gray-50"
+                className="px-3 py-1.5 text-sm border border-border rounded-lg disabled:opacity-30 hover:bg-muted/30 text-foreground"
               >
                 Next
               </button>

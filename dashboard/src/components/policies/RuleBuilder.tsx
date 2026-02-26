@@ -203,7 +203,7 @@ export default function RuleBuilder({ onSubmit, submitting }: RuleBuilderProps) 
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* Templates */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-foreground mb-2">
           <Sparkles className="w-3.5 h-3.5 inline mr-1" />
           Start from a template
         </label>
@@ -213,10 +213,10 @@ export default function RuleBuilder({ onSubmit, submitting }: RuleBuilderProps) 
               key={t.name}
               type="button"
               onClick={() => applyTemplate(t)}
-              className="text-left p-3 border border-gray-200 rounded-lg hover:border-gray-400 transition-colors"
+              className="text-left p-3 border border-border rounded-lg hover:border-cyan-500/30 transition-colors"
             >
-              <span className="text-sm font-medium block">{t.name}</span>
-              <span className="text-xs text-gray-400">{t.description}</span>
+              <span className="text-sm font-medium text-foreground block">{t.name}</span>
+              <span className="text-xs text-muted-foreground">{t.description}</span>
             </button>
           ))}
         </div>
@@ -226,7 +226,7 @@ export default function RuleBuilder({ onSubmit, submitting }: RuleBuilderProps) 
 
       {/* Basic fields */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Rule Name</label>
+        <label className="block text-sm font-medium text-foreground mb-1">Rule Name</label>
         <Input
           required
           value={form.name}
@@ -236,7 +236,7 @@ export default function RuleBuilder({ onSubmit, submitting }: RuleBuilderProps) 
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+        <label className="block text-sm font-medium text-foreground mb-1">Description</label>
         <Input
           value={form.description}
           onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -246,11 +246,11 @@ export default function RuleBuilder({ onSubmit, submitting }: RuleBuilderProps) 
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Action</label>
+          <label className="block text-sm font-medium text-foreground mb-1">Action</label>
           <select
             value={form.action}
             onChange={(e) => setForm({ ...form, action: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-muted/50 text-foreground"
           >
             <option value="allow">Allow</option>
             <option value="deny">Deny</option>
@@ -259,7 +259,7 @@ export default function RuleBuilder({ onSubmit, submitting }: RuleBuilderProps) 
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-foreground mb-1">
             Priority (lower = higher)
           </label>
           <Input
@@ -274,17 +274,17 @@ export default function RuleBuilder({ onSubmit, submitting }: RuleBuilderProps) 
 
       {/* Server patterns - tag input */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-foreground mb-1">
           Server Patterns
         </label>
-        <div className="flex flex-wrap gap-1.5 p-2 border border-gray-200 rounded-lg bg-white min-h-[40px]">
+        <div className="flex flex-wrap gap-1.5 p-2 border border-border rounded-lg bg-muted/50 min-h-[40px]">
           {form.servers.map((tag, i) => (
             <span
               key={i}
-              className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded text-sm font-mono"
+              className="inline-flex items-center gap-1 px-2 py-0.5 bg-muted rounded text-sm font-mono text-foreground"
             >
               {tag}
-              <button type="button" onClick={() => removeTag("servers", i)} className="text-gray-400 hover:text-gray-600">
+              <button type="button" onClick={() => removeTag("servers", i)} className="text-muted-foreground hover:text-foreground">
                 <X className="w-3 h-3" />
               </button>
             </span>
@@ -295,24 +295,24 @@ export default function RuleBuilder({ onSubmit, submitting }: RuleBuilderProps) 
             onKeyDown={(e) => handleKeyDown("servers", e)}
             onBlur={() => addTag("servers", serverInput)}
             placeholder={form.servers.length === 0 ? "e.g. partner-*, github-mcp (press Enter)" : ""}
-            className="flex-1 min-w-[120px] outline-none text-sm py-0.5"
+            className="flex-1 min-w-[120px] outline-none text-sm py-0.5 bg-transparent text-foreground placeholder:text-muted-foreground"
           />
         </div>
       </div>
 
       {/* Tool patterns - tag input */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-foreground mb-1">
           Tool Patterns
         </label>
-        <div className="flex flex-wrap gap-1.5 p-2 border border-gray-200 rounded-lg bg-white min-h-[40px]">
+        <div className="flex flex-wrap gap-1.5 p-2 border border-border rounded-lg bg-muted/50 min-h-[40px]">
           {form.tools.map((tag, i) => (
             <span
               key={i}
-              className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded text-sm font-mono"
+              className="inline-flex items-center gap-1 px-2 py-0.5 bg-muted rounded text-sm font-mono text-foreground"
             >
               {tag}
-              <button type="button" onClick={() => removeTag("tools", i)} className="text-gray-400 hover:text-gray-600">
+              <button type="button" onClick={() => removeTag("tools", i)} className="text-muted-foreground hover:text-foreground">
                 <X className="w-3 h-3" />
               </button>
             </span>
@@ -323,17 +323,17 @@ export default function RuleBuilder({ onSubmit, submitting }: RuleBuilderProps) 
             onKeyDown={(e) => handleKeyDown("tools", e)}
             onBlur={() => addTag("tools", toolInput)}
             placeholder={form.tools.length === 0 ? "e.g. *_delete_*, *_write_* (press Enter)" : ""}
-            className="flex-1 min-w-[120px] outline-none text-sm py-0.5"
+            className="flex-1 min-w-[120px] outline-none text-sm py-0.5 bg-transparent text-foreground placeholder:text-muted-foreground"
           />
         </div>
       </div>
 
       {/* Schedule section */}
-      <div className="border border-gray-200 rounded-lg">
+      <div className="border border-border rounded-lg">
         <button
           type="button"
           onClick={() => setShowSchedule(!showSchedule)}
-          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/30"
         >
           <span>Schedule (Time Windows)</span>
           {showSchedule ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -341,7 +341,7 @@ export default function RuleBuilder({ onSubmit, submitting }: RuleBuilderProps) 
         {showSchedule && (
           <div className="px-4 pb-4 space-y-3">
             <div>
-              <label className="block text-xs text-gray-500 mb-2">Active on days</label>
+              <label className="block text-xs text-muted-foreground mb-2">Active on days</label>
               <div className="flex gap-1">
                 {dayLabels.map((label, i) => (
                   <button
@@ -350,8 +350,8 @@ export default function RuleBuilder({ onSubmit, submitting }: RuleBuilderProps) 
                     onClick={() => toggleDay(i)}
                     className={`w-10 h-8 text-xs rounded ${
                       scheduleDays.includes(i)
-                        ? "bg-gray-900 text-white"
-                        : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
                     }`}
                   >
                     {label}
@@ -361,7 +361,7 @@ export default function RuleBuilder({ onSubmit, submitting }: RuleBuilderProps) 
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Start Hour (0-23)</label>
+                <label className="block text-xs text-muted-foreground mb-1">Start Hour (0-23)</label>
                 <Input
                   type="number"
                   min={0}
@@ -371,7 +371,7 @@ export default function RuleBuilder({ onSubmit, submitting }: RuleBuilderProps) 
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">End Hour (0-23)</label>
+                <label className="block text-xs text-muted-foreground mb-1">End Hour (0-23)</label>
                 <Input
                   type="number"
                   min={0}
@@ -386,11 +386,11 @@ export default function RuleBuilder({ onSubmit, submitting }: RuleBuilderProps) 
       </div>
 
       {/* Advanced section */}
-      <div className="border border-gray-200 rounded-lg">
+      <div className="border border-border rounded-lg">
         <button
           type="button"
           onClick={() => setShowAdvanced(!showAdvanced)}
-          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/30"
         >
           <span>Advanced Modifiers</span>
           {showAdvanced ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
@@ -399,15 +399,15 @@ export default function RuleBuilder({ onSubmit, submitting }: RuleBuilderProps) 
           <div className="px-4 pb-4 space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <span className="text-sm font-medium">Redact PII</span>
-                <p className="text-xs text-gray-400">Automatically redact sensitive data in responses</p>
+                <span className="text-sm font-medium text-foreground">Redact PII</span>
+                <p className="text-xs text-muted-foreground">Automatically redact sensitive data in responses</p>
               </div>
               <Switch checked={redactPII} onCheckedChange={setRedactPII} />
             </div>
             <div className="flex items-center justify-between">
               <div>
-                <span className="text-sm font-medium">Rate Limit</span>
-                <p className="text-xs text-gray-400">Max calls per minute (0 = unlimited)</p>
+                <span className="text-sm font-medium text-foreground">Rate Limit</span>
+                <p className="text-xs text-muted-foreground">Max calls per minute (0 = unlimited)</p>
               </div>
               <Input
                 type="number"
@@ -420,8 +420,8 @@ export default function RuleBuilder({ onSubmit, submitting }: RuleBuilderProps) 
             </div>
             <div className="flex items-center justify-between">
               <div>
-                <span className="text-sm font-medium">Require MFA</span>
-                <p className="text-xs text-gray-400">Require multi-factor authentication</p>
+                <span className="text-sm font-medium text-foreground">Require MFA</span>
+                <p className="text-xs text-muted-foreground">Require multi-factor authentication</p>
               </div>
               <Switch checked={requireMFA} onCheckedChange={setRequireMFA} />
             </div>
@@ -431,9 +431,9 @@ export default function RuleBuilder({ onSubmit, submitting }: RuleBuilderProps) 
 
       {/* Live preview */}
       {form.name && (
-        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-          <span className="text-xs text-gray-400 block mb-1">Rule Preview</span>
-          <p className="text-sm text-gray-700">{getPreview()}</p>
+        <div className="bg-muted/50 rounded-lg p-4 border border-border">
+          <span className="text-xs text-muted-foreground block mb-1">Rule Preview</span>
+          <p className="text-sm text-foreground">{getPreview()}</p>
         </div>
       )}
 

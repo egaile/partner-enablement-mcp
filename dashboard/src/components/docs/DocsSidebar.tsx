@@ -27,11 +27,11 @@ export default function DocsSidebar({ sections }: DocsSidebarProps) {
   }
 
   return (
-    <aside className="w-60 flex-shrink-0 border-r border-gray-200 bg-white overflow-y-auto hidden md:block">
-      <div className="p-4 border-b border-gray-100">
+    <aside className="w-60 flex-shrink-0 border-r border-border bg-card overflow-y-auto hidden md:block">
+      <div className="p-4 border-b border-border/50">
         <Link
           href="/docs"
-          className="flex items-center gap-2 text-sm font-semibold text-gray-900 hover:text-orange-600 transition-colors"
+          className="flex items-center gap-2 text-sm font-semibold text-foreground hover:text-cyan-400 transition-colors"
         >
           <BookOpen className="w-4 h-4" />
           Documentation
@@ -43,7 +43,7 @@ export default function DocsSidebar({ sections }: DocsSidebarProps) {
           <div key={section.slug}>
             <button
               onClick={() => toggle(section.slug)}
-              className="flex items-center justify-between w-full px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider hover:text-gray-700"
+              className="flex items-center justify-between w-full px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground"
             >
               {section.label}
               {expanded[section.slug] ? (
@@ -63,8 +63,8 @@ export default function DocsSidebar({ sections }: DocsSidebarProps) {
                       href={href}
                       className={`block px-4 py-1.5 pl-7 text-sm transition-colors ${
                         active
-                          ? "text-orange-600 font-medium bg-orange-50 border-r-2 border-orange-400"
-                          : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                          ? "text-cyan-400 font-medium bg-cyan-500/10 border-r-2 border-cyan-400"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
                       }`}
                     >
                       {entry.title}
@@ -76,13 +76,13 @@ export default function DocsSidebar({ sections }: DocsSidebarProps) {
           </div>
         ))}
 
-        <div className="border-t border-gray-100 mt-2 pt-2">
+        <div className="border-t border-border/50 mt-2 pt-2">
           <Link
             href="/docs/faq"
             className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors ${
               pathname === "/docs/faq"
-                ? "text-orange-600 font-medium bg-orange-50 border-r-2 border-orange-400"
-                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                ? "text-cyan-400 font-medium bg-cyan-500/10 border-r-2 border-cyan-400"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
             }`}
           >
             <HelpCircle className="w-4 h-4" />

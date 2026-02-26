@@ -59,11 +59,11 @@ export default function NewServerPage() {
 
   return (
     <div className="max-w-lg space-y-6">
-      <h2 className="text-xl font-semibold">Add MCP Server</h2>
+      <h2 className="text-xl font-semibold text-foreground">Add MCP Server</h2>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-foreground mb-1">
             Server Name
           </label>
           <input
@@ -71,13 +71,13 @@ export default function NewServerPage() {
             required
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-muted/50 text-foreground focus:ring-2 focus:ring-primary focus:border-transparent"
             placeholder="e.g. partner-enablement"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-foreground mb-1">
             Transport
           </label>
           <select
@@ -88,7 +88,7 @@ export default function NewServerPage() {
                 transport: e.target.value as "stdio" | "http",
               })
             }
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-muted/50 text-foreground"
           >
             <option value="http">HTTP</option>
             <option value="stdio">Stdio</option>
@@ -97,7 +97,7 @@ export default function NewServerPage() {
 
         {form.transport === "http" ? (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-sm font-medium text-foreground mb-1">
               Server URL
             </label>
             <input
@@ -105,14 +105,14 @@ export default function NewServerPage() {
               required
               value={form.url}
               onChange={(e) => setForm({ ...form, url: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-muted/50 text-foreground"
               placeholder="http://localhost:3000/mcp"
             />
           </div>
         ) : (
           <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 Command
               </label>
               <input
@@ -122,12 +122,12 @@ export default function NewServerPage() {
                 onChange={(e) =>
                   setForm({ ...form, command: e.target.value })
                 }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-muted/50 text-foreground"
                 placeholder="node"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 Arguments (space-separated)
               </label>
               <input
@@ -136,7 +136,7 @@ export default function NewServerPage() {
                 onChange={(e) =>
                   setForm({ ...form, args: e.target.value })
                 }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-muted/50 text-foreground"
                 placeholder="dist/index.js"
               />
             </div>
@@ -144,13 +144,13 @@ export default function NewServerPage() {
         )}
 
         {error && (
-          <p className="text-sm text-red-600">{error}</p>
+          <p className="text-sm text-red-400">{error}</p>
         )}
 
         <button
           type="submit"
           disabled={submitting}
-          className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm hover:bg-gray-800 disabled:opacity-50 transition-colors"
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm hover:bg-primary/90 disabled:opacity-50 transition-colors"
         >
           {submitting ? "Adding..." : "Add Server"}
         </button>

@@ -86,13 +86,13 @@ export default function TopBar({ onToggleSidebar }: TopBarProps) {
   }));
 
   return (
-    <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-6">
+    <header className="h-14 bg-background/80 backdrop-blur-xl border-b border-border/50 flex items-center justify-between px-4 lg:px-6">
       <div className="flex items-center gap-3">
         <button
           onClick={onToggleSidebar}
-          className="lg:hidden p-1.5 rounded-md hover:bg-gray-100"
+          className="lg:hidden p-1.5 rounded-md hover:bg-muted"
         >
-          <Menu className="w-5 h-5 text-gray-600" />
+          <Menu className="w-5 h-5 text-muted-foreground" />
         </button>
         <Breadcrumb>
           <BreadcrumbList>
@@ -122,9 +122,9 @@ export default function TopBar({ onToggleSidebar }: TopBarProps) {
       <div className="flex items-center gap-3">
         <Link
           href="/alerts"
-          className="relative p-2 rounded-md hover:bg-gray-100 transition-colors"
+          className="relative p-2 rounded-md hover:bg-muted transition-colors"
         >
-          <Bell className="w-5 h-5 text-gray-500" />
+          <Bell className="w-5 h-5 text-muted-foreground" />
           {alertCount > 0 && (
             <Badge
               variant="destructive"

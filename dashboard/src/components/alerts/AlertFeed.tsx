@@ -31,10 +31,10 @@ const typeIcons: Record<string, LucideIcon> = {
 };
 
 const severityColors: Record<string, string> = {
-  critical: "border-l-red-600 bg-red-50",
-  high: "border-l-orange-500 bg-orange-50",
-  medium: "border-l-yellow-500 bg-yellow-50",
-  low: "border-l-blue-400 bg-blue-50",
+  critical: "border-l-red-500 bg-red-500/10",
+  high: "border-l-orange-500 bg-orange-500/10",
+  medium: "border-l-yellow-500 bg-yellow-500/10",
+  low: "border-l-blue-400 bg-blue-500/10",
 };
 
 export default function AlertFeed({ alerts, onAcknowledge, selected, onToggleSelect }: AlertFeedProps) {
@@ -43,7 +43,7 @@ export default function AlertFeed({ alerts, onAcknowledge, selected, onToggleSel
   return (
     <div className="space-y-3">
       {alerts.length === 0 ? (
-        <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-400 text-sm">
+        <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground text-sm">
           No alerts
         </div>
       ) : (
@@ -67,12 +67,12 @@ export default function AlertFeed({ alerts, onAcknowledge, selected, onToggleSel
                         type="checkbox"
                         checked={selected?.has(alert.id) ?? false}
                         onChange={() => onToggleSelect(alert.id)}
-                        className="mt-1 rounded border-gray-300"
+                        className="mt-1 rounded border-border"
                       />
                     )}
                     <button
                       onClick={() => setExpandedId(isExpanded ? null : alert.id)}
-                      className="mt-0.5 text-gray-400 hover:text-gray-600"
+                      className="mt-0.5 text-muted-foreground hover:text-foreground"
                     >
                       {isExpanded ? (
                         <ChevronDown className="w-4 h-4" />
@@ -80,24 +80,24 @@ export default function AlertFeed({ alerts, onAcknowledge, selected, onToggleSel
                         <ChevronRight className="w-4 h-4" />
                       )}
                     </button>
-                    <Icon className="w-4 h-4 mt-0.5 text-gray-600" />
+                    <Icon className="w-4 h-4 mt-0.5 text-muted-foreground" />
                     <div>
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-sm font-medium text-foreground">
                         {alert.title}
                       </p>
                       <div className="flex items-center gap-3 mt-1">
-                        <span className="text-xs text-gray-500 capitalize">
+                        <span className="text-xs text-muted-foreground capitalize">
                           {alert.severity}
                         </span>
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-muted-foreground">
                           {alert.type.replace(/_/g, " ")}
                         </span>
                         {alert.tool_name && (
-                          <span className="text-xs text-gray-400">
+                          <span className="text-xs text-muted-foreground">
                             {alert.tool_name}
                           </span>
                         )}
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-muted-foreground">
                           {new Date(alert.created_at).toLocaleString()}
                         </span>
                       </div>
@@ -106,7 +106,7 @@ export default function AlertFeed({ alerts, onAcknowledge, selected, onToggleSel
                   {!alert.acknowledged && (
                     <button
                       onClick={() => onAcknowledge(alert.id)}
-                      className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-white"
+                      className="text-xs px-2 py-1 border border-border rounded hover:bg-muted"
                     >
                       Acknowledge
                     </button>
@@ -115,25 +115,25 @@ export default function AlertFeed({ alerts, onAcknowledge, selected, onToggleSel
               </div>
 
               {isExpanded && (
-                <div className="px-4 pb-4 border-t border-gray-200/50 pt-3">
+                <div className="px-4 pb-4 border-t border-border/50 pt-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
                     {alert.correlation_id && (
                       <div>
-                        <span className="text-gray-400 block mb-1">Correlation ID</span>
-                        <code className="bg-white/50 px-2 py-0.5 rounded font-mono text-gray-700">
+                        <span className="text-muted-foreground block mb-1">Correlation ID</span>
+                        <code className="bg-muted px-2 py-0.5 rounded font-mono text-foreground">
                           {alert.correlation_id}
                         </code>
                       </div>
                     )}
                     <div>
-                      <span className="text-gray-400 block mb-1">Alert Type</span>
-                      <span className="text-gray-700">{alert.type}</span>
+                      <span className="text-muted-foreground block mb-1">Alert Type</span>
+                      <span className="text-foreground">{alert.type}</span>
                     </div>
                   </div>
                   {alert.details ? (
                     <div className="mt-3">
-                      <span className="text-xs text-gray-400 block mb-1">Details</span>
-                      <pre className="text-xs bg-white/50 rounded p-3 overflow-x-auto font-mono text-gray-700">
+                      <span className="text-xs text-muted-foreground block mb-1">Details</span>
+                      <pre className="text-xs bg-muted rounded p-3 overflow-x-auto font-mono text-foreground">
                         {JSON.stringify(alert.details, null, 2)}
                       </pre>
                     </div>
