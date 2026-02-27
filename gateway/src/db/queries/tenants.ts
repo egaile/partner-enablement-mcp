@@ -6,6 +6,12 @@ export interface Tenant {
   slug: string;
   defaultPolicyAction: string;
   settings: Record<string, unknown>;
+  plan: string;
+  planLimits: { maxServers: number; maxCallsPerMonth: number };
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  billingEmail: string | null;
+  trialEndsAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

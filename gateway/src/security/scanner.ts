@@ -3,6 +3,7 @@ import { PatternMatchStrategy } from "./strategies/pattern-match.js";
 import { UnicodeAnalysisStrategy } from "./strategies/unicode-analysis.js";
 import { StructuralStrategy } from "./strategies/structural.js";
 import { ExfiltrationStrategy } from "./strategies/exfiltration.js";
+import { AtlassianInjectionStrategy } from "./patterns/atlassian.js";
 
 const SEVERITY_ORDER: ThreatIndicator["severity"][] = [
   "critical",
@@ -21,6 +22,7 @@ export class PromptInjectionScanner {
       new UnicodeAnalysisStrategy(),
       new StructuralStrategy(),
       new ExfiltrationStrategy(),
+      new AtlassianInjectionStrategy(),
     ];
   }
 

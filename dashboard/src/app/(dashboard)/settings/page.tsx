@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useUser, useAuth } from "@clerk/nextjs";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Copy, Plus, Trash2, Key, Users, Settings2, Globe, User } from "lucide-react";
+import { Copy, Plus, Trash2, Key, Users, Settings2, Globe, User, CreditCard, ArrowUpRight } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,9 +37,39 @@ interface TeamMember {
   created_at: string;
 }
 
+interface BillingUsage {
+  plan: {
+    id: string;
+    name: string;
+    maxServers: number;
+    maxCallsPerMonth: number;
+    priceMonthly: number | null;
+  };
+  usage: {
+    callCount: number;
+    blockedCount: number;
+    serverCount: number;
+  };
+  limits: {
+    callsUsedPercent: number;
+    serversUsedPercent: number;
+  };
+}
+
+interface PlanDef {
+  id: string;
+  name: string;
+  maxServers: number;
+  maxCallsPerMonth: number;
+  priceMonthly: number | null;
+  features: Record<string, boolean>;
+}
+
 export default function SettingsPage() {
   const { user } = useUser();
   const { getToken } = useAuth();
+  const searchParams = useSearchParams();
+  const defaultTab = searchParams.get("tab") || "account";
 
   // API Keys state
   const [apiKeys, setApiKeys] = useState<ApiKeyRecord[]>([]);
@@ -49,6 +80,11 @@ export default function SettingsPage() {
 
   // Team state
   const [members, setMembers] = useState<TeamMember[]>([]);
+
+  // Billing state
+  const [billing, setBilling] = useState<BillingUsage | null>(null);
+  const [plans, setPlans] = useState<PlanDef[]>([]);
+  const [upgrading, setUpgrading] = useState(false);
 
   const loadApiKeys = useCallback(async () => {
     try {
@@ -78,10 +114,26 @@ export default function SettingsPage() {
     }
   }, [getToken]);
 
+  const loadBilling = useCallback(async () => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const [usageData, plansData] = await Promise.all([
+        gatewayFetch<BillingUsage>("/api/billing/usage", token),
+        gatewayFetch<{ plans: PlanDef[] }>("/api/billing/plans", token),
+      ]);
+      setBilling(usageData);
+      setPlans(plansData.plans);
+    } catch {
+      // silently fail
+    }
+  }, [getToken]);
+
   useEffect(() => {
     loadApiKeys();
     loadTeam();
-  }, [loadApiKeys, loadTeam]);
+    loadBilling();
+  }, [loadApiKeys, loadTeam, loadBilling]);
 
   async function handleCreateKey() {
     if (!newKeyName.trim()) return;
@@ -122,6 +174,53 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleUpgrade(planId: string) {
+    setUpgrading(true);
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const data = await gatewayFetch<{ url: string }>(
+        "/api/billing/checkout",
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            planId,
+            successUrl: `${window.location.origin}/settings?tab=billing&success=1`,
+            cancelUrl: `${window.location.origin}/settings?tab=billing`,
+          }),
+        }
+      );
+      window.location.href = data.url;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to start upgrade");
+    } finally {
+      setUpgrading(false);
+    }
+  }
+
+  async function handleManageBilling() {
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const data = await gatewayFetch<{ url: string }>(
+        "/api/billing/portal",
+        token,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            returnUrl: `${window.location.origin}/settings?tab=billing`,
+          }),
+        }
+      );
+      window.location.href = data.url;
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to open billing portal"
+      );
+    }
+  }
+
   function copyToClipboard(text: string) {
     navigator.clipboard.writeText(text);
     toast.success("Copied to clipboard");
@@ -133,8 +232,8 @@ export default function SettingsPage() {
     <div className="max-w-3xl space-y-6">
       <h2 className="text-xl font-semibold text-foreground">Settings</h2>
 
-      <Tabs defaultValue="account">
-        <TabsList className="grid w-full grid-cols-5">
+      <Tabs defaultValue={defaultTab}>
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="account" className="text-xs">
             <User className="w-3.5 h-3.5 mr-1" /> Account
           </TabsTrigger>
@@ -143,6 +242,9 @@ export default function SettingsPage() {
           </TabsTrigger>
           <TabsTrigger value="api-keys" className="text-xs">
             <Key className="w-3.5 h-3.5 mr-1" /> API Keys
+          </TabsTrigger>
+          <TabsTrigger value="billing" className="text-xs">
+            <CreditCard className="w-3.5 h-3.5 mr-1" /> Billing
           </TabsTrigger>
           <TabsTrigger value="gateway" className="text-xs">
             <Globe className="w-3.5 h-3.5 mr-1" /> Gateway
@@ -266,6 +368,172 @@ export default function SettingsPage() {
                     </Button>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Billing Tab */}
+        <TabsContent value="billing">
+          <div className="space-y-4">
+            {/* Current plan + usage */}
+            {billing && (
+              <div className="bg-card rounded-xl border border-border p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-medium text-foreground">Current Plan</h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge
+                        variant="secondary"
+                        className={
+                          billing.plan.id === "starter"
+                            ? "bg-muted"
+                            : billing.plan.id === "pro"
+                              ? "bg-cyan-500/10 text-cyan-400 border-cyan-500/20"
+                              : billing.plan.id === "business"
+                                ? "bg-purple-500/10 text-purple-400 border-purple-500/20"
+                                : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                        }
+                      >
+                        {billing.plan.name}
+                      </Badge>
+                      {billing.plan.priceMonthly !== null && billing.plan.priceMonthly > 0 && (
+                        <span className="text-sm text-muted-foreground">
+                          ${billing.plan.priceMonthly}/mo
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {billing.plan.id !== "starter" && (
+                    <Button variant="outline" size="sm" onClick={handleManageBilling}>
+                      Manage Subscription
+                      <ArrowUpRight className="w-3.5 h-3.5 ml-1" />
+                    </Button>
+                  )}
+                </div>
+
+                <Separator />
+
+                {/* Usage bars */}
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span className="text-muted-foreground">API Calls</span>
+                      <span className="text-foreground">
+                        {billing.usage.callCount.toLocaleString()} /{" "}
+                        {billing.plan.maxCallsPerMonth === Infinity
+                          ? "Unlimited"
+                          : billing.plan.maxCallsPerMonth.toLocaleString()}
+                      </span>
+                    </div>
+                    {billing.plan.maxCallsPerMonth !== Infinity && (
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            billing.limits.callsUsedPercent >= 100
+                              ? "bg-red-500"
+                              : billing.limits.callsUsedPercent >= 80
+                                ? "bg-amber-500"
+                                : "bg-cyan-500"
+                          }`}
+                          style={{
+                            width: `${Math.min(billing.limits.callsUsedPercent, 100)}%`,
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span className="text-muted-foreground">Servers</span>
+                      <span className="text-foreground">
+                        {billing.usage.serverCount} /{" "}
+                        {billing.plan.maxServers === Infinity
+                          ? "Unlimited"
+                          : billing.plan.maxServers}
+                      </span>
+                    </div>
+                    {billing.plan.maxServers !== Infinity && (
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            billing.limits.serversUsedPercent >= 100
+                              ? "bg-red-500"
+                              : "bg-cyan-500"
+                          }`}
+                          style={{
+                            width: `${Math.min(billing.limits.serversUsedPercent, 100)}%`,
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Plan comparison */}
+            {plans.length > 0 && (
+              <div className="bg-card rounded-xl border border-border p-5 space-y-4">
+                <h3 className="font-medium text-foreground">Available Plans</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {plans.map((plan) => (
+                    <div
+                      key={plan.id}
+                      className={`rounded-lg border p-4 space-y-2 ${
+                        billing?.plan.id === plan.id
+                          ? "border-cyan-500 bg-cyan-500/5"
+                          : "border-border"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium text-foreground">{plan.name}</h4>
+                        {billing?.plan.id === plan.id && (
+                          <Badge variant="secondary" className="text-xs">
+                            Current
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-lg font-semibold text-foreground">
+                        {plan.priceMonthly === null
+                          ? "Custom"
+                          : plan.priceMonthly === 0
+                            ? "Free"
+                            : `$${plan.priceMonthly}/mo`}
+                      </p>
+                      <ul className="text-xs text-muted-foreground space-y-1">
+                        <li>
+                          {plan.maxServers === Infinity ? "Unlimited" : plan.maxServers} server
+                          {plan.maxServers !== 1 ? "s" : ""}
+                        </li>
+                        <li>
+                          {plan.maxCallsPerMonth === Infinity
+                            ? "Unlimited"
+                            : plan.maxCallsPerMonth.toLocaleString()}{" "}
+                          calls/month
+                        </li>
+                      </ul>
+                      {billing?.plan.id !== plan.id &&
+                        plan.priceMonthly !== null &&
+                        plan.priceMonthly > 0 && (
+                          <Button
+                            size="sm"
+                            className="w-full mt-2"
+                            onClick={() => handleUpgrade(plan.id)}
+                            disabled={upgrading}
+                          >
+                            {upgrading ? "Redirecting..." : "Upgrade"}
+                          </Button>
+                        )}
+                      {plan.priceMonthly === null && (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Contact sales for custom pricing
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

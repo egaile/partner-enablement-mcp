@@ -6,6 +6,8 @@ import { scanForPii, redactPii } from "../security/pii-scanner.js";
 import { RateLimiter } from "../security/rate-limiter.js";
 import { checkToolDrift } from "../monitor/tool-snapshot.js";
 import { AlertEngine } from "../alerts/engine.js";
+import type { PlanCache } from "../billing/plan-cache.js";
+import { isWithinSoftLimit } from "../billing/plans.js";
 import type { DownstreamConnection } from "./connection-manager.js";
 import type { AuditEntry } from "../schemas/index.js";
 import type { TenantContext } from "../auth/types.js";
@@ -24,6 +26,7 @@ export class ToolInterceptor {
   private auditLogger: AuditLogger;
   private alertEngine: AlertEngine;
   private rateLimiter: RateLimiter;
+  private planCache: PlanCache | null = null;
 
   constructor(
     policyEngine: PolicyEngine,
@@ -35,6 +38,13 @@ export class ToolInterceptor {
     this.alertEngine = alertEngine;
     this.rateLimiter = new RateLimiter();
     this.rateLimiter.start();
+  }
+
+  /**
+   * Set the plan cache for usage limit enforcement.
+   */
+  setPlanCache(cache: PlanCache): void {
+    this.planCache = cache;
   }
 
   /**
@@ -64,6 +74,43 @@ export class ToolInterceptor {
     };
 
     try {
+      // Step 0: Usage limit check (billing tier enforcement)
+      if (this.planCache) {
+        try {
+          const { plan, usage } = await this.planCache.getPlanAndUsage(
+            tenant.tenantId
+          );
+
+          if (!isWithinSoftLimit(usage.callCount, plan)) {
+            const latencyMs = performance.now() - startTime;
+            this.logAudit({
+              ...(auditBase as AuditEntry),
+              policyDecision: "deny",
+              latencyMs,
+              success: false,
+              errorMessage: `Usage limit exceeded: ${usage.callCount}/${plan.maxCallsPerMonth} calls this period`,
+            });
+
+            return {
+              allowed: false,
+              correlationId,
+              response: {
+                content: [
+                  {
+                    type: "text",
+                    text: `Usage limit exceeded (${plan.maxCallsPerMonth} calls/month on ${plan.name} plan). Please upgrade your plan or contact support.`,
+                  },
+                ],
+                isError: true,
+              },
+            };
+          }
+        } catch (err) {
+          // Don't block on billing check failure — log and continue
+          console.error("[billing] Plan check failed, proceeding:", err);
+        }
+      }
+
       // Step 1: Policy evaluation
       const decision = await this.policyEngine.evaluate(tenant.tenantId, {
         serverName: connection.serverName,
@@ -304,14 +351,17 @@ export class ToolInterceptor {
         }
       }
 
-      // Step 6: Log success
+      // Step 6: Log success (with Atlassian metadata enrichment)
       const latencyMs = performance.now() - startTime;
-      this.logAudit({
-        ...(auditBase as AuditEntry),
-        latencyMs,
-        success: !result.isError,
-        errorMessage: result.isError ? "Downstream error" : undefined,
-      });
+      this.logAudit(
+        {
+          ...(auditBase as AuditEntry),
+          latencyMs,
+          success: !result.isError,
+          errorMessage: result.isError ? "Downstream error" : undefined,
+        },
+        params
+      );
 
       return {
         allowed: true,
@@ -360,7 +410,10 @@ export class ToolInterceptor {
     }
   }
 
-  private logAudit(entry: AuditEntry): void {
-    this.auditLogger.log(entry);
+  private logAudit(
+    entry: AuditEntry,
+    toolParams?: Record<string, unknown>
+  ): void {
+    this.auditLogger.logEnriched(entry, toolParams);
   }
 }

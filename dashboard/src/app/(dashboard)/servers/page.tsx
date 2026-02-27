@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
-import { Plus, Server } from "lucide-react";
+import { Plus, Server, ArrowUpRight } from "lucide-react";
 import { toast } from "sonner";
 import ServerCard from "@/components/servers/ServerCard";
 import { ServerCardSkeleton } from "@/components/shared/skeletons";
@@ -19,6 +19,25 @@ interface ServerRecord {
   toolCount?: number;
 }
 
+interface BillingUsage {
+  plan: {
+    id: string;
+    name: string;
+    maxServers: number;
+    maxCallsPerMonth: number;
+    priceMonthly: number | null;
+  };
+  usage: {
+    callCount: number;
+    blockedCount: number;
+    serverCount: number;
+  };
+  limits: {
+    callsUsedPercent: number;
+    serversUsedPercent: number;
+  };
+}
+
 type StatusFilter = "all" | "active" | "disabled";
 
 export default function ServersPage() {
@@ -27,16 +46,18 @@ export default function ServersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [billing, setBilling] = useState<BillingUsage | null>(null);
 
   const load = useCallback(async () => {
     try {
       const token = await getToken();
       if (!token) return;
-      const data = await gatewayFetch<{ servers: ServerRecord[] }>(
-        "/api/servers",
-        token
-      );
-      setServers(data.servers);
+      const [serverData, billingData] = await Promise.all([
+        gatewayFetch<{ servers: ServerRecord[] }>("/api/servers", token),
+        gatewayFetch<BillingUsage>("/api/billing/usage", token).catch(() => null),
+      ]);
+      setServers(serverData.servers);
+      if (billingData) setBilling(billingData);
     } catch (err) {
       console.error("Failed to load servers:", err);
       toast.error("Failed to load servers");
@@ -60,19 +81,48 @@ export default function ServersPage() {
 
   const activeCount = servers.filter((s) => s.enabled).length;
   const disabledCount = servers.filter((s) => !s.enabled).length;
+  const atServerLimit =
+    billing &&
+    billing.plan.maxServers !== Infinity &&
+    servers.length >= billing.plan.maxServers;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-foreground">MCP Servers</h2>
-        <Link
-          href="/servers/new"
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Add Server
-        </Link>
+        {atServerLimit ? (
+          <Link
+            href="/settings?tab=billing"
+            className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-lg text-sm hover:bg-amber-500/20 transition-colors"
+          >
+            <ArrowUpRight className="w-4 h-4" />
+            Upgrade to Add More
+          </Link>
+        ) : (
+          <Link
+            href="/servers/new"
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add Server
+          </Link>
+        )}
       </div>
+
+      {/* Server limit banner */}
+      {atServerLimit && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+          <Server className="w-4 h-4 text-amber-400 flex-shrink-0" />
+          <p className="text-sm text-amber-400 flex-1">
+            You&apos;ve reached the server limit for your {billing.plan.name} plan (
+            {servers.length}/{billing.plan.maxServers}).{" "}
+            <Link href="/settings?tab=billing" className="underline font-medium">
+              Upgrade your plan
+            </Link>{" "}
+            to connect more MCP servers.
+          </p>
+        </div>
+      )}
 
       {!loading && servers.length > 0 && (
         <div className="flex flex-wrap items-center gap-3">

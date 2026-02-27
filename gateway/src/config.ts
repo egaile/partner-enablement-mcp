@@ -10,6 +10,10 @@ const ConfigSchema = z.object({
   auditFlushIntervalMs: z.coerce.number().default(5000),
   auditBatchSize: z.coerce.number().default(50),
   policyCacheTtlMs: z.coerce.number().default(30000),
+  stripeSecretKey: z.string().optional(),
+  stripeWebhookSecret: z.string().optional(),
+  stripeProPriceId: z.string().optional(),
+  stripeBusinessPriceId: z.string().optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -28,6 +32,10 @@ export function loadConfig(): Config {
     auditFlushIntervalMs: process.env.AUDIT_FLUSH_INTERVAL_MS,
     auditBatchSize: process.env.AUDIT_BATCH_SIZE,
     policyCacheTtlMs: process.env.POLICY_CACHE_TTL_MS,
+    stripeSecretKey: process.env.STRIPE_SECRET_KEY,
+    stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+    stripeProPriceId: process.env.STRIPE_PRO_PRICE_ID,
+    stripeBusinessPriceId: process.env.STRIPE_BUSINESS_PRICE_ID,
   });
 
   if (!result.success) {

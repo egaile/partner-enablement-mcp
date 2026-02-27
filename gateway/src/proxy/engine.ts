@@ -9,6 +9,8 @@ import { PolicyEngine } from "../policy/engine.js";
 import { AuditLogger } from "../audit/logger.js";
 import { AlertEngine } from "../alerts/engine.js";
 import { HealthChecker } from "../monitor/health-checker.js";
+import { UsageMeter } from "../billing/usage-meter.js";
+import { PlanCache } from "../billing/plan-cache.js";
 import {
   getEnabledServersForTenant,
   type McpServerRecord,
@@ -27,6 +29,8 @@ export class GatewayProxyEngine {
   private auditLogger: AuditLogger;
   private alertEngine: AlertEngine;
   private healthChecker: HealthChecker | null = null;
+  private usageMeter: UsageMeter;
+  private planCache: PlanCache;
 
   // Track which tenant this engine instance serves
   private tenantContext: TenantContext | null = null;
@@ -36,11 +40,16 @@ export class GatewayProxyEngine {
     this.policyEngine = new PolicyEngine();
     this.auditLogger = new AuditLogger();
     this.alertEngine = new AlertEngine();
+    this.usageMeter = new UsageMeter();
+    this.planCache = new PlanCache();
     this.interceptor = new ToolInterceptor(
       this.policyEngine,
       this.auditLogger,
       this.alertEngine
     );
+    // Wire billing into audit and interceptor
+    this.auditLogger.setUsageMeter(this.usageMeter);
+    this.interceptor.setPlanCache(this.planCache);
   }
 
   setTenantContext(ctx: TenantContext): void {
@@ -49,6 +58,14 @@ export class GatewayProxyEngine {
 
   getAuditLogger(): AuditLogger {
     return this.auditLogger;
+  }
+
+  getUsageMeter(): UsageMeter {
+    return this.usageMeter;
+  }
+
+  getPlanCache(): PlanCache {
+    return this.planCache;
   }
 
   getHealthChecker(): HealthChecker | null {
@@ -126,6 +143,8 @@ export class GatewayProxyEngine {
 
   async shutdown(): Promise<void> {
     this.healthChecker?.stop();
+    await this.usageMeter.flush();
+    this.usageMeter.stop();
     await this.auditLogger.flush();
     this.auditLogger.stop();
     await this.connectionManager.disconnectAll();

@@ -79,6 +79,7 @@ export async function requireAuth(
     tenantName: tenantResult.tenant.name,
     userId,
     userRole: tenantResult.role,
+    plan: tenantResult.tenant.plan ?? "starter",
   };
 
   next();

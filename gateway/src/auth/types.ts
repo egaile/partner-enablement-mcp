@@ -5,6 +5,7 @@ export interface TenantContext {
   tenantName: string;
   userId: string;
   userRole: string;
+  plan?: string;
 }
 
 export interface AuthenticatedRequest extends Request {

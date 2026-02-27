@@ -44,6 +44,16 @@ import { getTeamMembers, inviteTeamMember, removeTeamMember, updateMemberRole } 
 import { requireRole } from "./auth/role-guard.js";
 import { PolicyEngine } from "./policy/engine.js";
 import { getScanner } from "./security/scanner.js";
+import { ATLASSIAN_POLICY_TEMPLATES, getAtlassianTemplate } from "./policies/atlassian-templates.js";
+import {
+  getCurrentUsage,
+  getUsageHistory,
+  getServerCount,
+} from "./db/queries/billing.js";
+import { getPlan, PLANS } from "./billing/plans.js";
+import { createCheckoutSession, createPortalSession, constructWebhookEvent } from "./billing/stripe.js";
+import { StripeWebhookHandler } from "./billing/webhook-handler.js";
+import { PlanCache } from "./billing/plan-cache.js";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -102,6 +112,7 @@ async function main(): Promise<void> {
       engine = new GatewayProxyEngine();
       engine.setTenantContext(tenantContext!);
       engine.getAuditLogger().start();
+      engine.getUsageMeter().start();
       await engine.connectDownstreamServers(tenantId);
       engines.set(tenantId, engine);
     }
@@ -200,6 +211,19 @@ async function main(): Promise<void> {
     requireAuth,
     async (req: AuthenticatedRequest, res) => {
       try {
+        // Check server limit for plan
+        const currentCount = await getServerCount(req.tenant!.tenantId);
+        const plan = getPlan(req.tenant!.plan ?? "starter");
+        if (currentCount >= plan.maxServers) {
+          res.status(402).json({
+            error: `Server limit reached (${plan.maxServers} on ${plan.name} plan). Please upgrade to add more servers.`,
+            currentCount,
+            limit: plan.maxServers,
+            plan: plan.id,
+          });
+          return;
+        }
+
         const parsed = RegisterServerSchema.safeParse(req.body);
         if (!parsed.success) {
           res.status(400).json({ error: parsed.error.issues });
@@ -831,6 +855,207 @@ async function main(): Promise<void> {
       } catch (error) {
         const msg = error instanceof Error ? error.message : "Unknown error";
         res.status(500).json({ error: msg });
+      }
+    }
+  );
+
+  // =========================================================================
+  // REST API — Atlassian Policy Templates
+  // =========================================================================
+
+  app.get("/api/templates/atlassian", requireAuth, (_req, res) => {
+    res.json({ templates: ATLASSIAN_POLICY_TEMPLATES });
+  });
+
+  app.post(
+    "/api/templates/atlassian/:templateId/apply",
+    requireAuth,
+    async (req: AuthenticatedRequest, res) => {
+      try {
+        const template = getAtlassianTemplate(req.params.templateId);
+        if (!template) {
+          res.status(404).json({ error: "Template not found" });
+          return;
+        }
+
+        const created = [];
+        for (const rule of template.rules) {
+          const policy = await createPolicy(req.tenant!.tenantId, {
+            name: `[${template.name}] ${rule.name}`,
+            description: rule.description,
+            priority: rule.priority,
+            conditions: rule.conditions,
+            action: rule.action,
+            modifiers: rule.modifiers ?? null,
+            enabled: true,
+          });
+          created.push(policy);
+        }
+
+        res.status(201).json({ template: template.id, policies: created });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : "Unknown error";
+        res.status(500).json({ error: msg });
+      }
+    }
+  );
+
+  // =========================================================================
+  // REST API — Billing & Usage
+  // =========================================================================
+
+  const billingPlanCache = new PlanCache();
+
+  app.get(
+    "/api/billing/usage",
+    requireAuth,
+    async (req: AuthenticatedRequest, res) => {
+      try {
+        const tenantId = req.tenant!.tenantId;
+        const plan = getPlan(req.tenant!.plan ?? "starter");
+        const usage = await getCurrentUsage(tenantId);
+        const serverCount = await getServerCount(tenantId);
+
+        res.json({
+          plan: {
+            id: plan.id,
+            name: plan.name,
+            maxServers: plan.maxServers,
+            maxCallsPerMonth: plan.maxCallsPerMonth,
+            priceMonthly: plan.priceMonthly,
+          },
+          usage: {
+            callCount: usage.callCount,
+            blockedCount: usage.blockedCount,
+            serverCount,
+          },
+          limits: {
+            callsUsedPercent:
+              plan.maxCallsPerMonth === Infinity
+                ? 0
+                : Math.round(
+                    (usage.callCount / plan.maxCallsPerMonth) * 100
+                  ),
+            serversUsedPercent:
+              plan.maxServers === Infinity
+                ? 0
+                : Math.round((serverCount / plan.maxServers) * 100),
+          },
+        });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : "Unknown error";
+        res.status(500).json({ error: msg });
+      }
+    }
+  );
+
+  app.get(
+    "/api/billing/history",
+    requireAuth,
+    async (req: AuthenticatedRequest, res) => {
+      try {
+        const months = Number(req.query.months) || 6;
+        const history = await getUsageHistory(req.tenant!.tenantId, months);
+        res.json({ history });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : "Unknown error";
+        res.status(500).json({ error: msg });
+      }
+    }
+  );
+
+  app.get("/api/billing/plans", (_req, res) => {
+    const plans = Object.values(PLANS).map((p) => ({
+      id: p.id,
+      name: p.name,
+      maxServers: p.maxServers,
+      maxCallsPerMonth: p.maxCallsPerMonth,
+      priceMonthly: p.priceMonthly,
+      features: p.features,
+    }));
+    res.json({ plans });
+  });
+
+  app.post(
+    "/api/billing/checkout",
+    requireAuth,
+    async (req: AuthenticatedRequest, res) => {
+      try {
+        const { planId, successUrl, cancelUrl } = req.body;
+        if (!planId || !successUrl || !cancelUrl) {
+          res
+            .status(400)
+            .json({ error: "planId, successUrl, and cancelUrl are required" });
+          return;
+        }
+
+        const plan = PLANS[planId as keyof typeof PLANS];
+        if (!plan || !plan.stripePriceId) {
+          res.status(400).json({ error: "Invalid plan or plan has no Stripe price" });
+          return;
+        }
+
+        const session = await createCheckoutSession(
+          req.tenant!.tenantId,
+          plan.stripePriceId,
+          successUrl,
+          cancelUrl
+        );
+
+        res.json(session);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : "Unknown error";
+        res.status(500).json({ error: msg });
+      }
+    }
+  );
+
+  app.post(
+    "/api/billing/portal",
+    requireAuth,
+    async (req: AuthenticatedRequest, res) => {
+      try {
+        const { returnUrl } = req.body;
+        if (!returnUrl) {
+          res.status(400).json({ error: "returnUrl is required" });
+          return;
+        }
+
+        const session = await createPortalSession(
+          req.tenant!.tenantId,
+          returnUrl
+        );
+
+        res.json(session);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : "Unknown error";
+        res.status(500).json({ error: msg });
+      }
+    }
+  );
+
+  // Stripe webhook — must be before express.json() for raw body access
+  // Since express.json() is already applied globally, we handle raw body via a dedicated middleware
+  const stripeWebhookHandler = new StripeWebhookHandler(billingPlanCache);
+
+  app.post(
+    "/api/billing/webhook",
+    express.raw({ type: "application/json" }),
+    async (req, res) => {
+      try {
+        const signature = req.headers["stripe-signature"] as string;
+        if (!signature) {
+          res.status(400).json({ error: "Missing stripe-signature header" });
+          return;
+        }
+
+        const event = constructWebhookEvent(req.body, signature);
+        await stripeWebhookHandler.handleEvent(event);
+        res.json({ received: true });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : "Unknown error";
+        console.error("[stripe] Webhook error:", msg);
+        res.status(400).json({ error: msg });
       }
     }
   );
