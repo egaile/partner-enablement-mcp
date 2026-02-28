@@ -9,6 +9,7 @@ export interface McpServerRecord {
   args: string[] | null;
   url: string | null;
   env: Record<string, string> | null;
+  authHeaders: Record<string, string> | null;
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
@@ -68,6 +69,7 @@ export async function createServer(
     args?: string[];
     url?: string;
     env?: Record<string, string>;
+    authHeaders?: Record<string, string>;
     enabled?: boolean;
   }
 ): Promise<McpServerRecord> {
@@ -81,6 +83,7 @@ export async function createServer(
       args: server.args ?? null,
       url: server.url ?? null,
       env: server.env ?? null,
+      auth_headers: server.authHeaders ?? null,
       enabled: server.enabled ?? true,
     })
     .select()
@@ -100,12 +103,23 @@ export async function updateServer(
     args: string[];
     url: string;
     env: Record<string, string>;
+    authHeaders: Record<string, string>;
     enabled: boolean;
   }>
 ): Promise<McpServerRecord> {
+  // Map authHeaders to snake_case for Supabase
+  const { authHeaders, ...rest } = updates;
+  const dbUpdates: Record<string, unknown> = {
+    ...rest,
+    updated_at: new Date().toISOString(),
+  };
+  if (authHeaders !== undefined) {
+    dbUpdates.auth_headers = authHeaders;
+  }
+
   const { data, error } = await getSupabaseClient()
     .from("mcp_servers")
-    .update({ ...updates, updated_at: new Date().toISOString() })
+    .update(dbUpdates)
     .eq("id", id)
     .eq("tenant_id", tenantId)
     .select()

@@ -31,7 +31,48 @@ curl -X POST http://localhost:4000/api/servers \
 | `name` | string | Yes | Unique name within the tenant. Used as the namespace prefix. |
 | `transport` | `"http"` | Yes | Transport type. |
 | `url` | string | Yes (for HTTP) | Full URL of the MCP endpoint. |
+| `authHeaders` | object | No | HTTP headers sent with every request to the downstream server. Typically used for `Authorization`. |
 | `enabled` | boolean | No | Defaults to `true`. Set `false` to disconnect without deleting. |
+
+### Authenticated HTTP servers
+
+Many remote MCP servers require authentication. Pass credentials via `authHeaders`:
+
+```bash
+# Basic Auth (e.g., Atlassian API token)
+curl -X POST http://localhost:4000/api/servers \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{
+    "name": "atlassian-rovo",
+    "transport": "http",
+    "url": "https://mcp.atlassian.com/v1/mcp",
+    "authHeaders": {
+      "Authorization": "Basic <base64-encoded email:api-token>"
+    },
+    "enabled": true
+  }'
+```
+
+```bash
+# Bearer token (e.g., OAuth access token)
+curl -X POST http://localhost:4000/api/servers \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{
+    "name": "my-remote-server",
+    "transport": "http",
+    "url": "https://remote-mcp.example.com/mcp",
+    "authHeaders": {
+      "Authorization": "Bearer <oauth-access-token>"
+    },
+    "enabled": true
+  }'
+```
+
+The `authHeaders` object is stored in the database and included in every request the gateway makes to the downstream server. You can include any custom headers, not just `Authorization`.
+
+> **See also:** [Connecting to Atlassian Rovo MCP Server](./connecting-atlassian-rovo.md) for a complete walkthrough.
 
 ## Registering a stdio server
 

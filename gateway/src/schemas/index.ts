@@ -48,6 +48,10 @@ export const RegisterServerSchema = z
     args: z.array(z.string()).optional().describe("Args for stdio transport"),
     url: z.string().url().optional().describe("URL for HTTP transport"),
     env: z.record(z.string()).optional().describe("Environment variables"),
+    authHeaders: z
+      .record(z.string())
+      .optional()
+      .describe("HTTP headers to send to downstream server (e.g. Authorization)"),
     enabled: z.boolean().default(true),
   })
   .strict();

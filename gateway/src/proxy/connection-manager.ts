@@ -51,7 +51,14 @@ export class ConnectionManager {
           `Server "${server.name}" configured for HTTP but missing URL`
         );
       }
-      transport = new StreamableHTTPClientTransport(new URL(server.url));
+      const httpOpts: Record<string, unknown> = {};
+      if (server.authHeaders && Object.keys(server.authHeaders).length > 0) {
+        httpOpts.requestInit = { headers: server.authHeaders };
+      }
+      transport = new StreamableHTTPClientTransport(
+        new URL(server.url),
+        Object.keys(httpOpts).length > 0 ? httpOpts : undefined
+      );
     }
 
     await client.connect(transport);
