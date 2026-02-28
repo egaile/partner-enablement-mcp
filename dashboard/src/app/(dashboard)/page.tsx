@@ -132,14 +132,14 @@ export default function DashboardPage() {
           <div className="flex-1 text-sm">
             {billing.limits.callsUsedPercent >= 100 ? (
               <>
-                Usage limit exceeded: {billing.usage.callCount.toLocaleString()}/
-                {billing.plan.maxCallsPerMonth.toLocaleString()} calls this month.
+                Usage limit exceeded: {(billing.usage.callCount ?? 0).toLocaleString()}/
+                {(billing.plan.maxCallsPerMonth ?? 0).toLocaleString()} calls this month.
                 AI agent requests may be blocked.
               </>
             ) : (
               <>
-                Approaching usage limit: {billing.usage.callCount.toLocaleString()}/
-                {billing.plan.maxCallsPerMonth.toLocaleString()} calls this month (
+                Approaching usage limit: {(billing.usage.callCount ?? 0).toLocaleString()}/
+                {(billing.plan.maxCallsPerMonth ?? 0).toLocaleString()} calls this month (
                 {billing.limits.callsUsedPercent}%).
               </>
             )}
@@ -231,14 +231,14 @@ export default function DashboardPage() {
       )}
 
       {/* Plan usage bar */}
-      {billing && billing.plan.maxCallsPerMonth !== Infinity && (
+      {billing && billing.plan.maxCallsPerMonth && (
         <div className="bg-card rounded-xl border border-border p-4 space-y-2">
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">
               Monthly Usage ({billing.plan.name} Plan)
             </span>
             <span className="text-foreground font-medium">
-              {billing.usage.callCount.toLocaleString()} / {billing.plan.maxCallsPerMonth.toLocaleString()} calls
+              {(billing.usage.callCount ?? 0).toLocaleString()} / {(billing.plan.maxCallsPerMonth ?? 0).toLocaleString()} calls
             </span>
           </div>
           <div className="h-2 bg-muted rounded-full overflow-hidden">

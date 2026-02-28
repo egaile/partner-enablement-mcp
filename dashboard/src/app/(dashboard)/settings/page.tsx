@@ -420,13 +420,13 @@ export default function SettingsPage() {
                     <div className="flex items-center justify-between text-sm mb-1">
                       <span className="text-muted-foreground">API Calls</span>
                       <span className="text-foreground">
-                        {billing.usage.callCount.toLocaleString()} /{" "}
-                        {billing.plan.maxCallsPerMonth === Infinity
+                        {(billing.usage.callCount ?? 0).toLocaleString()} /{" "}
+                        {!billing.plan.maxCallsPerMonth
                           ? "Unlimited"
-                          : billing.plan.maxCallsPerMonth.toLocaleString()}
+                          : (billing.plan.maxCallsPerMonth ?? 0).toLocaleString()}
                       </span>
                     </div>
-                    {billing.plan.maxCallsPerMonth !== Infinity && (
+                    {billing.plan.maxCallsPerMonth && (
                       <div className="h-2 bg-muted rounded-full overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all ${
@@ -449,12 +449,12 @@ export default function SettingsPage() {
                       <span className="text-muted-foreground">Servers</span>
                       <span className="text-foreground">
                         {billing.usage.serverCount} /{" "}
-                        {billing.plan.maxServers === Infinity
+                        {!billing.plan.maxServers
                           ? "Unlimited"
                           : billing.plan.maxServers}
                       </span>
                     </div>
-                    {billing.plan.maxServers !== Infinity && (
+                    {billing.plan.maxServers && (
                       <div className="h-2 bg-muted rounded-full overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all ${
@@ -504,11 +504,11 @@ export default function SettingsPage() {
                       </p>
                       <ul className="text-xs text-muted-foreground space-y-1">
                         <li>
-                          {plan.maxServers === Infinity ? "Unlimited" : plan.maxServers} server
+                          {!plan.maxServers ? "Unlimited" : plan.maxServers} server
                           {plan.maxServers !== 1 ? "s" : ""}
                         </li>
                         <li>
-                          {plan.maxCallsPerMonth === Infinity
+                          {!plan.maxCallsPerMonth
                             ? "Unlimited"
                             : plan.maxCallsPerMonth.toLocaleString()}{" "}
                           calls/month

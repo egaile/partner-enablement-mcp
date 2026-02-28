@@ -83,7 +83,7 @@ export default function ServersPage() {
   const disabledCount = servers.filter((s) => !s.enabled).length;
   const atServerLimit =
     billing &&
-    billing.plan.maxServers !== Infinity &&
+    billing.plan.maxServers &&
     servers.length >= billing.plan.maxServers;
 
   return (
