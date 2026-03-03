@@ -34,7 +34,7 @@ export const STEP_DEFINITIONS: Array<{
 
 export const TOOL_NARRATIVES: Record<string, string> = {
   read_project_context:
-    'The MCP server connects to Jira Cloud (genxcelerator.atlassian.net) via REST API v3 and reads the project backlog in real time. It analyzes labels to detect compliance requirements, scans descriptions to identify integration targets, and classifies data types. Claude receives this exact structured data when it calls this tool.',
+    'This call flows through the MCP Security Gateway to the Atlassian Rovo MCP Server, which reads the project backlog from Jira Cloud in real time. Every request passes through the gateway\'s security pipeline \u2014 prompt injection scanning, policy enforcement, PII detection, and audit logging \u2014 before reaching Jira. The response is analyzed for compliance indicators, integration targets, and data classifications.',
   generate_architecture:
     'Using the project context, the MCP server\'s knowledge base recommends an architecture pattern. It matches against four pre-built patterns, then generates a cloud-native component breakdown with specific AWS services and Anthropic API integration points.',
   assess_compliance:
@@ -46,7 +46,7 @@ export const TOOL_NARRATIVES: Record<string, string> = {
 export const HERO_COPY = {
   headline: 'See MCP in Action: From Jira Backlog to Deployment-Ready Architecture',
   subheadline:
-    'This demo shows how an MCP (Model Context Protocol) server gives Claude real-time access to enterprise tools. It reads project context from a live Jira Cloud instance, then generates compliant reference architectures, compliance assessments, and implementation plans.',
+    'This demo reads live Jira data through an MCP Security Gateway that proxies the Atlassian Rovo MCP Server. Every tool call passes through a security pipeline \u2014 injection scanning, policy enforcement, PII detection \u2014 with full audit logging. The same data then drives architecture, compliance, and implementation planning.',
 };
 
 export const EXPLAINER_CARDS = [
@@ -56,16 +56,16 @@ export const EXPLAINER_CARDS = [
   },
   {
     title: 'What This Demo Does',
-    body: 'Four MCP tools work in sequence: read project context from Jira, generate a cloud-native architecture, assess regulatory compliance, and create a phased implementation plan.',
+    body: 'Jira data is fetched via the Atlassian Rovo MCP Server, proxied through an MCP Security Gateway that scans for threats and logs every call. That context then feeds architecture, compliance, and implementation tools.',
   },
   {
     title: 'Why It Matters',
-    body: 'GSIs spend weeks doing this manually for each client engagement. An MCP-powered workflow compresses this to minutes while ensuring compliance requirements are captured from day one.',
+    body: 'Enterprises need guardrails before connecting AI agents to production tools. The gateway provides injection scanning, policy enforcement, PII detection, and audit trails \u2014 so GSIs can deploy MCP safely from day one.',
   },
 ];
 
 export const LIVE_INTEGRATION_COPY =
-  'This demo is connected to a live Jira Cloud instance (genxcelerator.atlassian.net) with real projects and issues. All data you see is fetched in real-time via MCP tools.';
+  'Live data flows through the MCP Security Gateway \u2192 Atlassian Rovo MCP Server \u2192 Jira Cloud. Every tool call is scanned for prompt injection, evaluated against security policies, checked for PII, and logged to the audit trail.';
 
 export interface ScenarioConfig {
   industry: Industry;

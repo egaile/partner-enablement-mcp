@@ -47,7 +47,7 @@ export function CompleteStep({ data, onStartOver }: CompleteStepProps) {
         </div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Demo Complete</h2>
         <p className="text-gray-500 max-w-lg mx-auto text-sm">
-          Four MCP tools executed against a live Jira Cloud instance, producing structured enterprise deliverables.
+          Four MCP tools executed through the Security Gateway, producing structured enterprise deliverables from live Jira data.
         </p>
       </div>
 
@@ -66,10 +66,10 @@ export function CompleteStep({ data, onStartOver }: CompleteStepProps) {
       {/* Technical Summary */}
       <Card variant="highlighted">
         <p className="text-sm text-gray-700 leading-relaxed">
-          This demo executed 4 MCP tools against a live Jira Cloud instance. In production, Claude
-          calls these same tools conversationally, chaining outputs automatically. The MCP server acts
-          as a bridge between Claude and enterprise systems — turning weeks of manual SA work into
-          minutes.
+          This demo routed Jira reads through the MCP Security Gateway, which proxied them to the
+          Atlassian Rovo MCP Server with injection scanning, policy enforcement, and PII detection on
+          every call. In production, Claude calls these same tools conversationally while the gateway
+          provides the audit trail and guardrails enterprises require.
         </p>
       </Card>
 
