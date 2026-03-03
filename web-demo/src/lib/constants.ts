@@ -81,7 +81,7 @@ export const SCENARIOS: ScenarioConfig[] = [
     title: 'Client Scenario: Regional Health Network',
     description:
       'A 12-hospital health system needs an AI-powered patient intake assistant integrated with their Epic EHR. The system must handle PHI and comply with HIPAA.',
-    projectKey: 'HEALTH',
+    projectKey: process.env.NEXT_PUBLIC_DEMO_PROJECT_KEY_HEALTH ?? 'HEALTH',
     tags: [
       { label: 'HIPAA', color: 'red' },
       { label: 'Epic EHR', color: 'blue' },
@@ -93,7 +93,7 @@ export const SCENARIOS: ScenarioConfig[] = [
     title: 'Client Scenario: Regional Banking Group',
     description:
       'A mid-size bank wants to automate document processing for loan applications and provide AI-assisted customer service with SOC2 and PCI-DSS compliance.',
-    projectKey: 'FINSERV',
+    projectKey: process.env.NEXT_PUBLIC_DEMO_PROJECT_KEY_FINSERV ?? 'FINSERV',
     tags: [
       { label: 'SOC2', color: 'amber' },
       { label: 'PCI-DSS', color: 'orange' },

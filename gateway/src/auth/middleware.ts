@@ -1,6 +1,8 @@
 import type { Response, NextFunction } from "express";
+import { createHash } from "node:crypto";
 import { verifyToken } from "./clerk.js";
-import { getTenantForUser, type Tenant } from "../db/queries/tenants.js";
+import { getTenantForUser, getTenantById, type Tenant } from "../db/queries/tenants.js";
+import { getApiKeyByHash, updateLastUsed } from "../db/queries/api-keys.js";
 import { getSupabaseClient } from "../db/client.js";
 import type { AuthenticatedRequest } from "./types.js";
 
@@ -37,13 +39,53 @@ export async function requireAuth(
   res: Response,
   next: NextFunction
 ): Promise<void> {
+  const authHeader = req.headers.authorization;
+
+  // --- API key auth path (mgw_ prefix) ---
+  if (authHeader?.startsWith("Bearer mgw_")) {
+    const apiKey = authHeader.slice(7);
+    const keyHash = createHash("sha256").update(apiKey).digest("hex");
+    const keyRecord = await getApiKeyByHash(keyHash);
+
+    if (!keyRecord) {
+      res.status(401).json({ error: "Invalid API key" });
+      return;
+    }
+
+    // Check expiry
+    if (keyRecord.expiresAt && new Date(keyRecord.expiresAt) < new Date()) {
+      res.status(401).json({ error: "API key has expired" });
+      return;
+    }
+
+    const tenant = await getTenantById(keyRecord.tenantId);
+    if (!tenant) {
+      res.status(403).json({ error: "Tenant not found for API key" });
+      return;
+    }
+
+    // Update last used timestamp (fire-and-forget)
+    updateLastUsed(keyRecord.id).catch(() => {});
+
+    req.tenant = {
+      tenantId: tenant.id,
+      tenantName: tenant.name,
+      userId: `apikey:${keyRecord.id}`,
+      userRole: "admin",
+      plan: tenant.plan ?? "starter",
+    };
+
+    next();
+    return;
+  }
+
+  // --- Clerk / dev mode auth path ---
   let userId: string;
 
   if (isDevMode()) {
     // Dev mode — accept any request, map to dev_user
     userId = "dev_user";
   } else {
-    const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
       res.status(401).json({ error: "Missing or invalid Authorization header" });
       return;

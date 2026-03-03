@@ -1,10 +1,150 @@
 import { NextResponse } from 'next/server';
 import { ReadProjectContextInputSchema } from 'partner-enablement-mcp-server/schemas';
 import { MockJiraClient } from 'partner-enablement-mcp-server/services/jiraClient';
-import { jiraClient } from '../_shared';
+import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
+import { ROVO_SERVER_NAME } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 
 const mockFallback = new MockJiraClient();
+
+/** Prefix a Rovo tool name with the configured server name */
+function rovo(toolName: string): string {
+  return `${ROVO_SERVER_NAME}__${toolName}`;
+}
+
+/** Extract the first text content block from an MCP tool result */
+function extractText(result: { content: Array<{ type: string; text?: string }> }): string {
+  const block = result.content.find((c) => c.type === 'text');
+  return block?.text ?? '';
+}
+
+/**
+ * Fetch project context via the gateway → Rovo MCP Server → Jira Cloud.
+ * Returns data in the same shape as the direct JiraClient path.
+ */
+async function fetchViaGateway(projectKey: string, includeIssues: boolean, issueLimit: number) {
+  // Step 1: Get cloudId
+  const resourcesResult = await callTool(rovo('getAccessibleAtlassianResources'), {});
+  const resourcesText = extractText(resourcesResult);
+  // Response is JSON — may be an array or wrapped object
+  const resources = JSON.parse(resourcesText);
+  // Rovo returns: array of { id, url, name, ... } where id is the cloudId
+  const cloudId: string = Array.isArray(resources) ? resources[0]?.id : resources?.id;
+  if (!cloudId) {
+    throw new Error('No Atlassian cloud resources found');
+  }
+
+  // Step 2: Get project info
+  const projectsResult = await callTool(rovo('getVisibleJiraProjects'), {
+    cloudId,
+    searchString: projectKey,
+    maxResults: 1,
+  });
+  const projectsText = extractText(projectsResult);
+  const projectsData = JSON.parse(projectsText);
+  // projectsData.values is the array of projects
+  const projects = projectsData?.values ?? projectsData ?? [];
+  const projectInfo = Array.isArray(projects)
+    ? projects.find((p: Record<string, unknown>) => p.key === projectKey)
+    : null;
+
+  const project = {
+    key: projectKey,
+    name: (projectInfo?.name as string) ?? projectKey,
+    description: (projectInfo?.description as string) ?? '',
+    lead: (projectInfo?.lead?.displayName as string) ?? undefined,
+  };
+
+  // Step 3: Search issues
+  let issues: Array<{
+    key: string;
+    summary: string;
+    description?: string;
+    type: string;
+    status: string;
+    labels: string[];
+    priority?: string;
+  }> = [];
+
+  if (includeIssues) {
+    const jql = `project = ${projectKey} ORDER BY created DESC`;
+    const searchResult = await callTool(rovo('searchJiraIssuesUsingJql'), {
+      cloudId,
+      jql,
+      maxResults: issueLimit,
+      fields: ['summary', 'description', 'status', 'issuetype', 'priority', 'labels'],
+    });
+    const searchText = extractText(searchResult);
+    const searchData = JSON.parse(searchText);
+    const rawIssues = searchData?.issues ?? searchData ?? [];
+
+    issues = (Array.isArray(rawIssues) ? rawIssues : []).map(
+      (issue: Record<string, unknown>) => {
+        const fields = (issue.fields ?? issue) as Record<string, unknown>;
+        return {
+          key: (issue.key as string) ?? '',
+          summary: (fields.summary as string) ?? '',
+          description: (fields.description as string) || undefined,
+          type:
+            ((fields.issuetype as Record<string, unknown>)?.name as string) ??
+            (fields.issuetype as string) ??
+            'Unknown',
+          status:
+            ((fields.status as Record<string, unknown>)?.name as string) ??
+            (fields.status as string) ??
+            'Unknown',
+          labels: (fields.labels as string[]) ?? [],
+          priority:
+            ((fields.priority as Record<string, unknown>)?.name as string) ?? undefined,
+        };
+      }
+    );
+  }
+
+  return { project, issues };
+}
+
+/**
+ * Fall back to MockJiraClient for project context.
+ */
+async function fetchViaMock(projectKey: string, includeIssues: boolean, issueLimit: number) {
+  const project = await mockFallback.getProject(projectKey);
+
+  let issues: Array<{
+    key: string;
+    summary: string;
+    description?: string;
+    type: string;
+    status: string;
+    labels: string[];
+    priority?: string;
+  }> = [];
+
+  if (includeIssues) {
+    const searchResult = await mockFallback.searchIssues(projectKey, {
+      maxResults: issueLimit,
+    });
+    issues = searchResult.issues.map((issue) => ({
+      key: issue.key,
+      summary: issue.fields.summary,
+      description: issue.fields.description || undefined,
+      type: issue.fields.issuetype.name,
+      status: issue.fields.status.name,
+      labels: issue.fields.labels,
+      priority: issue.fields.priority?.name,
+    }));
+  }
+
+  return {
+    project: {
+      key: project.key,
+      name: project.name,
+      description: project.description ?? '',
+      lead: project.lead?.displayName,
+    },
+    issues,
+  };
+}
 
 export async function POST(request: Request) {
   const rateLimited = rateLimit(request);
@@ -21,18 +161,8 @@ export async function POST(request: Request) {
     }
     const { projectKey, includeIssues, issueLimit } = parsed.data;
 
-    // Get project details — fall back to mock data if live Jira fails
-    let project;
-    let client = jiraClient;
-    try {
-      project = await jiraClient.getProject(projectKey);
-    } catch {
-      console.warn(`Live Jira failed for ${projectKey}, falling back to mock data`);
-      client = mockFallback;
-      project = await mockFallback.getProject(projectKey);
-    }
-
-    // Get recent issues
+    // Try gateway → Rovo path first, fall back to mock
+    let project: { key: string; name: string; description: string; lead?: string };
     let issues: Array<{
       key: string;
       summary: string;
@@ -41,21 +171,27 @@ export async function POST(request: Request) {
       status: string;
       labels: string[];
       priority?: string;
-    }> = [];
+    }>;
 
-    if (includeIssues) {
-      const searchResult = await client.searchIssues(projectKey, {
-        maxResults: issueLimit,
-      });
-      issues = searchResult.issues.map((issue) => ({
-        key: issue.key,
-        summary: issue.fields.summary,
-        description: issue.fields.description || undefined,
-        type: issue.fields.issuetype.name,
-        status: issue.fields.status.name,
-        labels: issue.fields.labels,
-        priority: issue.fields.priority?.name,
-      }));
+    if (isConfigured()) {
+      try {
+        const result = await fetchViaGateway(projectKey, includeIssues ?? true, issueLimit ?? 20);
+        project = result.project;
+        issues = result.issues;
+      } catch (err) {
+        console.warn(
+          `[read-context] Gateway/Rovo failed for ${projectKey}, falling back to mock:`,
+          err instanceof Error ? err.message : err
+        );
+        resetSession(); // clear stale session for next attempt
+        const result = await fetchViaMock(projectKey, includeIssues ?? true, issueLimit ?? 20);
+        project = result.project;
+        issues = result.issues;
+      }
+    } else {
+      const result = await fetchViaMock(projectKey, includeIssues ?? true, issueLimit ?? 20);
+      project = result.project;
+      issues = result.issues;
     }
 
     // Extract compliance indicators from labels
@@ -105,20 +241,23 @@ export async function POST(request: Request) {
     if (allLabels.has('phi') || allLabels.has('hipaa')) {
       dataTypes.push('PHI');
     }
-    if (descriptionText.includes('pii') || descriptionText.includes('personal') || allLabels.has('customer-data')) {
+    if (
+      descriptionText.includes('pii') ||
+      descriptionText.includes('personal') ||
+      allLabels.has('customer-data')
+    ) {
       dataTypes.push('PII');
     }
-    if (allLabels.has('pci_dss') || allLabels.has('payment') || descriptionText.includes('financial')) {
+    if (
+      allLabels.has('pci_dss') ||
+      allLabels.has('payment') ||
+      descriptionText.includes('financial')
+    ) {
       dataTypes.push('financial');
     }
 
     const output = {
-      project: {
-        key: project.key,
-        name: project.name,
-        description: project.description,
-        lead: project.lead?.displayName,
-      },
+      project,
       issues,
       detectedCompliance: complianceIndicators,
       detectedIntegrations: integrationTargets,
