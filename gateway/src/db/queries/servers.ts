@@ -15,6 +15,23 @@ export interface McpServerRecord {
   updatedAt: string;
 }
 
+function toRecord(row: Record<string, unknown>): McpServerRecord {
+  return {
+    id: row.id as string,
+    tenantId: row.tenant_id as string,
+    name: row.name as string,
+    transport: row.transport as "stdio" | "http",
+    command: (row.command as string) ?? null,
+    args: (row.args as string[]) ?? null,
+    url: (row.url as string) ?? null,
+    env: (row.env as Record<string, string>) ?? null,
+    authHeaders: (row.auth_headers as Record<string, string>) ?? null,
+    enabled: row.enabled as boolean,
+    createdAt: row.created_at as string,
+    updatedAt: row.updated_at as string,
+  };
+}
+
 export async function getServersForTenant(
   tenantId: string
 ): Promise<McpServerRecord[]> {
@@ -25,7 +42,7 @@ export async function getServersForTenant(
     .order("name");
 
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).map((row: Record<string, unknown>) => toRecord(row));
 }
 
 export async function getServerById(
@@ -43,7 +60,7 @@ export async function getServerById(
     if (error.code === "PGRST116") return null;
     throw error;
   }
-  return data;
+  return toRecord(data as Record<string, unknown>);
 }
 
 export async function getEnabledServersForTenant(
@@ -57,7 +74,7 @@ export async function getEnabledServersForTenant(
     .order("name");
 
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).map((row: Record<string, unknown>) => toRecord(row));
 }
 
 export async function createServer(
@@ -90,7 +107,7 @@ export async function createServer(
     .single();
 
   if (error) throw error;
-  return data;
+  return toRecord(data as Record<string, unknown>);
 }
 
 export async function updateServer(
@@ -126,7 +143,7 @@ export async function updateServer(
     .single();
 
   if (error) throw error;
-  return data;
+  return toRecord(data as Record<string, unknown>);
 }
 
 export async function deleteServer(
