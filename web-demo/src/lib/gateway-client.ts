@@ -24,6 +24,7 @@ async function jsonRpc(method: string, params?: Record<string, unknown>): Promis
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    Accept: "application/json, text/event-stream",
     Authorization: `Bearer ${GATEWAY_API_KEY}`,
   };
   if (sessionId) {
