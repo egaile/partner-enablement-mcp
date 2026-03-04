@@ -25,7 +25,13 @@ function extractText(result: { content: Array<{ type: string; text?: string }> }
 async function fetchViaGateway(projectKey: string, includeIssues: boolean, issueLimit: number) {
   // Step 1: Get cloudId
   const resourcesResult = await callTool(rovo('getAccessibleAtlassianResources'), {});
+  if (resourcesResult.isError) {
+    throw new Error(`Tool error: ${extractText(resourcesResult)}`);
+  }
   const resourcesText = extractText(resourcesResult);
+  if (!resourcesText.startsWith('[') && !resourcesText.startsWith('{')) {
+    throw new Error(`Unexpected tool response (not JSON): ${resourcesText.slice(0, 200)}`);
+  }
   // Response is JSON — may be an array or wrapped object
   const resources = JSON.parse(resourcesText);
   // Rovo returns: array of { id, url, name, ... } where id is the cloudId
@@ -180,9 +186,7 @@ export async function POST(request: Request) {
         issues = result.issues;
       } catch (err) {
         const errMsg = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
-        console.warn(`[read-context] Gateway/Rovo failed for ${projectKey}, falling back to mock:`, errMsg);
-        resetSession(); // clear stale session for next attempt
-        // Return the error directly so we can debug
+        resetSession();
         return NextResponse.json({ error: 'gateway_failed', gatewayError: errMsg, projectKey }, { status: 502 });
       }
     } else {
