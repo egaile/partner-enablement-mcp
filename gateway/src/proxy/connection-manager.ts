@@ -114,6 +114,13 @@ export class ConnectionManager {
   }
 
   /**
+   * Update the cached server record (e.g., after OAuth token exchange).
+   */
+  updateServerRecord(server: McpServerRecord): void {
+    this.serverRecords.set(server.id, server);
+  }
+
+  /**
    * Reconnect to a downstream server with fresh credentials.
    * Used after an OAuth token refresh.
    */

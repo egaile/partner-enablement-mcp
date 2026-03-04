@@ -638,8 +638,12 @@ async function main(): Promise<void> {
         const redirectUri = `${OAUTH_CALLBACK_BASE_URL}/api/servers/${server.id}/oauth/callback`;
         const tokens = await engine.getOAuthManager().exchangeCode(server, code as string, redirectUri);
 
-        // Trigger reconnection with fresh OAuth token
+        // Re-fetch the updated server record from DB and reconnect
         try {
+          const updatedServer = await getServerById(server.id, verified.tenantId);
+          if (updatedServer) {
+            engine.getConnectionManager().updateServerRecord(updatedServer);
+          }
           await engine.getConnectionManager().reconnect(server.id);
         } catch (reconnErr) {
           console.error("[oauth] Reconnect after token exchange failed:", reconnErr);
