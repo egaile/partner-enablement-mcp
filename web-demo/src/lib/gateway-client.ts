@@ -65,9 +65,16 @@ async function jsonRpc(method: string, params?: Record<string, unknown>): Promis
     return undefined;
   }
 
-  const json = await res.json();
+  const text = await res.text();
+  let json: Record<string, unknown>;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error(`Gateway returned non-JSON (HTTP ${res.status}): ${text.slice(0, 300)}`);
+  }
   if (json.error) {
-    throw new Error(`MCP error ${json.error.code}: ${json.error.message}`);
+    const err = json.error as { code?: number; message?: string };
+    throw new Error(`MCP error ${err.code}: ${err.message}`);
   }
 
   return json.result;
