@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHmac, timingSafeEqual } from "node:crypto";
 import express from "express";
 import helmet from "helmet";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -8,9 +8,11 @@ import { requireAuth } from "./auth/middleware.js";
 import type { AuthenticatedRequest } from "./auth/types.js";
 import {
   getServersForTenant,
+  getServerById,
   createServer,
   updateServer,
   deleteServer,
+  updateServerOAuthTokens,
 } from "./db/queries/servers.js";
 import {
   getAllPoliciesForTenant,
@@ -520,6 +522,162 @@ async function main(): Promise<void> {
         }
         const status = healthChecker.getStatus(req.params.id);
         res.json(status ?? { status: "unknown", message: "Server not tracked" });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : "Unknown error";
+        res.status(500).json({ error: msg });
+      }
+    }
+  );
+
+  // =========================================================================
+  // REST API — OAuth Setup
+  // =========================================================================
+
+  const OAUTH_STATE_SECRET = process.env.OAUTH_STATE_SECRET || process.env.CLERK_SECRET_KEY || "dev-oauth-state-secret";
+  const OAUTH_CALLBACK_BASE_URL = process.env.OAUTH_CALLBACK_BASE_URL || `http://localhost:${config.port}`;
+
+  function signOAuthState(serverId: string, tenantId: string): string {
+    const exp = Math.floor(Date.now() / 1000) + 600; // 10 min expiry
+    const payload = `${serverId}:${tenantId}:${exp}`;
+    const sig = createHmac("sha256", OAUTH_STATE_SECRET).update(payload).digest("hex");
+    return `${payload}:${sig}`;
+  }
+
+  function verifyOAuthState(state: string): { serverId: string; tenantId: string } | null {
+    const parts = state.split(":");
+    if (parts.length !== 4) return null;
+    const [serverId, tenantId, expStr, sig] = parts;
+    const payload = `${serverId}:${tenantId}:${expStr}`;
+    const expected = createHmac("sha256", OAUTH_STATE_SECRET).update(payload).digest("hex");
+    try {
+      if (!timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"))) return null;
+    } catch {
+      return null;
+    }
+    if (Number(expStr) < Math.floor(Date.now() / 1000)) return null;
+    return { serverId, tenantId };
+  }
+
+  // GET /api/servers/:id/oauth/authorize — returns Atlassian authorize URL
+  app.get(
+    "/api/servers/:id/oauth/authorize",
+    requireAuth,
+    async (req: AuthenticatedRequest, res) => {
+      try {
+        const server = await getServerById(req.params.id, req.tenant!.tenantId);
+        if (!server) {
+          res.status(404).json({ error: "Server not found" });
+          return;
+        }
+        if (server.authType !== "oauth2") {
+          res.status(400).json({ error: "Server is not configured for OAuth. Set authType to \"oauth2\" first." });
+          return;
+        }
+        if (!server.oauthClientId) {
+          res.status(400).json({ error: "Missing oauthClientId on server record" });
+          return;
+        }
+
+        const engine = engines.get(req.tenant!.tenantId);
+        if (!engine) {
+          res.status(500).json({ error: "No active engine for tenant" });
+          return;
+        }
+
+        const state = signOAuthState(server.id, req.tenant!.tenantId);
+        const redirectUri = `${OAUTH_CALLBACK_BASE_URL}/api/servers/${server.id}/oauth/callback`;
+        const authorizeUrl = engine.getOAuthManager().buildAuthorizeUrl(server, redirectUri, state);
+
+        res.json({ authorizeUrl, redirectUri });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : "Unknown error";
+        res.status(500).json({ error: msg });
+      }
+    }
+  );
+
+  // GET /api/servers/:id/oauth/callback — browser redirect from Atlassian
+  app.get(
+    "/api/servers/:id/oauth/callback",
+    async (req, res) => {
+      try {
+        const { code, state, error: oauthError } = req.query;
+
+        if (oauthError) {
+          res.status(400).send(`OAuth error: ${oauthError}`);
+          return;
+        }
+        if (!code || !state) {
+          res.status(400).send("Missing code or state parameter");
+          return;
+        }
+
+        // Verify HMAC-signed state
+        const verified = verifyOAuthState(state as string);
+        if (!verified) {
+          res.status(403).send("Invalid or expired state parameter");
+          return;
+        }
+        if (verified.serverId !== req.params.id) {
+          res.status(403).send("State/server mismatch");
+          return;
+        }
+
+        const server = await getServerById(verified.serverId, verified.tenantId);
+        if (!server) {
+          res.status(404).send("Server not found");
+          return;
+        }
+
+        const engine = engines.get(verified.tenantId);
+        if (!engine) {
+          res.status(500).send("No active engine for tenant");
+          return;
+        }
+
+        const redirectUri = `${OAUTH_CALLBACK_BASE_URL}/api/servers/${server.id}/oauth/callback`;
+        const tokens = await engine.getOAuthManager().exchangeCode(server, code as string, redirectUri);
+
+        // Trigger reconnection with fresh OAuth token
+        try {
+          await engine.getConnectionManager().reconnect(server.id);
+        } catch (reconnErr) {
+          console.error("[oauth] Reconnect after token exchange failed:", reconnErr);
+        }
+
+        res.send(
+          `<html><body><h2>OAuth setup complete</h2>` +
+          `<p>Access token obtained, expires at ${tokens.expiresAt.toISOString()}.</p>` +
+          `<p>You can close this tab.</p></body></html>`
+        );
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : "Unknown error";
+        console.error("[oauth] Callback error:", msg);
+        res.status(500).send(`OAuth callback error: ${msg}`);
+      }
+    }
+  );
+
+  // GET /api/servers/:id/oauth/status — check OAuth token status
+  app.get(
+    "/api/servers/:id/oauth/status",
+    requireAuth,
+    async (req: AuthenticatedRequest, res) => {
+      try {
+        const server = await getServerById(req.params.id, req.tenant!.tenantId);
+        if (!server) {
+          res.status(404).json({ error: "Server not found" });
+          return;
+        }
+
+        res.json({
+          authType: server.authType,
+          configured: server.authType === "oauth2" && !!server.oauthClientId,
+          hasToken: !!server.oauthAccessToken,
+          expiresAt: server.oauthTokenExpiresAt,
+          scopes: server.oauthScopes,
+          hasRefreshToken: !!server.oauthRefreshToken,
+        });
       } catch (error) {
         const msg = error instanceof Error ? error.message : "Unknown error";
         res.status(500).json({ error: msg });

@@ -2,6 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { McpServerRecord } from "../db/queries/servers.js";
+import type { OAuthManager } from "../auth/oauth-manager.js";
 
 export interface DownstreamConnection {
   client: Client;
@@ -19,12 +20,25 @@ export interface DownstreamConnection {
 
 export class ConnectionManager {
   private connections = new Map<string, DownstreamConnection>();
+  private serverRecords = new Map<string, McpServerRecord>();
+  private oauthManager: OAuthManager | null = null;
+
+  setOAuthManager(manager: OAuthManager): void {
+    this.oauthManager = manager;
+  }
+
+  getServerRecord(serverId: string): McpServerRecord | undefined {
+    return this.serverRecords.get(serverId);
+  }
 
   async connect(server: McpServerRecord): Promise<DownstreamConnection> {
     // Disconnect existing if present
     if (this.connections.has(server.id)) {
       await this.disconnect(server.id);
     }
+
+    // Store server record for reconnection
+    this.serverRecords.set(server.id, server);
 
     const client = new Client(
       { name: "mcp-security-gateway", version: "0.1.0" },
@@ -51,9 +65,19 @@ export class ConnectionManager {
           `Server "${server.name}" configured for HTTP but missing URL`
         );
       }
+
+      // Build auth headers — for OAuth servers, get a fresh token
+      let headers: Record<string, string> = {};
+      if (server.authType === "oauth2" && this.oauthManager) {
+        const accessToken = await this.oauthManager.getAccessToken(server);
+        headers["Authorization"] = `Bearer ${accessToken}`;
+      } else if (server.authHeaders && Object.keys(server.authHeaders).length > 0) {
+        headers = { ...server.authHeaders };
+      }
+
       const httpOpts: Record<string, unknown> = {};
-      if (server.authHeaders && Object.keys(server.authHeaders).length > 0) {
-        httpOpts.requestInit = { headers: server.authHeaders };
+      if (Object.keys(headers).length > 0) {
+        httpOpts.requestInit = { headers };
       }
       transport = new StreamableHTTPClientTransport(
         new URL(server.url),
@@ -87,6 +111,20 @@ export class ConnectionManager {
     );
 
     return conn;
+  }
+
+  /**
+   * Reconnect to a downstream server with fresh credentials.
+   * Used after an OAuth token refresh.
+   */
+  async reconnect(serverId: string): Promise<DownstreamConnection | null> {
+    const server = this.serverRecords.get(serverId);
+    if (!server) {
+      console.warn(`[gateway] Cannot reconnect: no server record for ${serverId}`);
+      return null;
+    }
+    console.log(`[gateway] Reconnecting to "${server.name}" with fresh credentials`);
+    return this.connect(server);
   }
 
   async disconnect(serverId: string): Promise<void> {

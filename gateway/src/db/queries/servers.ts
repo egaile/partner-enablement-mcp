@@ -13,6 +13,16 @@ export interface McpServerRecord {
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
+  // OAuth 2.0 fields
+  authType: "static" | "oauth2";
+  oauthClientId: string | null;
+  oauthClientSecret: string | null;
+  oauthRefreshToken: string | null;
+  oauthAccessToken: string | null;
+  oauthTokenExpiresAt: string | null;
+  oauthTokenUrl: string | null;
+  oauthAuthorizeUrl: string | null;
+  oauthScopes: string[] | null;
 }
 
 function toRecord(row: Record<string, unknown>): McpServerRecord {
@@ -29,6 +39,15 @@ function toRecord(row: Record<string, unknown>): McpServerRecord {
     enabled: row.enabled as boolean,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
+    authType: (row.auth_type as "static" | "oauth2") ?? "static",
+    oauthClientId: (row.oauth_client_id as string) ?? null,
+    oauthClientSecret: (row.oauth_client_secret as string) ?? null,
+    oauthRefreshToken: (row.oauth_refresh_token as string) ?? null,
+    oauthAccessToken: (row.oauth_access_token as string) ?? null,
+    oauthTokenExpiresAt: (row.oauth_token_expires_at as string) ?? null,
+    oauthTokenUrl: (row.oauth_token_url as string) ?? null,
+    oauthAuthorizeUrl: (row.oauth_authorize_url as string) ?? null,
+    oauthScopes: (row.oauth_scopes as string[]) ?? null,
   };
 }
 
@@ -88,21 +107,36 @@ export async function createServer(
     env?: Record<string, string>;
     authHeaders?: Record<string, string>;
     enabled?: boolean;
+    authType?: "static" | "oauth2";
+    oauthClientId?: string;
+    oauthClientSecret?: string;
+    oauthTokenUrl?: string;
+    oauthAuthorizeUrl?: string;
+    oauthScopes?: string[];
   }
 ): Promise<McpServerRecord> {
+  const insert: Record<string, unknown> = {
+    tenant_id: tenantId,
+    name: server.name,
+    transport: server.transport,
+    command: server.command ?? null,
+    args: server.args ?? null,
+    url: server.url ?? null,
+    env: server.env ?? null,
+    auth_headers: server.authHeaders ?? null,
+    enabled: server.enabled ?? true,
+    auth_type: server.authType ?? "static",
+  };
+
+  if (server.oauthClientId !== undefined) insert.oauth_client_id = server.oauthClientId;
+  if (server.oauthClientSecret !== undefined) insert.oauth_client_secret = server.oauthClientSecret;
+  if (server.oauthTokenUrl !== undefined) insert.oauth_token_url = server.oauthTokenUrl;
+  if (server.oauthAuthorizeUrl !== undefined) insert.oauth_authorize_url = server.oauthAuthorizeUrl;
+  if (server.oauthScopes !== undefined) insert.oauth_scopes = server.oauthScopes;
+
   const { data, error } = await getSupabaseClient()
     .from("mcp_servers")
-    .insert({
-      tenant_id: tenantId,
-      name: server.name,
-      transport: server.transport,
-      command: server.command ?? null,
-      args: server.args ?? null,
-      url: server.url ?? null,
-      env: server.env ?? null,
-      auth_headers: server.authHeaders ?? null,
-      enabled: server.enabled ?? true,
-    })
+    .insert(insert)
     .select()
     .single();
 
@@ -122,17 +156,36 @@ export async function updateServer(
     env: Record<string, string>;
     authHeaders: Record<string, string>;
     enabled: boolean;
+    authType: "static" | "oauth2";
+    oauthClientId: string;
+    oauthClientSecret: string;
+    oauthTokenUrl: string;
+    oauthAuthorizeUrl: string;
+    oauthScopes: string[];
   }>
 ): Promise<McpServerRecord> {
-  // Map authHeaders to snake_case for Supabase
-  const { authHeaders, ...rest } = updates;
+  // Map camelCase to snake_case for Supabase
+  const {
+    authHeaders,
+    authType,
+    oauthClientId,
+    oauthClientSecret,
+    oauthTokenUrl,
+    oauthAuthorizeUrl,
+    oauthScopes,
+    ...rest
+  } = updates;
   const dbUpdates: Record<string, unknown> = {
     ...rest,
     updated_at: new Date().toISOString(),
   };
-  if (authHeaders !== undefined) {
-    dbUpdates.auth_headers = authHeaders;
-  }
+  if (authHeaders !== undefined) dbUpdates.auth_headers = authHeaders;
+  if (authType !== undefined) dbUpdates.auth_type = authType;
+  if (oauthClientId !== undefined) dbUpdates.oauth_client_id = oauthClientId;
+  if (oauthClientSecret !== undefined) dbUpdates.oauth_client_secret = oauthClientSecret;
+  if (oauthTokenUrl !== undefined) dbUpdates.oauth_token_url = oauthTokenUrl;
+  if (oauthAuthorizeUrl !== undefined) dbUpdates.oauth_authorize_url = oauthAuthorizeUrl;
+  if (oauthScopes !== undefined) dbUpdates.oauth_scopes = oauthScopes;
 
   const { data, error } = await getSupabaseClient()
     .from("mcp_servers")
@@ -144,6 +197,32 @@ export async function updateServer(
 
   if (error) throw error;
   return toRecord(data as Record<string, unknown>);
+}
+
+/**
+ * Narrow update for OAuth tokens only. Used by OAuthManager after refresh.
+ */
+export async function updateServerOAuthTokens(
+  id: string,
+  tenantId: string,
+  tokens: {
+    oauthAccessToken: string;
+    oauthRefreshToken: string | null;
+    oauthTokenExpiresAt: string;
+  }
+): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .from("mcp_servers")
+    .update({
+      oauth_access_token: tokens.oauthAccessToken,
+      oauth_refresh_token: tokens.oauthRefreshToken,
+      oauth_token_expires_at: tokens.oauthTokenExpiresAt,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("tenant_id", tenantId);
+
+  if (error) throw error;
 }
 
 export async function deleteServer(

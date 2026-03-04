@@ -40,6 +40,9 @@ export type DriftSeverity = z.infer<typeof DriftSeverity>;
 
 // === Server Registration ===
 
+export const AuthType = z.enum(["static", "oauth2"]);
+export type AuthType = z.infer<typeof AuthType>;
+
 export const RegisterServerSchema = z
   .object({
     name: z.string().min(1).max(100),
@@ -53,6 +56,13 @@ export const RegisterServerSchema = z
       .optional()
       .describe("HTTP headers to send to downstream server (e.g. Authorization)"),
     enabled: z.boolean().default(true),
+    // OAuth 2.0 fields
+    authType: AuthType.default("static").describe("Auth type: static (API key) or oauth2"),
+    oauthClientId: z.string().optional().describe("OAuth 2.0 client ID"),
+    oauthClientSecret: z.string().optional().describe("OAuth 2.0 client secret"),
+    oauthTokenUrl: z.string().url().optional().describe("OAuth 2.0 token endpoint"),
+    oauthAuthorizeUrl: z.string().url().optional().describe("OAuth 2.0 authorize endpoint"),
+    oauthScopes: z.array(z.string()).optional().describe("OAuth 2.0 scopes"),
   })
   .strict();
 
