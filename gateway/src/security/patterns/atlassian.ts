@@ -59,9 +59,9 @@ const ATLASSIAN_PATTERNS: PatternDef[] = [
     description: "Atlassian: JQL wildcard project access attempt",
   },
   {
-    pattern: /(?:order\s+by\s+|union\s+|;\s*(?:select|drop|delete|insert|update)\s)/i,
+    pattern: /(?:union\s+(?:all\s+)?select\s|;\s*(?:select|drop|delete|insert|update)\s)/i,
     severity: "critical",
-    description: "Atlassian: JQL/SQL injection attempt",
+    description: "Atlassian: SQL injection attempt in JQL context",
   },
   {
     pattern: /(?:assignee|reporter)\s*(?:=|!=|in)\s*(?:membersOf|currentUser)\s*\(\s*\)\s*(?:or|OR)\s*(?:1\s*=\s*1|true)/i,
