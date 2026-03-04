@@ -200,7 +200,31 @@ export async function updateServer(
 }
 
 /**
- * Narrow update for OAuth tokens only. Used by OAuthManager after refresh.
+ * Persist dynamic client registration result (client_id + optional secret).
+ */
+export async function updateServerOAuthClientRegistration(
+  id: string,
+  tenantId: string,
+  info: { oauthClientId: string; oauthClientSecret?: string | null }
+): Promise<void> {
+  const updates: Record<string, unknown> = {
+    oauth_client_id: info.oauthClientId,
+    updated_at: new Date().toISOString(),
+  };
+  if (info.oauthClientSecret !== undefined) {
+    updates.oauth_client_secret = info.oauthClientSecret;
+  }
+  const { error } = await getSupabaseClient()
+    .from("mcp_servers")
+    .update(updates)
+    .eq("id", id)
+    .eq("tenant_id", tenantId);
+
+  if (error) throw error;
+}
+
+/**
+ * Narrow update for OAuth tokens only. Used after token exchange/refresh.
  */
 export async function updateServerOAuthTokens(
   id: string,

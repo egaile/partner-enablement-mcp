@@ -1,4 +1,4 @@
-import { randomUUID, createHmac, timingSafeEqual } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import express from "express";
 import helmet from "helmet";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -12,8 +12,9 @@ import {
   createServer,
   updateServer,
   deleteServer,
-  updateServerOAuthTokens,
 } from "./db/queries/servers.js";
+import { auth as mcpAuth } from "@modelcontextprotocol/sdk/client/auth.js";
+import { ServerOAuthProvider } from "./auth/server-oauth-provider.js";
 import {
   getAllPoliciesForTenant,
   createPolicy,
@@ -530,35 +531,13 @@ async function main(): Promise<void> {
   );
 
   // =========================================================================
-  // REST API — OAuth Setup
+  // REST API — OAuth Setup (uses MCP SDK's built-in OAuth 2.1 with PKCE)
   // =========================================================================
 
-  const OAUTH_STATE_SECRET = process.env.OAUTH_STATE_SECRET || process.env.CLERK_SECRET_KEY || "dev-oauth-state-secret";
-  const OAUTH_CALLBACK_BASE_URL = process.env.OAUTH_CALLBACK_BASE_URL || `http://localhost:${config.port}`;
+  // Mapping serverId → tenantId for unauthenticated callback route
+  const oauthTenantMap = new Map<string, string>();
 
-  function signOAuthState(serverId: string, tenantId: string): string {
-    const exp = Math.floor(Date.now() / 1000) + 600; // 10 min expiry
-    const payload = `${serverId}:${tenantId}:${exp}`;
-    const sig = createHmac("sha256", OAUTH_STATE_SECRET).update(payload).digest("hex");
-    return `${payload}:${sig}`;
-  }
-
-  function verifyOAuthState(state: string): { serverId: string; tenantId: string } | null {
-    const parts = state.split(":");
-    if (parts.length !== 4) return null;
-    const [serverId, tenantId, expStr, sig] = parts;
-    const payload = `${serverId}:${tenantId}:${expStr}`;
-    const expected = createHmac("sha256", OAUTH_STATE_SECRET).update(payload).digest("hex");
-    try {
-      if (!timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"))) return null;
-    } catch {
-      return null;
-    }
-    if (Number(expStr) < Math.floor(Date.now() / 1000)) return null;
-    return { serverId, tenantId };
-  }
-
-  // GET /api/servers/:id/oauth/authorize — returns Atlassian authorize URL
+  // GET /api/servers/:id/oauth/authorize — triggers SDK OAuth discovery + returns authorize URL
   app.get(
     "/api/servers/:id/oauth/authorize",
     requireAuth,
@@ -573,22 +552,52 @@ async function main(): Promise<void> {
           res.status(400).json({ error: "Server is not configured for OAuth. Set authType to \"oauth2\" first." });
           return;
         }
-        if (!server.oauthClientId) {
-          res.status(400).json({ error: "Missing oauthClientId on server record" });
+        if (!server.url) {
+          res.status(400).json({ error: "Server URL is required for OAuth" });
           return;
         }
 
+        // Remember the tenant so the unauthenticated callback can look it up
+        oauthTenantMap.set(server.id, req.tenant!.tenantId);
+
+        // Get or create an OAuth provider for this server via the engine's ConnectionManager
         const engine = engines.get(req.tenant!.tenantId);
-        if (!engine) {
-          res.status(500).json({ error: "No active engine for tenant" });
+        let provider: ServerOAuthProvider;
+        if (engine) {
+          const existing = engine.getConnectionManager().getOAuthProvider(server.id);
+          if (existing) {
+            existing.updateServerRecord(server);
+            provider = existing;
+          } else {
+            provider = new ServerOAuthProvider(server);
+          }
+        } else {
+          provider = new ServerOAuthProvider(server);
+        }
+
+        // Check if we already have a pending auth URL (from a previous failed connect)
+        let authUrl = ServerOAuthProvider.pendingAuthUrls.get(server.id);
+        if (!authUrl) {
+          // Trigger the SDK auth flow — this discovers OAuth metadata, does dynamic
+          // client registration if needed, generates PKCE, and calls redirectToAuthorization()
+          const result = await mcpAuth(provider, { serverUrl: server.url });
+          if (result === "AUTHORIZED") {
+            res.json({ status: "already_authorized", message: "Server already has valid tokens" });
+            return;
+          }
+          // After REDIRECT, the URL should be stored
+          authUrl = ServerOAuthProvider.pendingAuthUrls.get(server.id);
+        }
+
+        if (!authUrl) {
+          res.status(500).json({ error: "Failed to obtain authorization URL from OAuth discovery" });
           return;
         }
 
-        const state = signOAuthState(server.id, req.tenant!.tenantId);
-        const redirectUri = `${OAUTH_CALLBACK_BASE_URL}/api/servers/${server.id}/oauth/callback`;
-        const authorizeUrl = engine.getOAuthManager().buildAuthorizeUrl(server, redirectUri, state);
+        // Clear from pending (one-time use)
+        ServerOAuthProvider.pendingAuthUrls.delete(server.id);
 
-        res.json({ authorizeUrl, redirectUri });
+        res.json({ authorizeUrl: authUrl.toString() });
       } catch (error) {
         const msg = error instanceof Error ? error.message : "Unknown error";
         res.status(500).json({ error: msg });
@@ -596,63 +605,84 @@ async function main(): Promise<void> {
     }
   );
 
-  // GET /api/servers/:id/oauth/callback — browser redirect from Atlassian
+  // GET /api/oauth/callback/:serverId — browser redirect from OAuth provider
+  // Uses a simplified path (not nested under /api/servers/:id/) to match the
+  // redirect_uri registered in ServerOAuthProvider.
   app.get(
-    "/api/servers/:id/oauth/callback",
+    "/api/oauth/callback/:serverId",
     async (req, res) => {
       try {
-        const { code, state, error: oauthError } = req.query;
+        const serverId = req.params.serverId;
+        const { code, error: oauthError } = req.query;
 
         if (oauthError) {
           res.status(400).send(`OAuth error: ${oauthError}`);
           return;
         }
-        if (!code || !state) {
-          res.status(400).send("Missing code or state parameter");
+        if (!code) {
+          res.status(400).send("Missing authorization code");
           return;
         }
 
-        // Verify HMAC-signed state
-        const verified = verifyOAuthState(state as string);
-        if (!verified) {
-          res.status(403).send("Invalid or expired state parameter");
-          return;
-        }
-        if (verified.serverId !== req.params.id) {
-          res.status(403).send("State/server mismatch");
+        // Look up tenant from our in-memory map
+        const tenantId = oauthTenantMap.get(serverId);
+        if (!tenantId) {
+          res.status(403).send("Unknown server or session expired. Please re-initiate the OAuth flow.");
           return;
         }
 
-        const server = await getServerById(verified.serverId, verified.tenantId);
+        const server = await getServerById(serverId, tenantId);
         if (!server) {
           res.status(404).send("Server not found");
           return;
         }
 
-        const engine = engines.get(verified.tenantId);
-        if (!engine) {
-          res.status(500).send("No active engine for tenant");
+        // Create a provider with the same server record to access the stored code verifier
+        const engine = engines.get(tenantId);
+        let provider: ServerOAuthProvider;
+        if (engine) {
+          const existing = engine.getConnectionManager().getOAuthProvider(serverId);
+          if (existing) {
+            existing.updateServerRecord(server);
+            provider = existing;
+          } else {
+            provider = new ServerOAuthProvider(server);
+          }
+        } else {
+          provider = new ServerOAuthProvider(server);
+        }
+
+        // Use the SDK's auth() to exchange the authorization code for tokens (with PKCE)
+        const result = await mcpAuth(provider, {
+          serverUrl: server.url!,
+          authorizationCode: code as string,
+        });
+
+        if (result !== "AUTHORIZED") {
+          res.status(500).send("Token exchange did not result in authorization. Please try again.");
           return;
         }
 
-        const redirectUri = `${OAUTH_CALLBACK_BASE_URL}/api/servers/${server.id}/oauth/callback`;
-        const tokens = await engine.getOAuthManager().exchangeCode(server, code as string, redirectUri);
+        // Clean up
+        oauthTenantMap.delete(serverId);
+        ServerOAuthProvider.codeVerifiers.delete(serverId);
 
-        // Re-fetch the updated server record from DB and reconnect
-        try {
-          const updatedServer = await getServerById(server.id, verified.tenantId);
-          if (updatedServer) {
-            engine.getConnectionManager().updateServerRecord(updatedServer);
+        // Reconnect with the new tokens
+        if (engine) {
+          try {
+            const updatedServer = await getServerById(serverId, tenantId);
+            if (updatedServer) {
+              engine.getConnectionManager().updateServerRecord(updatedServer);
+            }
+            await engine.getConnectionManager().reconnect(serverId);
+          } catch (reconnErr) {
+            console.error("[oauth] Reconnect after token exchange failed:", reconnErr);
           }
-          await engine.getConnectionManager().reconnect(server.id);
-        } catch (reconnErr) {
-          console.error("[oauth] Reconnect after token exchange failed:", reconnErr);
         }
 
         res.send(
           `<html><body><h2>OAuth setup complete</h2>` +
-          `<p>Access token obtained, expires at ${tokens.expiresAt.toISOString()}.</p>` +
-          `<p>You can close this tab.</p></body></html>`
+          `<p>Authorization successful. You can close this tab.</p></body></html>`
         );
       } catch (error) {
         const msg = error instanceof Error ? error.message : "Unknown error";

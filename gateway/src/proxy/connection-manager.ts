@@ -2,7 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { McpServerRecord } from "../db/queries/servers.js";
-import type { OAuthManager } from "../auth/oauth-manager.js";
+import { ServerOAuthProvider } from "../auth/server-oauth-provider.js";
 
 export interface DownstreamConnection {
   client: Client;
@@ -21,14 +21,15 @@ export interface DownstreamConnection {
 export class ConnectionManager {
   private connections = new Map<string, DownstreamConnection>();
   private serverRecords = new Map<string, McpServerRecord>();
-  private oauthManager: OAuthManager | null = null;
-
-  setOAuthManager(manager: OAuthManager): void {
-    this.oauthManager = manager;
-  }
+  /** OAuth providers keyed by serverId — reused across reconnects */
+  private oauthProviders = new Map<string, ServerOAuthProvider>();
 
   getServerRecord(serverId: string): McpServerRecord | undefined {
     return this.serverRecords.get(serverId);
+  }
+
+  getOAuthProvider(serverId: string): ServerOAuthProvider | undefined {
+    return this.oauthProviders.get(serverId);
   }
 
   async connect(server: McpServerRecord): Promise<DownstreamConnection> {
@@ -66,23 +67,35 @@ export class ConnectionManager {
         );
       }
 
-      // Build auth headers — for OAuth servers, get a fresh token
-      let headers: Record<string, string> = {};
-      if (server.authType === "oauth2" && this.oauthManager) {
-        const accessToken = await this.oauthManager.getAccessToken(server);
-        headers["Authorization"] = `Bearer ${accessToken}`;
-      } else if (server.authHeaders && Object.keys(server.authHeaders).length > 0) {
-        headers = { ...server.authHeaders };
-      }
+      if (server.authType === "oauth2") {
+        // Use MCP SDK's built-in OAuth 2.1 with PKCE
+        let provider = this.oauthProviders.get(server.id);
+        if (!provider) {
+          provider = new ServerOAuthProvider(server);
+          this.oauthProviders.set(server.id, provider);
+        } else {
+          provider.updateServerRecord(server);
+        }
+        transport = new StreamableHTTPClientTransport(
+          new URL(server.url),
+          { authProvider: provider }
+        );
+      } else {
+        // Static auth headers
+        let headers: Record<string, string> = {};
+        if (server.authHeaders && Object.keys(server.authHeaders).length > 0) {
+          headers = { ...server.authHeaders };
+        }
 
-      const httpOpts: Record<string, unknown> = {};
-      if (Object.keys(headers).length > 0) {
-        httpOpts.requestInit = { headers };
+        const httpOpts: Record<string, unknown> = {};
+        if (Object.keys(headers).length > 0) {
+          httpOpts.requestInit = { headers };
+        }
+        transport = new StreamableHTTPClientTransport(
+          new URL(server.url),
+          Object.keys(httpOpts).length > 0 ? httpOpts : undefined
+        );
       }
-      transport = new StreamableHTTPClientTransport(
-        new URL(server.url),
-        Object.keys(httpOpts).length > 0 ? httpOpts : undefined
-      );
     }
 
     await client.connect(transport);

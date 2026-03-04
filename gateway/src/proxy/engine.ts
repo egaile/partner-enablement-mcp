@@ -9,7 +9,6 @@ import { PolicyEngine } from "../policy/engine.js";
 import { AuditLogger } from "../audit/logger.js";
 import { AlertEngine } from "../alerts/engine.js";
 import { HealthChecker } from "../monitor/health-checker.js";
-import { OAuthManager } from "../auth/oauth-manager.js";
 import { UsageMeter } from "../billing/usage-meter.js";
 import { PlanCache } from "../billing/plan-cache.js";
 import {
@@ -30,7 +29,6 @@ export class GatewayProxyEngine {
   private auditLogger: AuditLogger;
   private alertEngine: AlertEngine;
   private healthChecker: HealthChecker | null = null;
-  private oauthManager: OAuthManager;
   private usageMeter: UsageMeter;
   private planCache: PlanCache;
 
@@ -42,7 +40,6 @@ export class GatewayProxyEngine {
     this.policyEngine = new PolicyEngine();
     this.auditLogger = new AuditLogger();
     this.alertEngine = new AlertEngine();
-    this.oauthManager = new OAuthManager();
     this.usageMeter = new UsageMeter();
     this.planCache = new PlanCache();
     this.interceptor = new ToolInterceptor(
@@ -50,10 +47,6 @@ export class GatewayProxyEngine {
       this.auditLogger,
       this.alertEngine
     );
-    // Wire OAuth into connection manager and interceptor
-    this.connectionManager.setOAuthManager(this.oauthManager);
-    this.interceptor.setOAuthManager(this.oauthManager);
-    this.interceptor.setConnectionManager(this.connectionManager);
     // Wire billing into audit and interceptor
     this.auditLogger.setUsageMeter(this.usageMeter);
     this.interceptor.setPlanCache(this.planCache);
@@ -77,10 +70,6 @@ export class GatewayProxyEngine {
 
   getHealthChecker(): HealthChecker | null {
     return this.healthChecker;
-  }
-
-  getOAuthManager(): OAuthManager {
-    return this.oauthManager;
   }
 
   getConnectionManager(): ConnectionManager {
@@ -146,7 +135,6 @@ export class GatewayProxyEngine {
       tenantId,
       60_000
     );
-    this.healthChecker.setOAuthManager(this.oauthManager);
     this.healthChecker.start();
   }
 

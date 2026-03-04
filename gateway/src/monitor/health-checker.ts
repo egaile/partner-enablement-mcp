@@ -1,6 +1,5 @@
 import type { ConnectionManager, DownstreamConnection } from "../proxy/connection-manager.js";
 import { AlertEngine } from "../alerts/engine.js";
-import type { OAuthManager } from "../auth/oauth-manager.js";
 
 export interface HealthStatus {
   serverId: string;
@@ -16,7 +15,6 @@ export class HealthChecker {
   private timer: NodeJS.Timeout | null = null;
   private connectionManager: ConnectionManager;
   private alertEngine: AlertEngine;
-  private oauthManager: OAuthManager | null = null;
   private tenantId: string;
   private readonly intervalMs: number;
   private readonly failureThreshold = 3;
@@ -31,10 +29,6 @@ export class HealthChecker {
     this.alertEngine = alertEngine;
     this.tenantId = tenantId;
     this.intervalMs = intervalMs;
-  }
-
-  setOAuthManager(manager: OAuthManager): void {
-    this.oauthManager = manager;
   }
 
   start(): void {
@@ -77,23 +71,7 @@ export class HealthChecker {
     const start = performance.now();
 
     try {
-      // Proactive OAuth token refresh before health ping
-      if (this.oauthManager) {
-        const serverRecord = this.connectionManager.getServerRecord(conn.serverId);
-        if (serverRecord?.authType === "oauth2") {
-          const refreshed = await this.oauthManager.refreshIfNeeded(serverRecord);
-          if (refreshed) {
-            console.log(`[health] OAuth token refreshed for "${conn.serverName}", reconnecting`);
-            await this.connectionManager.reconnect(conn.serverId);
-            // Get the new connection after reconnect
-            const newConn = this.connectionManager.getConnection(conn.serverId);
-            if (newConn) {
-              conn = newConn;
-            }
-          }
-        }
-      }
-
+      // OAuth token refresh is handled automatically by the SDK's authProvider
       await conn.client.listTools();
       const latencyMs = Math.round(performance.now() - start);
 

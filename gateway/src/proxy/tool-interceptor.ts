@@ -8,8 +8,7 @@ import { checkToolDrift } from "../monitor/tool-snapshot.js";
 import { AlertEngine } from "../alerts/engine.js";
 import type { PlanCache } from "../billing/plan-cache.js";
 import { isWithinSoftLimit } from "../billing/plans.js";
-import type { ConnectionManager, DownstreamConnection } from "./connection-manager.js";
-import type { OAuthManager } from "../auth/oauth-manager.js";
+import type { DownstreamConnection } from "./connection-manager.js";
 import type { AuditEntry } from "../schemas/index.js";
 import type { TenantContext } from "../auth/types.js";
 
@@ -28,8 +27,6 @@ export class ToolInterceptor {
   private alertEngine: AlertEngine;
   private rateLimiter: RateLimiter;
   private planCache: PlanCache | null = null;
-  private oauthManager: OAuthManager | null = null;
-  private connectionManager: ConnectionManager | null = null;
 
   constructor(
     policyEngine: PolicyEngine,
@@ -50,25 +47,16 @@ export class ToolInterceptor {
     this.planCache = cache;
   }
 
-  setOAuthManager(manager: OAuthManager): void {
-    this.oauthManager = manager;
-  }
-
-  setConnectionManager(manager: ConnectionManager): void {
-    this.connectionManager = manager;
-  }
-
   /**
    * Run the security pipeline for a tool call.
    * Returns the downstream response or a blocked response.
    */
   async intercept(
     tenant: TenantContext,
-    initialConnection: DownstreamConnection,
+    connection: DownstreamConnection,
     toolName: string,
     params: Record<string, unknown>
   ): Promise<InterceptResult> {
-    let connection = initialConnection;
     const correlationId = generateCorrelationId();
     const startTime = performance.now();
 
@@ -325,36 +313,12 @@ export class ToolInterceptor {
         }
       }
 
-      // Step 4: Forward to downstream server (with OAuth 401 retry)
-      let result;
-      try {
-        result = await connection.client.callTool({
-          name: toolName,
-          arguments: params,
-        });
-      } catch (callError) {
-        // Check if this is a 401 on an OAuth server — retry with refreshed token
-        const is401 = callError instanceof Error &&
-          (callError.message.includes("401") || callError.message.includes("Unauthorized"));
-        const serverRecord = this.connectionManager?.getServerRecord(connection.serverId);
-
-        if (is401 && serverRecord?.authType === "oauth2" && this.oauthManager && this.connectionManager) {
-          console.log(`[interceptor] 401 on OAuth server "${connection.serverName}", refreshing token and retrying`);
-          await this.oauthManager.forceRefresh(serverRecord);
-          const newConn = await this.connectionManager.reconnect(connection.serverId);
-          if (newConn) {
-            connection = newConn;
-            result = await connection.client.callTool({
-              name: toolName,
-              arguments: params,
-            });
-          } else {
-            throw callError;
-          }
-        } else {
-          throw callError;
-        }
-      }
+      // Step 4: Forward to downstream server
+      // (OAuth 401 retry is handled automatically by the SDK's authProvider)
+      const result = await connection.client.callTool({
+        name: toolName,
+        arguments: params,
+      });
 
       // Step 5: Scan response
       if (result.content && Array.isArray(result.content)) {
