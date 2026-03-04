@@ -179,14 +179,11 @@ export async function POST(request: Request) {
         project = result.project;
         issues = result.issues;
       } catch (err) {
-        console.warn(
-          `[read-context] Gateway/Rovo failed for ${projectKey}, falling back to mock:`,
-          err instanceof Error ? err.message : err
-        );
+        const errMsg = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
+        console.warn(`[read-context] Gateway/Rovo failed for ${projectKey}, falling back to mock:`, errMsg);
         resetSession(); // clear stale session for next attempt
-        const result = await fetchViaMock(projectKey, includeIssues ?? true, issueLimit ?? 20);
-        project = result.project;
-        issues = result.issues;
+        // Return the error directly so we can debug
+        return NextResponse.json({ error: 'gateway_failed', gatewayError: errMsg, projectKey }, { status: 502 });
       }
     } else {
       const result = await fetchViaMock(projectKey, includeIssues ?? true, issueLimit ?? 20);
