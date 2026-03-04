@@ -31,12 +31,17 @@ async function jsonRpc(method: string, params?: Record<string, unknown>): Promis
     headers["mcp-session-id"] = sessionId;
   }
 
-  const body = {
+  const body: Record<string, unknown> = {
     jsonrpc: "2.0",
-    id: nextId(),
     method,
     params: params ?? {},
   };
+
+  // MCP notifications (method starts with "notifications/") must NOT have an id
+  const isNotification = method.startsWith("notifications/");
+  if (!isNotification) {
+    body.id = nextId();
+  }
 
   const res = await fetch(`${GATEWAY_URL}/mcp`, {
     method: "POST",
@@ -53,6 +58,11 @@ async function jsonRpc(method: string, params?: Record<string, unknown>): Promis
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Gateway HTTP ${res.status}: ${text}`);
+  }
+
+  // Notifications return 202 Accepted with no body
+  if (isNotification) {
+    return undefined;
   }
 
   const json = await res.json();
@@ -76,8 +86,7 @@ async function initSession(): Promise<void> {
     clientInfo: { name: "web-demo", version: "1.0.0" },
   });
 
-  // Send initialized notification (no response expected, but gateway may require it)
-  // We send it as a request with a fresh ID — the gateway will accept it
+  // Send initialized notification (no id, no response expected per MCP spec)
   await jsonRpc("notifications/initialized");
 }
 
