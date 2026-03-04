@@ -29,9 +29,6 @@ async function fetchViaGateway(projectKey: string, includeIssues: boolean, issue
     throw new Error(`Tool error: ${extractText(resourcesResult)}`);
   }
   const resourcesText = extractText(resourcesResult);
-  if (!resourcesText.startsWith('[') && !resourcesText.startsWith('{')) {
-    throw new Error(`Unexpected tool response (not JSON): ${resourcesText.slice(0, 200)}`);
-  }
   // Response is JSON — may be an array or wrapped object
   const resources = JSON.parse(resourcesText);
   // Rovo returns: array of { id, url, name, ... } where id is the cloudId
@@ -46,6 +43,9 @@ async function fetchViaGateway(projectKey: string, includeIssues: boolean, issue
     searchString: projectKey,
     maxResults: 1,
   });
+  if (projectsResult.isError) {
+    throw new Error(`Tool error: ${extractText(projectsResult)}`);
+  }
   const projectsText = extractText(projectsResult);
   const projectsData = JSON.parse(projectsText);
   // projectsData.values is the array of projects
@@ -80,6 +80,9 @@ async function fetchViaGateway(projectKey: string, includeIssues: boolean, issue
       maxResults: issueLimit,
       fields: ['summary', 'description', 'status', 'issuetype', 'priority', 'labels'],
     });
+    if (searchResult.isError) {
+      throw new Error(`Tool error: ${extractText(searchResult)}`);
+    }
     const searchText = extractText(searchResult);
     const searchData = JSON.parse(searchText);
     const rawIssues = searchData?.issues ?? searchData ?? [];
@@ -185,9 +188,14 @@ export async function POST(request: Request) {
         project = result.project;
         issues = result.issues;
       } catch (err) {
-        const errMsg = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
-        resetSession();
-        return NextResponse.json({ error: 'gateway_failed', gatewayError: errMsg, projectKey }, { status: 502 });
+        console.warn(
+          `[read-context] Gateway/Rovo failed for ${projectKey}, falling back to mock:`,
+          err instanceof Error ? err.message : err
+        );
+        resetSession(); // clear stale session for next attempt
+        const result = await fetchViaMock(projectKey, includeIssues ?? true, issueLimit ?? 20);
+        project = result.project;
+        issues = result.issues;
       }
     } else {
       const result = await fetchViaMock(projectKey, includeIssues ?? true, issueLimit ?? 20);
