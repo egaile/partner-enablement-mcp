@@ -51,35 +51,75 @@ async function fetchViaGateway(projectKey: string, query: string): Promise<Searc
     throw new Error(`Search error: ${extractText(searchResult)}`);
   }
   const text = extractText(searchResult);
-  const data = JSON.parse(text);
 
-  // Parse Rovo search results into our format
+  // Log raw response for debugging (first 500 chars)
+  console.log('[cross-product-search] Raw Rovo search response:', text.slice(0, 500));
+
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    // Rovo search may return plain text / markdown instead of JSON
+    console.warn('[cross-product-search] Non-JSON response, returning as single result');
+    return [{
+      type: 'confluence',
+      title: `Search results for "${query}"`,
+      excerpt: text.slice(0, 300),
+    }];
+  }
+
+  // Parse Rovo search results — the response format varies:
+  // - Array of result objects directly
+  // - { results: [...] } wrapper
+  // - { data: [...] } wrapper
   const results: SearchResult[] = [];
-  const items = Array.isArray(data) ? data : data?.results ?? data?.data ?? [];
+  const raw = data as Record<string, unknown>;
+  const items: Record<string, unknown>[] = Array.isArray(data)
+    ? data
+    : Array.isArray(raw?.results) ? raw.results as Record<string, unknown>[]
+    : Array.isArray(raw?.data) ? raw.data as Record<string, unknown>[]
+    : [];
+
+  console.log(`[cross-product-search] Parsed ${items.length} items`);
+  if (items.length > 0) {
+    console.log('[cross-product-search] First item keys:', Object.keys(items[0]));
+  }
 
   for (const item of items.slice(0, 8)) {
-    const id = (item.id as string) ?? '';
-    const title = (item.title as string) ?? (item.name as string) ?? '';
-    const excerpt = (item.excerpt as string) ?? (item.description as string) ?? (item.content as string)?.slice(0, 200) ?? '';
-    const url = (item.url as string) ?? (item.href as string) ?? '';
+    // Rovo search returns ARIs like "ari:cloud:jira:..." or "ari:cloud:confluence:..."
+    const id = String(item.id ?? item.ari ?? '');
+    const title = String(item.title ?? item.name ?? '');
+    const excerpt = String(
+      item.excerpt ?? item.description ?? item.snippet ?? item.content ?? ''
+    ).slice(0, 200);
+    const url = String(item.url ?? item.href ?? item.link ?? '');
 
-    if (id.includes('issue') || id.includes('jira') || item.type === 'issue') {
+    const isJira = id.includes('jira') || id.includes('issue')
+      || url.includes('/browse/') || url.includes('jira')
+      || String(item.type ?? '').toLowerCase().includes('issue');
+    const isConfluence = id.includes('confluence') || id.includes('page')
+      || url.includes('/wiki/') || url.includes('confluence');
+
+    if (isJira) {
+      // Try to extract issue key from URL or title (e.g. "HEALTH-123")
+      const keyMatch = (url.match(/\/browse\/([A-Z]+-\d+)/) ?? title.match(/^([A-Z]+-\d+)/));
       results.push({
         type: 'jira',
-        key: (item.key as string) ?? title.split(' ')[0],
+        key: (item.key as string) ?? keyMatch?.[1] ?? '',
         title,
-        excerpt: excerpt.slice(0, 200),
+        excerpt,
         url,
-        issueType: (item.issueType as string) ?? 'Task',
-        status: (item.status as string) ?? 'Unknown',
+        issueType: String(item.issueType ?? item.type ?? 'Task'),
+        status: String(item.status ?? 'Unknown'),
       });
     } else {
+      // Default to confluence for pages/docs or anything non-Jira
       results.push({
-        type: 'confluence',
+        type: isConfluence ? 'confluence' : 'confluence',
         title,
-        excerpt: excerpt.slice(0, 200),
+        excerpt,
         url,
-        spaceKey: (item.spaceKey as string) ?? (item.space as string) ?? '',
+        spaceKey: String(item.spaceKey ?? item.space ?? item.container ?? ''),
       });
     }
   }
