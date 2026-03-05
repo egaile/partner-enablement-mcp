@@ -57,8 +57,7 @@ interface ServerData {
   id: string;
   name: string;
   transport: string;
-  status: string;
-  tool_count?: number;
+  enabled: boolean;
 }
 
 interface AlertData {
@@ -110,7 +109,7 @@ export default function DashboardPage() {
           token
         ),
         gatewayFetch<BillingUsage>("/api/billing/usage", token).catch(() => null),
-        gatewayFetch<{ data: ServerData[] }>("/api/servers", token).catch(() => ({ data: [] })),
+        gatewayFetch<{ servers: ServerData[] }>("/api/servers", token).catch(() => ({ servers: [] })),
         gatewayFetch<{ data: AlertData[] }>("/api/alerts?acknowledged=false&limit=20", token).catch(() => ({ data: [] })),
         gatewayFetch<{ data: ChartAuditEntry[] }>(`/api/audit?limit=200&startDate=${since}`, token).catch(() => ({ data: [] })),
       ]);
@@ -133,23 +132,33 @@ export default function DashboardPage() {
           }))
       );
 
-      // Fetch health per server in parallel
-      const serverList = serversData.data || [];
-      const healthResults = await Promise.all(
-        serverList.map((s) =>
-          gatewayFetch<{ status: string; lastChecked: string; toolCount?: number }>(
-            `/api/servers/${s.id}/health`,
-            token
-          ).catch(() => ({ status: "unknown", lastChecked: "", toolCount: s.tool_count }))
-        )
-      );
+      // Fetch health + snapshot count per server in parallel
+      const serverList = serversData.servers || [];
+      const [healthResults, snapshotResults] = await Promise.all([
+        Promise.all(
+          serverList.map((s) =>
+            gatewayFetch<{ status: string; lastChecked: string }>(
+              `/api/servers/${s.id}/health`,
+              token
+            ).catch(() => ({ status: "unknown", lastChecked: "" }))
+          )
+        ),
+        Promise.all(
+          serverList.map((s) =>
+            gatewayFetch<{ snapshots: unknown[] }>(
+              `/api/servers/${s.id}/snapshots`,
+              token
+            ).catch(() => ({ snapshots: [] }))
+          )
+        ),
+      ]);
 
       setServers(
         serverList.map((s, i) => ({
           id: s.id,
           name: s.name,
           transport: s.transport || "http",
-          toolCount: healthResults[i].toolCount ?? s.tool_count ?? 0,
+          toolCount: snapshotResults[i].snapshots?.length ?? 0,
           status: (healthResults[i].status as ServerHealth["status"]) || "unknown",
           lastChecked: healthResults[i].lastChecked || null,
         }))
