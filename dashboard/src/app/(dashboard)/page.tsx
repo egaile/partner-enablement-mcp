@@ -4,8 +4,15 @@ import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { Activity, ShieldAlert, Server, Clock, Plus, Shield, ScrollText, AlertTriangle, Zap } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 import MetricCard from "@/components/dashboard/MetricCard";
 import RecentActivity from "@/components/dashboard/RecentActivity";
+import ServerHealthGrid from "@/components/dashboard/ServerHealthGrid";
+import type { ServerHealth } from "@/components/dashboard/ServerHealthGrid";
+import ActivityChart, { bucketAuditLogs } from "@/components/dashboard/ActivityChart";
+import type { AuditLogEntry as ChartAuditEntry } from "@/components/dashboard/ActivityChart";
+import SecuritySummary from "@/components/dashboard/SecuritySummary";
+import type { AlertSummary } from "@/components/dashboard/SecuritySummary";
 import { DashboardSkeleton } from "@/components/shared/skeletons";
 import { gatewayFetch } from "@/lib/api";
 
@@ -24,6 +31,7 @@ interface AuditLogEntry {
   threats_detected: number;
   threat_details: Record<string, unknown> | null;
   created_at: string;
+  latency_ms?: number;
 }
 
 interface BillingUsage {
@@ -45,6 +53,23 @@ interface BillingUsage {
   };
 }
 
+interface ServerData {
+  id: string;
+  name: string;
+  transport: string;
+  status: string;
+  tool_count?: number;
+}
+
+interface AlertData {
+  id: string;
+  type: string;
+  severity: string;
+  title: string;
+  created_at: string;
+  acknowledged: boolean;
+}
+
 const timeRanges = [
   { label: "1h", value: "1h", ms: 3600000 },
   { label: "6h", value: "6h", ms: 21600000 },
@@ -62,7 +87,10 @@ export default function DashboardPage() {
   const { getToken } = useAuth();
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [recentLogs, setRecentLogs] = useState<AuditLogEntry[]>([]);
+  const [timelineLogs, setTimelineLogs] = useState<ChartAuditEntry[]>([]);
   const [billing, setBilling] = useState<BillingUsage | null>(null);
+  const [servers, setServers] = useState<ServerHealth[]>([]);
+  const [alerts, setAlerts] = useState<AlertSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState("24h");
 
@@ -75,18 +103,57 @@ export default function DashboardPage() {
         Date.now() - (timeRanges.find((t) => t.value === timeRange)?.ms ?? 86400000)
       ).toISOString();
 
-      const [metricsData, auditData, billingData] = await Promise.all([
+      const [metricsData, auditData, billingData, serversData, alertsData, timelineData] = await Promise.all([
         gatewayFetch<Metrics>(`/api/audit/metrics?since=${since}`, token),
         gatewayFetch<{ data: AuditLogEntry[] }>(
           "/api/audit?limit=10",
           token
         ),
         gatewayFetch<BillingUsage>("/api/billing/usage", token).catch(() => null),
+        gatewayFetch<{ data: ServerData[] }>("/api/servers", token).catch(() => ({ data: [] })),
+        gatewayFetch<{ data: AlertData[] }>("/api/alerts?acknowledged=false&limit=20", token).catch(() => ({ data: [] })),
+        gatewayFetch<{ data: ChartAuditEntry[] }>(`/api/audit?limit=200&startDate=${since}`, token).catch(() => ({ data: [] })),
       ]);
 
       setMetrics(metricsData);
       setRecentLogs(auditData.data);
       if (billingData) setBilling(billingData);
+      setTimelineLogs(timelineData.data || []);
+
+      // Map alerts
+      setAlerts(
+        (alertsData.data || [])
+          .filter((a) => !a.acknowledged)
+          .map((a) => ({
+            id: a.id,
+            type: a.type,
+            severity: a.severity,
+            title: a.title,
+            created_at: a.created_at,
+          }))
+      );
+
+      // Fetch health per server in parallel
+      const serverList = serversData.data || [];
+      const healthResults = await Promise.all(
+        serverList.map((s) =>
+          gatewayFetch<{ status: string; lastChecked: string; toolCount?: number }>(
+            `/api/servers/${s.id}/health`,
+            token
+          ).catch(() => ({ status: "unknown", lastChecked: "", toolCount: s.tool_count }))
+        )
+      );
+
+      setServers(
+        serverList.map((s, i) => ({
+          id: s.id,
+          name: s.name,
+          transport: s.transport || "http",
+          toolCount: healthResults[i].toolCount ?? s.tool_count ?? 0,
+          status: (healthResults[i].status as ServerHealth["status"]) || "unknown",
+          lastChecked: healthResults[i].lastChecked || null,
+        }))
+      );
     } catch (err) {
       console.error("Failed to load dashboard:", err);
     } finally {
@@ -99,6 +166,18 @@ export default function DashboardPage() {
     const interval = setInterval(load, 30000);
     return () => clearInterval(interval);
   }, [load]);
+
+  const handleAcknowledgeAlert = useCallback(async (alertId: string) => {
+    try {
+      const token = await getToken();
+      if (!token) return;
+      await gatewayFetch(`/api/alerts/${alertId}/acknowledge`, token, { method: "POST" });
+      setAlerts((prev) => prev.filter((a) => a.id !== alertId));
+      toast.success("Alert acknowledged");
+    } catch {
+      toast.error("Failed to acknowledge alert");
+    }
+  }, [getToken]);
 
   if (loading) {
     return <DashboardSkeleton />;
@@ -116,6 +195,8 @@ export default function DashboardPage() {
       l.tool_name.includes("confluence") ||
       l.tool_name.includes("page")
   ).length;
+
+  const chartBuckets = bucketAuditLogs(timelineLogs, timeRange);
 
   return (
     <div className="space-y-6">
@@ -201,6 +282,15 @@ export default function DashboardPage() {
           color="green"
         />
       </div>
+
+      {/* Activity Timeline Chart */}
+      <ActivityChart data={chartBuckets} />
+
+      {/* Server Health Grid */}
+      <ServerHealthGrid servers={servers} />
+
+      {/* Security Summary */}
+      <SecuritySummary alerts={alerts} onAcknowledge={handleAcknowledgeAlert} />
 
       {/* Atlassian operations breakdown */}
       {(jiraOps > 0 || confluenceOps > 0) && (

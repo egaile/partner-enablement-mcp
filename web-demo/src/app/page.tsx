@@ -8,6 +8,8 @@ import type {
   DemoState,
   ProjectContextData,
   ArchitectureData,
+  SearchData,
+  HealthData,
   ComplianceData,
   PlanData,
 } from '@/types/api';
@@ -16,12 +18,15 @@ import { Header } from '@/components/Header';
 import { StepProgress } from '@/components/StepProgress';
 import { HeroLanding } from '@/components/HeroLanding';
 import { ContextStep } from '@/components/steps/ContextStep';
+import { SearchStep } from '@/components/steps/SearchStep';
+import { HealthStep } from '@/components/steps/HealthStep';
 import { ArchitectureStep } from '@/components/steps/ArchitectureStep';
 import { ComplianceStep } from '@/components/steps/ComplianceStep';
 import { PlanStep } from '@/components/steps/PlanStep';
+import type { ConfluenceResult, JiraCreateResult } from '@/components/steps/PlanStep';
 import { CompleteStep } from '@/components/steps/CompleteStep';
 
-const STEP_ORDER: Step[] = ['select', 'context', 'architecture', 'compliance', 'plan', 'complete'];
+const STEP_ORDER: Step[] = ['select', 'context', 'search', 'health', 'architecture', 'compliance', 'plan', 'complete'];
 
 export default function Home() {
   const [state, setState] = useState<DemoState>({
@@ -29,8 +34,14 @@ export default function Home() {
     currentStep: 'select',
     isGenerating: false,
     error: null,
-    data: { context: null, architecture: null, compliance: null, plan: null },
+    data: { context: null, search: null, health: null, architecture: null, compliance: null, plan: null },
   });
+
+  // Write operation state
+  const [confluenceResult, setConfluenceResult] = useState<ConfluenceResult | null>(null);
+  const [jiraCreateResult, setJiraCreateResult] = useState<JiraCreateResult | null>(null);
+  const [isCreatingDoc, setIsCreatingDoc] = useState(false);
+  const [isCreatingIssues, setIsCreatingIssues] = useState(false);
 
   const { selectedIndustry, currentStep, isGenerating, error, data } = state;
 
@@ -39,7 +50,7 @@ export default function Home() {
     : '';
 
   const completedSteps = new Set(
-    (['context', 'architecture', 'compliance', 'plan'] as const).filter(
+    (['context', 'search', 'health', 'architecture', 'compliance', 'plan'] as const).filter(
       (s) => data[s] !== null
     )
   );
@@ -83,6 +94,12 @@ export default function Home() {
 
       if (step === 'context') {
         return { projectKey, includeIssues: true, issueLimit: 10 };
+      }
+      if (step === 'search') {
+        return { projectKey, query: `${projectKey} architecture compliance deployment` };
+      }
+      if (step === 'health') {
+        return { projectKey };
       }
       const projectContext = {
         projectKey,
@@ -144,6 +161,33 @@ export default function Home() {
           setState((prev) => ({
             ...prev,
             data: { ...prev.data, context: ctxData },
+          }));
+        } else if (step === 'search') {
+          const res = await fetch('/api/tools/cross-product-search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              projectKey,
+              query: `${projectKey} architecture compliance deployment`,
+            }),
+          });
+          if (!res.ok) throw new Error(`API error: ${res.status}`);
+          const searchData: SearchData = await res.json();
+          setState((prev) => ({
+            ...prev,
+            data: { ...prev.data, search: searchData },
+          }));
+        } else if (step === 'health') {
+          const res = await fetch('/api/tools/project-health', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ projectKey }),
+          });
+          if (!res.ok) throw new Error(`API error: ${res.status}`);
+          const healthData: HealthData = await res.json();
+          setState((prev) => ({
+            ...prev,
+            data: { ...prev.data, health: healthData },
           }));
         } else if (step === 'architecture') {
           const res = await fetch('/api/tools/generate-architecture', {
@@ -239,8 +283,10 @@ export default function Home() {
       currentStep: 'context',
       isGenerating: false,
       error: null,
-      data: { context: null, architecture: null, compliance: null, plan: null },
+      data: { context: null, search: null, health: null, architecture: null, compliance: null, plan: null },
     });
+    setConfluenceResult(null);
+    setJiraCreateResult(null);
   };
 
   const handleStartOver = () => {
@@ -249,8 +295,10 @@ export default function Home() {
       currentStep: 'select',
       isGenerating: false,
       error: null,
-      data: { context: null, architecture: null, compliance: null, plan: null },
+      data: { context: null, search: null, health: null, architecture: null, compliance: null, plan: null },
     });
+    setConfluenceResult(null);
+    setJiraCreateResult(null);
   };
 
   const handleNextStep = async () => {
@@ -267,11 +315,75 @@ export default function Home() {
   };
 
   const handleRunDemo = async () => {
-    // Start the demo by generating the first step (context)
-    // User then clicks "Next Step" to advance through each step
     setState((prev) => ({ ...prev, currentStep: 'context' }));
     await generateStep('context');
   };
+
+  // Write operation handlers
+  const handleCreateConfluenceDoc = useCallback(async () => {
+    if (!data.architecture) return;
+    setIsCreatingDoc(true);
+    try {
+      const title = `${data.context?.project.name ?? projectKey} - Architecture: ${data.architecture.patternName}`;
+      const content = [
+        `# ${title}`,
+        '',
+        `## Pattern: ${data.architecture.patternName}`,
+        '',
+        data.architecture.rationale,
+        '',
+        '## Components',
+        ...data.architecture.components.map((c) => `- **${c.name}**: ${c.description}`),
+        '',
+        '## Security Considerations',
+        ...data.architecture.securityConsiderations.map((s) => `- ${s}`),
+      ].join('\n');
+
+      const res = await fetch('/api/tools/create-confluence-doc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content }),
+      });
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      const result: ConfluenceResult = await res.json();
+      setConfluenceResult(result);
+    } catch (err) {
+      setConfluenceResult({
+        success: false,
+        blockReason: err instanceof Error ? err.message : 'Unknown error',
+      });
+    } finally {
+      setIsCreatingDoc(false);
+    }
+  }, [data.architecture, data.context, projectKey]);
+
+  const handleCreateJiraIssues = useCallback(async () => {
+    if (!data.plan?.jiraTickets) return;
+    setIsCreatingIssues(true);
+    try {
+      const tickets = data.plan.jiraTickets.slice(0, 5).map((t) => ({
+        summary: t.summary,
+        description: t.description,
+        type: t.type,
+      }));
+
+      const res = await fetch('/api/tools/create-jira-issues', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectKey, tickets }),
+      });
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      const result: JiraCreateResult = await res.json();
+      setJiraCreateResult(result);
+    } catch (err) {
+      setJiraCreateResult({
+        success: false,
+        blockReason: err instanceof Error ? err.message : 'Unknown error',
+      });
+    } finally {
+      setIsCreatingIssues(false);
+    }
+  }, [data.plan, projectKey]);
 
   return (
     <main className="min-h-screen">
@@ -297,7 +409,6 @@ export default function Home() {
         {/* Context - pre-generation preview */}
         {currentStep === 'context' && !completedSteps.has('context') && !isGenerating && (
           <div className="space-y-5 animate-fade-in">
-            {/* Show issue preview cards if auto-fetched */}
             {data.context && data.context.issues.length > 0 && (
               <ContextStep
                 data={data.context}
@@ -307,7 +418,6 @@ export default function Home() {
                 requestParams={getRequestParams('context')}
               />
             )}
-            {/* Action buttons */}
             <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-5 py-4">
               <button
                 onClick={handleStartOver}
@@ -338,6 +448,24 @@ export default function Home() {
           />
         )}
 
+        {/* Search */}
+        {currentStep === 'search' && (
+          <SearchStep
+            results={data.search?.results ?? null}
+            isGenerating={isGenerating}
+            requestParams={getRequestParams('search')}
+          />
+        )}
+
+        {/* Health */}
+        {currentStep === 'health' && (
+          <HealthStep
+            data={data.health}
+            isGenerating={isGenerating}
+            requestParams={getRequestParams('health')}
+          />
+        )}
+
         {/* Architecture */}
         {currentStep === 'architecture' && (
           <ArchitectureStep
@@ -362,6 +490,12 @@ export default function Home() {
             data={data.plan}
             isGenerating={isGenerating}
             requestParams={getRequestParams('plan')}
+            onCreateConfluenceDoc={handleCreateConfluenceDoc}
+            onCreateJiraIssues={handleCreateJiraIssues}
+            confluenceResult={confluenceResult}
+            jiraCreateResult={jiraCreateResult}
+            isCreatingDoc={isCreatingDoc}
+            isCreatingIssues={isCreatingIssues}
           />
         )}
 

@@ -1,4 +1,4 @@
-import { Calendar, Users, Target, Layers } from 'lucide-react';
+import { Calendar, Users, Target, Layers, FileText, Ticket, CheckCircle2, ShieldAlert, Clock, ExternalLink } from 'lucide-react';
 import type { PlanData, Phase, SkillRequirement, JiraTicket } from '@/types/api';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
@@ -6,13 +6,45 @@ import { Accordion } from '../ui/Accordion';
 import { StepSkeleton } from '../ui/Skeleton';
 import { ToolNarrative } from '../ToolNarrative';
 
+export interface ConfluenceResult {
+  success: boolean;
+  pageUrl?: string;
+  pageTitle?: string;
+  policyBlocked?: boolean;
+  blockReason?: string;
+}
+
+export interface JiraCreateResult {
+  success: boolean;
+  issues?: Array<{ key: string; summary: string; type: string; url?: string }>;
+  approvalRequired?: boolean;
+  policyBlocked?: boolean;
+  blockReason?: string;
+}
+
 interface PlanStepProps {
   data: PlanData | null;
   isGenerating: boolean;
   requestParams: Record<string, unknown>;
+  onCreateConfluenceDoc?: () => void;
+  onCreateJiraIssues?: () => void;
+  confluenceResult?: ConfluenceResult | null;
+  jiraCreateResult?: JiraCreateResult | null;
+  isCreatingDoc?: boolean;
+  isCreatingIssues?: boolean;
 }
 
-export function PlanStep({ data, isGenerating, requestParams }: PlanStepProps) {
+export function PlanStep({
+  data,
+  isGenerating,
+  requestParams,
+  onCreateConfluenceDoc,
+  onCreateJiraIssues,
+  confluenceResult,
+  jiraCreateResult,
+  isCreatingDoc,
+  isCreatingIssues,
+}: PlanStepProps) {
   if (isGenerating && !data) return <StepSkeleton />;
   if (!data) return null;
 
@@ -77,7 +109,155 @@ export function PlanStep({ data, isGenerating, requestParams }: PlanStepProps) {
           </div>
         </div>
       )}
+
+      {/* Create in Atlassian Section */}
+      {(onCreateConfluenceDoc || onCreateJiraIssues) && (
+        <div className="border-t border-gray-200 pt-5">
+          <h4 className="text-sm font-semibold text-gray-700 mb-1">Create in Atlassian</h4>
+          <p className="text-xs text-gray-500 mb-4">
+            These write operations flow through the MCP Security Gateway. If a policy blocks writes, you&apos;ll see the enforcement message instead.
+          </p>
+
+          <div className="grid sm:grid-cols-2 gap-3">
+            {/* Confluence Doc Button / Result */}
+            <div className="space-y-2">
+              {!confluenceResult && (
+                <button
+                  onClick={onCreateConfluenceDoc}
+                  disabled={isCreatingDoc}
+                  className="w-full flex items-center gap-2 px-4 py-3 bg-white border border-gray-200 rounded-lg hover:border-purple-300 hover:bg-purple-50/30 transition-colors text-sm font-medium text-gray-700 disabled:opacity-50"
+                >
+                  {isCreatingDoc ? (
+                    <Clock className="w-4 h-4 animate-spin text-purple-500" />
+                  ) : (
+                    <FileText className="w-4 h-4 text-purple-500" />
+                  )}
+                  {isCreatingDoc ? 'Creating...' : 'Create Architecture Doc in Confluence'}
+                </button>
+              )}
+              {confluenceResult && (
+                <ConfluenceResultCard result={confluenceResult} />
+              )}
+            </div>
+
+            {/* Jira Issues Button / Result */}
+            <div className="space-y-2">
+              {!jiraCreateResult && (
+                <button
+                  onClick={onCreateJiraIssues}
+                  disabled={isCreatingIssues}
+                  className="w-full flex items-center gap-2 px-4 py-3 bg-white border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50/30 transition-colors text-sm font-medium text-gray-700 disabled:opacity-50"
+                >
+                  {isCreatingIssues ? (
+                    <Clock className="w-4 h-4 animate-spin text-blue-500" />
+                  ) : (
+                    <Ticket className="w-4 h-4 text-blue-500" />
+                  )}
+                  {isCreatingIssues ? 'Creating...' : 'Create Jira Tickets'}
+                </button>
+              )}
+              {jiraCreateResult && (
+                <JiraResultCard result={jiraCreateResult} />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function ConfluenceResultCard({ result }: { result: ConfluenceResult }) {
+  if (result.policyBlocked) {
+    return (
+      <Card className="!p-3 border-red-200 bg-red-50/50">
+        <div className="flex items-start gap-2">
+          <ShieldAlert className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-red-700">Policy Blocked</p>
+            <p className="text-xs text-red-600 mt-0.5">{result.blockReason}</p>
+            <p className="text-xs text-gray-500 mt-1 italic">
+              This demonstrates the MCP Gateway enforcing a Confluence View-Only policy.
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="!p-3 border-green-200 bg-green-50/50">
+      <div className="flex items-start gap-2">
+        <CheckCircle2 className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
+        <div>
+          <p className="text-sm font-medium text-green-700">Page Created</p>
+          <p className="text-xs text-gray-600 mt-0.5">{result.pageTitle}</p>
+          {result.pageUrl && (
+            <a
+              href={result.pageUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 mt-1"
+            >
+              Open in Confluence <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function JiraResultCard({ result }: { result: JiraCreateResult }) {
+  if (result.approvalRequired) {
+    return (
+      <Card className="!p-3 border-amber-200 bg-amber-50/50">
+        <div className="flex items-start gap-2">
+          <Clock className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-amber-700">Approval Required</p>
+            <p className="text-xs text-amber-600 mt-0.5">{result.blockReason}</p>
+            <p className="text-xs text-gray-500 mt-1 italic">
+              This demonstrates the MCP Gateway&apos;s human-in-the-loop approval workflow for write operations.
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  if (result.policyBlocked) {
+    return (
+      <Card className="!p-3 border-red-200 bg-red-50/50">
+        <div className="flex items-start gap-2">
+          <ShieldAlert className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-red-700">Policy Blocked</p>
+            <p className="text-xs text-red-600 mt-0.5">{result.blockReason}</p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="!p-3 border-green-200 bg-green-50/50">
+      <div className="flex items-start gap-2">
+        <CheckCircle2 className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
+        <div>
+          <p className="text-sm font-medium text-green-700">
+            {result.issues?.length ?? 0} Issues Created
+          </p>
+          {result.issues && result.issues.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {result.issues.map((issue) => (
+                <Badge key={issue.key} variant="blue">{issue.key}</Badge>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </Card>
   );
 }
 

@@ -13,6 +13,18 @@ export const STEP_DEFINITIONS: Array<{
     toolDescription: 'Read and analyze Jira project backlog',
   },
   {
+    key: 'search',
+    label: 'Cross-Product Search',
+    toolName: 'cross_product_search',
+    toolDescription: 'Search across Jira and Confluence',
+  },
+  {
+    key: 'health',
+    label: 'Project Health',
+    toolName: 'project_health',
+    toolDescription: 'Assess project readiness from issue data',
+  },
+  {
     key: 'architecture',
     label: 'Architecture',
     toolName: 'generate_architecture',
@@ -35,6 +47,10 @@ export const STEP_DEFINITIONS: Array<{
 export const TOOL_NARRATIVES: Record<string, string> = {
   read_project_context:
     'This call flows through the MCP Security Gateway to the Atlassian Rovo MCP Server, which reads the project backlog from Jira Cloud in real time. Every request passes through the gateway\'s security pipeline \u2014 prompt injection scanning, policy enforcement, PII detection, and audit logging \u2014 before reaching Jira. The response is analyzed for compliance indicators, integration targets, and data classifications.',
+  cross_product_search:
+    'The gateway proxies a Rovo Search call that queries across both Jira and Confluence simultaneously. This demonstrates cross-product discovery \u2014 finding related architecture docs, compliance guides, and existing issues without switching tools. The search query is scanned for injection patterns before reaching Atlassian.',
+  project_health:
+    'Four parallel JQL queries run through the gateway to assess project readiness: open issues, high-priority items, overdue tickets, and blocked work. Each query is independently policy-checked and audit-logged. The readiness score is computed from overdue, blocked, and critical issue counts.',
   generate_architecture:
     'Using the project context, the MCP server\'s knowledge base recommends an architecture pattern. It matches against four pre-built patterns, then generates a cloud-native component breakdown with specific AWS services and Anthropic API integration points.',
   assess_compliance:

@@ -123,7 +123,35 @@ export interface JiraTicket {
   estimateHours?: number;
 }
 
-export type Step = 'select' | 'context' | 'architecture' | 'compliance' | 'plan' | 'complete';
+export interface SearchResultData {
+  type: 'jira' | 'confluence';
+  key?: string;
+  title: string;
+  excerpt: string;
+  url?: string;
+  issueType?: string;
+  status?: string;
+  spaceKey?: string;
+}
+
+export interface SearchData {
+  results: SearchResultData[];
+  source: 'gateway' | 'mock';
+}
+
+export interface HealthData {
+  readinessScore: number;
+  statusBreakdown: Record<string, number>;
+  priorityBreakdown: Record<string, number>;
+  openCount: number;
+  highPriorityCount: number;
+  overdueCount: number;
+  blockedCount: number;
+  riskFlags: string[];
+  source: 'gateway' | 'mock';
+}
+
+export type Step = 'select' | 'context' | 'search' | 'health' | 'architecture' | 'compliance' | 'plan' | 'complete';
 export type Industry = 'healthcare' | 'financial';
 
 export interface DemoState {
@@ -133,6 +161,8 @@ export interface DemoState {
   error: string | null;
   data: {
     context: ProjectContextData | null;
+    search: SearchData | null;
+    health: HealthData | null;
     architecture: ArchitectureData | null;
     compliance: ComplianceData | null;
     plan: PlanData | null;

@@ -1,10 +1,12 @@
 import { CheckCircle2, RotateCcw, Github, Linkedin, ExternalLink } from 'lucide-react';
-import type { ProjectContextData, ArchitectureData, ComplianceData, PlanData } from '@/types/api';
+import type { ProjectContextData, ArchitectureData, ComplianceData, PlanData, SearchData, HealthData } from '@/types/api';
 import { Card } from '../ui/Card';
 
 interface CompleteStepProps {
   data: {
     context: ProjectContextData | null;
+    search: SearchData | null;
+    health: HealthData | null;
     architecture: ArchitectureData | null;
     compliance: ComplianceData | null;
     plan: PlanData | null;
@@ -18,6 +20,16 @@ export function CompleteStep({ data, onStartOver }: CompleteStepProps) {
       title: 'Project Context',
       stat: data.context ? `${data.context.summary.totalIssues} issues analyzed` : 'Completed',
       tool: 'read_project_context',
+    },
+    {
+      title: 'Cross-Product Search',
+      stat: data.search ? `${data.search.results.length} results found` : 'Completed',
+      tool: 'rovo_search',
+    },
+    {
+      title: 'Project Health',
+      stat: data.health ? `Readiness: ${data.health.readinessScore}/100` : 'Completed',
+      tool: 'jira_jql_queries',
     },
     {
       title: 'Architecture',
@@ -47,12 +59,12 @@ export function CompleteStep({ data, onStartOver }: CompleteStepProps) {
         </div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Demo Complete</h2>
         <p className="text-gray-500 max-w-lg mx-auto text-sm">
-          Four MCP tools executed through the Security Gateway, producing structured enterprise deliverables from live Jira data.
+          Six MCP tools executed through the Security Gateway, producing structured enterprise deliverables from live Jira and Confluence data.
         </p>
       </div>
 
       {/* What Was Demonstrated */}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {summaryCards.map((card) => (
           <Card key={card.title} className="text-center !p-4">
             <CheckCircle2 className="w-5 h-5 text-green-500 mx-auto mb-2" />
