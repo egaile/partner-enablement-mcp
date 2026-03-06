@@ -124,38 +124,38 @@ async function fetchViaGateway(projectKey: string): Promise<SearchResult[]> {
   const cloudId: string = Array.isArray(resources) ? resources[0]?.id : resources?.id;
   if (!cloudId) throw new Error('No Atlassian cloud resources found');
 
-  // Step 2: Try Rovo cross-product search first
+  // Step 2: Try Rovo cross-product search (returns Jira + Confluence)
+  let rovoResults: SearchResult[] = [];
   try {
     const searchResult = await callTool(rovo('search'), {
-      query: `project ${projectKey} AI deployment architecture compliance`,
+      query: `${projectKey} AI deployment architecture compliance`,
     });
 
     if (!searchResult.isError) {
       const text = extractText(searchResult);
-      const results = parseRovoResults(text, projectKey);
-      if (results.length > 0) return results;
+      rovoResults = parseRovoResults(text, projectKey);
     }
   } catch (err) {
-    console.warn('[cross-product-search] Rovo search failed, falling back to JQL:', err instanceof Error ? err.message : err);
+    console.warn('[cross-product-search] Rovo search failed:', err instanceof Error ? err.message : err);
   }
 
-  // Step 3: Fallback — search Jira via JQL
-  const jqlResult = await callTool(rovo('searchJiraIssuesUsingJql'), {
-    cloudId,
-    jql: `project = ${projectKey} ORDER BY created DESC`,
-    maxResults: 8,
-    fields: ['summary', 'description', 'status', 'issuetype', 'priority'],
-  });
+  // Step 3: Always supplement with JQL for reliable Jira issue coverage
+  const jiraResults: SearchResult[] = [];
+  try {
+    const jqlResult = await callTool(rovo('searchJiraIssuesUsingJql'), {
+      cloudId,
+      jql: `project = ${projectKey} ORDER BY created DESC`,
+      maxResults: 8,
+      fields: ['summary', 'description', 'status', 'issuetype', 'priority'],
+    });
 
-  const results: SearchResult[] = [];
-  if (!jqlResult.isError) {
-    const text = extractText(jqlResult);
-    try {
+    if (!jqlResult.isError) {
+      const text = extractText(jqlResult);
       const data = JSON.parse(text);
       const issues = Array.isArray(data?.issues) ? data.issues : [];
       for (const issue of issues) {
         const fields = issue.fields ?? {};
-        results.push({
+        jiraResults.push({
           type: 'jira',
           key: issue.key ?? '',
           title: fields.summary ?? '',
@@ -166,12 +166,17 @@ async function fetchViaGateway(projectKey: string): Promise<SearchResult[]> {
           status: fields.status?.name ?? 'Unknown',
         });
       }
-    } catch {
-      console.warn('[cross-product-search] Failed to parse JQL response');
     }
+  } catch {
+    console.warn('[cross-product-search] JQL fallback failed');
   }
 
-  return results;
+  // Merge: JQL Jira issues + Rovo Confluence results (dedupe Jira by key)
+  const jiraKeys = new Set(jiraResults.map((r) => r.key));
+  const rovoJira = rovoResults.filter((r) => r.type === 'jira' && !jiraKeys.has(r.key));
+  const rovoConfluence = rovoResults.filter((r) => r.type === 'confluence');
+
+  return [...jiraResults, ...rovoJira, ...rovoConfluence];
 }
 
 export async function POST(request: Request) {
