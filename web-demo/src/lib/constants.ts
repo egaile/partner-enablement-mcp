@@ -48,7 +48,7 @@ export const TOOL_NARRATIVES: Record<string, string> = {
   read_project_context:
     'This call flows through the MCP Security Gateway to the Atlassian Rovo MCP Server, which reads the project backlog from Jira Cloud in real time. Every request passes through the gateway\'s security pipeline \u2014 prompt injection scanning, policy enforcement, PII detection, and audit logging \u2014 before reaching Jira. The response is analyzed for compliance indicators, integration targets, and data classifications.',
   cross_product_search:
-    'The gateway proxies a JQL search through the Atlassian Rovo MCP Server, pulling real Jira issues from the project backlog. Each query passes through injection scanning, policy evaluation, and audit logging. Confluence reference docs supplement the live Jira data to show cross-product context.',
+    'The gateway proxies a Rovo Search call through the Atlassian Rovo MCP Server, searching across both Jira and Confluence in a single query. Each request passes through injection scanning, policy evaluation, and audit logging. If Rovo Search is unavailable, the gateway falls back to JQL-based Jira search.',
   project_health:
     'Four parallel JQL queries run through the gateway to assess project readiness: open issues, high-priority items, overdue tickets, and blocked work. Each query is independently policy-checked and audit-logged. The readiness score is computed from overdue, blocked, and critical issue counts.',
   generate_architecture:

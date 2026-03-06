@@ -44,6 +44,11 @@ export default function NewServerPage() {
       if (form.transport === "http") {
         body.url = form.url;
 
+        // Auto-populate OAuth scopes for known providers
+        if (form.url.includes("mcp.atlassian.com")) {
+          body.oauthScopes = ["read:jira-work", "write:jira-work", "search:rovo:mcp"];
+        }
+
         // Build auth headers
         if (authMethod === "basic" && authEmail && authToken) {
           const encoded = btoa(`${authEmail}:${authToken}`);

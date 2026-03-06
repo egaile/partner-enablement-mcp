@@ -580,7 +580,10 @@ async function main(): Promise<void> {
         if (!authUrl) {
           // Trigger the SDK auth flow — this discovers OAuth metadata, does dynamic
           // client registration if needed, generates PKCE, and calls redirectToAuthorization()
-          const result = await mcpAuth(provider, { serverUrl: server.url });
+          const result = await mcpAuth(provider, {
+            serverUrl: server.url,
+            scope: server.oauthScopes?.join(' '),
+          });
           if (result === "AUTHORIZED") {
             res.json({ status: "already_authorized", message: "Server already has valid tokens" });
             return;
@@ -656,6 +659,7 @@ async function main(): Promise<void> {
         const result = await mcpAuth(provider, {
           serverUrl: server.url!,
           authorizationCode: code as string,
+          scope: server.oauthScopes?.join(' '),
         });
 
         if (result !== "AUTHORIZED") {
