@@ -68,9 +68,9 @@ export const TOOL_NARRATIVES: Record<string, string> = {
 };
 
 export const HERO_COPY = {
-  headline: 'See MCP in Action: From Jira Backlog to Deployment-Ready Architecture',
+  headline: 'See MCP in Action: 14 Rovo Tools, One Security Gateway',
   subheadline:
-    'This demo reads live Jira data through an MCP Security Gateway that proxies the Atlassian Rovo MCP Server. Every tool call passes through a security pipeline \u2014 injection scanning, policy enforcement, PII detection \u2014 with full audit logging. The same data then drives architecture, compliance, and implementation planning.',
+    'This demo uses 14 Atlassian Rovo MCP tools to read Jira backlogs, search Confluence docs via CQL, assess compliance coverage, generate architecture plans, and execute write operations \u2014 all through an MCP Security Gateway with injection scanning, policy enforcement, PII detection, and a live audit trail.',
 };
 
 export const EXPLAINER_CARDS = [
@@ -80,7 +80,7 @@ export const EXPLAINER_CARDS = [
   },
   {
     title: 'What This Demo Does',
-    body: 'Jira data is fetched via the Atlassian Rovo MCP Server, proxied through an MCP Security Gateway that scans for threats and logs every call. That context then feeds architecture, compliance, and implementation tools.',
+    body: 'This demo exercises 14 Rovo MCP tools across Jira and Confluence \u2014 reading project backlogs, searching docs via CQL, assessing compliance coverage, and executing write operations like labeling issues and creating pages. Every call flows through the MCP Security Gateway with a live audit trail.',
   },
   {
     title: 'Why It Matters',
@@ -89,7 +89,7 @@ export const EXPLAINER_CARDS = [
 ];
 
 export const LIVE_INTEGRATION_COPY =
-  'Live data flows through the MCP Security Gateway \u2192 Atlassian Rovo MCP Server \u2192 Jira Cloud. Every tool call is scanned for prompt injection, evaluated against security policies, checked for PII, and logged to the audit trail.';
+  'Live data flows through the MCP Security Gateway \u2192 Atlassian Rovo MCP Server \u2192 Jira Cloud + Confluence Cloud. 14 Rovo tools are used across reads, searches, and writes \u2014 each scanned for prompt injection, evaluated against policies, checked for PII, and logged to the audit trail.';
 
 export interface ScenarioConfig {
   industry: Industry;
