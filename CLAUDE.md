@@ -121,6 +121,10 @@ CLERK_SECRET_KEY=
 GATEWAY_API_URL=http://localhost:4000
 ```
 
+## Tool Usage
+
+- Always use Context7 MCP when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
+
 ## Code Conventions
 
 - TypeScript strict mode, ES modules (`"type": "module"` in package.json, `.js` extensions in imports)
