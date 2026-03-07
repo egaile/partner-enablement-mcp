@@ -654,3 +654,236 @@ Update a member's role. **Requires `owner` role.**
 Remove a team member. **Requires `owner` role.**
 
 **Response:** `{ "success": true }`
+
+---
+
+## OAuth (Server Authentication)
+
+### GET /api/servers/:id/oauth/authorize
+
+Initiate the OAuth 2.1 authorization flow for a downstream MCP server. Redirects the user to the server's authorization URL. The gateway uses the MCP SDK's `OAuthClientProvider` to handle discovery, dynamic client registration, and PKCE automatically.
+
+**Response:** `302 Redirect` to the authorization URL, or:
+```json
+{
+  "authUrl": "https://auth.atlassian.com/authorize?..."
+}
+```
+
+### GET /api/oauth/callback/:serverId
+
+OAuth callback endpoint. The server's authorization server redirects here after user consent. The gateway exchanges the authorization code for tokens using PKCE.
+
+**Query parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `code` | string | Authorization code from the OAuth server. |
+| `state` | string | CSRF state parameter. |
+
+**Response:** Redirects to the dashboard server detail page on success.
+
+### GET /api/servers/:id/oauth/status
+
+Check the OAuth connection status for a server.
+
+**Response:**
+```json
+{
+  "connected": true,
+  "hasAccessToken": true,
+  "hasRefreshToken": true,
+  "tokenExpiresAt": "2025-01-15T11:00:00Z",
+  "scopes": "read:jira-work write:jira-work read:confluence-content.all"
+}
+```
+
+---
+
+## Atlassian Policy Templates
+
+### GET /api/templates/atlassian
+
+List all available Atlassian-specific policy templates.
+
+**Response:**
+```json
+{
+  "templates": [
+    {
+      "id": "read-only-jira",
+      "name": "Read-Only Jira",
+      "description": "Block all Jira write operations (create, edit, transition, delete)",
+      "rules": 1,
+      "category": "access-control"
+    },
+    {
+      "id": "protected-projects",
+      "name": "Protected Projects",
+      "description": "Block access to sensitive Jira projects (HR, Security)",
+      "rules": 1,
+      "category": "access-control"
+    },
+    {
+      "id": "approval-for-writes",
+      "name": "Approval for Writes",
+      "description": "Require human approval before any create/update operation",
+      "rules": 1,
+      "category": "hitl"
+    },
+    {
+      "id": "confluence-view-only",
+      "name": "Confluence View-Only",
+      "description": "Allow Confluence reads, block all edits",
+      "rules": 1,
+      "category": "access-control"
+    },
+    {
+      "id": "audit-everything",
+      "name": "Audit Everything",
+      "description": "Log all calls without blocking (good starting point)",
+      "rules": 1,
+      "category": "observability"
+    },
+    {
+      "id": "pii-shield",
+      "name": "PII Shield",
+      "description": "Scan Jira/Confluence content for PII before returning to agents",
+      "rules": 1,
+      "category": "data-protection"
+    }
+  ]
+}
+```
+
+### POST /api/templates/atlassian/:id/apply
+
+Apply an Atlassian policy template. Creates the corresponding policy rules for the tenant.
+
+**Response:** `{ "success": true, "rulesCreated": 1 }`
+
+---
+
+## Billing & Usage
+
+### GET /api/billing/usage
+
+Get current billing period usage for the tenant.
+
+**Response:**
+```json
+{
+  "plan": "pro",
+  "period": { "start": "2025-01-01T00:00:00Z", "end": "2025-02-01T00:00:00Z" },
+  "usage": { "toolCalls": 4523, "limit": 50000 },
+  "servers": { "count": 3, "limit": 10 }
+}
+```
+
+### GET /api/billing/history
+
+Get billing history.
+
+**Response:**
+```json
+{
+  "invoices": [
+    {
+      "id": "inv_abc",
+      "amount": 4900,
+      "currency": "usd",
+      "status": "paid",
+      "period": { "start": "2025-01-01", "end": "2025-02-01" }
+    }
+  ]
+}
+```
+
+### GET /api/billing/plans
+
+List available plans with limits.
+
+**Response:**
+```json
+{
+  "plans": [
+    { "id": "starter", "name": "Starter", "price": 0, "servers": 1, "toolCalls": 1000 },
+    { "id": "pro", "name": "Pro", "price": 4900, "servers": 10, "toolCalls": 50000 },
+    { "id": "business", "name": "Business", "price": 14900, "servers": 50, "toolCalls": 500000 },
+    { "id": "enterprise", "name": "Enterprise", "price": null, "servers": null, "toolCalls": null }
+  ]
+}
+```
+
+### POST /api/billing/checkout
+
+Create a Stripe checkout session for upgrading.
+
+**Body:**
+```json
+{ "planId": "pro" }
+```
+
+**Response:**
+```json
+{ "url": "https://checkout.stripe.com/c/pay/..." }
+```
+
+### POST /api/billing/portal
+
+Create a Stripe customer portal session for managing billing.
+
+**Response:**
+```json
+{ "url": "https://billing.stripe.com/p/session/..." }
+```
+
+### POST /api/billing/webhook
+
+Stripe webhook endpoint. Handles `checkout.session.completed` and `customer.subscription.updated` events to sync plan changes.
+
+**Headers:** `Stripe-Signature` (verified via webhook secret)
+
+---
+
+## Demo Audit Trail
+
+### GET /api/demo/audit-trail
+
+Get recent audit entries for the web demo's live audit trail panel. Returns the last N audit log entries for the authenticated tenant.
+
+**Query parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `limit` | number | 20 | Max entries to return (capped at 50). |
+
+**Response:**
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "correlationId": "uuid",
+      "userId": "user_abc",
+      "serverId": "uuid",
+      "serverName": "atlassian-rovo",
+      "toolName": "searchJiraIssuesUsingJql",
+      "policyDecision": "allow",
+      "threatsDetected": 0,
+      "requestPiiDetected": false,
+      "responsePiiDetected": false,
+      "latencyMs": 142,
+      "success": true,
+      "createdAt": "2025-01-15T10:00:00Z",
+      "threat_details": {
+        "atlassian": {
+          "projectKey": "HEALTH",
+          "operationType": "read"
+        }
+      }
+    }
+  ],
+  "count": 20
+}
+```

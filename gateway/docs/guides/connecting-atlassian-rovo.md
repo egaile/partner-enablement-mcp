@@ -293,11 +293,32 @@ curl -X POST https://mcp.atlassian.com/v1/mcp \
 - Ensure your user has the right Jira/Confluence permissions for the operation
 - Check the gateway audit log for policy blocks or injection detections
 
-## Alternative: OAuth Authentication
+## Alternative: OAuth 2.1 Authentication
 
-Instead of API tokens, you can use OAuth 2.1 Bearer tokens. This is useful if you have an OAuth flow that issues tokens for your Atlassian site:
+The gateway supports OAuth 2.1 with PKCE for Atlassian Rovo, using the MCP SDK's built-in `OAuthClientProvider`. This is the recommended approach for production deployments as it provides scoped permissions, automatic token refresh, and user-level consent.
+
+### How It Works
+
+The gateway implements the full OAuth 2.1 flow via the MCP SDK:
+
+1. **Discovery** -- The SDK fetches the server's `/.well-known/oauth-authorization-server` metadata
+2. **Dynamic Client Registration** -- Automatically registers as an OAuth client with Atlassian
+3. **PKCE** -- Generates code verifier/challenge pairs for secure authorization
+4. **Token Exchange** -- Exchanges the authorization code for access + refresh tokens
+5. **Auto-Refresh** -- The SDK automatically refreshes expired tokens using the refresh token
+
+### Setup via Dashboard
+
+1. Go to **Servers > Add Server** or edit an existing Atlassian Rovo server
+2. Set auth type to **OAuth**
+3. Click **Authorize** -- this redirects to Atlassian's consent screen
+4. Grant the requested permissions (Jira read/write, Confluence read/write, search)
+5. You're redirected back to the dashboard. The connection status shows **Connected**
+
+### Setup via API
 
 ```bash
+# 1. Register the server with OAuth auth type
 curl -X POST "$GATEWAY_URL/api/servers" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $GATEWAY_TOKEN" \
@@ -305,24 +326,53 @@ curl -X POST "$GATEWAY_URL/api/servers" \
     "name": "atlassian-rovo",
     "transport": "http",
     "url": "https://mcp.atlassian.com/v1/mcp",
-    "authHeaders": {
-      "Authorization": "Bearer <oauth-access-token>"
-    },
+    "auth_type": "oauth",
     "enabled": true
   }'
+
+# 2. Start the OAuth flow (opens in browser)
+curl "$GATEWAY_URL/api/servers/<server-id>/oauth/authorize" \
+  -H "Authorization: Bearer $GATEWAY_TOKEN"
+
+# 3. Check connection status
+curl "$GATEWAY_URL/api/servers/<server-id>/oauth/status" \
+  -H "Authorization: Bearer $GATEWAY_TOKEN"
 ```
 
-Note that OAuth tokens expire. You'll need to update the server's `authHeaders` when the token refreshes:
+### Required OAuth Scopes
 
-```bash
-curl -X PUT "$GATEWAY_URL/api/servers/<server-id>" \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $GATEWAY_TOKEN" \
-  -d '{
-    "authHeaders": {
-      "Authorization": "Bearer <new-oauth-token>"
-    }
-  }'
-```
+The gateway requests these Atlassian scopes:
 
-API tokens (Basic Auth) are recommended for production use as they don't expire unless revoked.
+| Scope | Purpose |
+|-------|---------|
+| `read:jira-work` | Read issues, projects, search with JQL |
+| `write:jira-work` | Create/edit issues, add comments, transition statuses |
+| `read:confluence-content.all` | Read pages, search with CQL |
+| `write:confluence-content` | Create/update Confluence pages |
+| `search:confluence` | Rovo Search across products |
+
+### Domain Allowlist
+
+For OAuth to work, your Atlassian admin must allowlist the gateway's domain:
+
+1. Go to **Atlassian Admin > Apps > AI settings > Rovo MCP Server**
+2. Under "Your domains", add your gateway URL: `https://your-gateway.example.com/**`
+3. The URL **must** include the `https://` prefix and `/**` path wildcard
+
+Without the `/**` suffix, the consent screen will block with "organization admin must authorize access from a domain to this site".
+
+### Re-authorizing
+
+If tokens expire or permissions change, re-authorize from the dashboard:
+1. Go to **Servers > [your server] > Details**
+2. Click **Re-authorize** to start a fresh OAuth flow
+
+### API Token vs OAuth
+
+| Feature | API Token (Basic Auth) | OAuth 2.1 |
+|---------|----------------------|-----------|
+| Setup complexity | Simple | Requires admin consent |
+| Token lifecycle | Never expires (until revoked) | Auto-refreshes |
+| Permission scope | All permissions of the user | Scoped to requested OAuth scopes |
+| Multi-user | Single user's permissions | Per-user consent possible |
+| Recommended for | Development, testing | Production deployments |
