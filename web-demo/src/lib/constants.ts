@@ -28,19 +28,25 @@ export const STEP_DEFINITIONS: Array<{
     key: 'architecture',
     label: 'Architecture',
     toolName: 'generate_architecture',
-    toolDescription: 'Generate cloud-native reference architecture',
+    toolDescription: 'Generate architecture with Confluence context',
   },
   {
     key: 'compliance',
     label: 'Compliance',
     toolName: 'assess_compliance',
-    toolDescription: 'Assess regulatory compliance requirements',
+    toolDescription: 'Assess compliance with doc coverage audit',
   },
   {
     key: 'plan',
     label: 'Implementation',
     toolName: 'create_implementation_plan',
     toolDescription: 'Create phased implementation plan',
+  },
+  {
+    key: 'actions',
+    label: 'Agent Actions',
+    toolName: 'agent_actions',
+    toolDescription: 'Execute write operations via Rovo tools',
   },
 ];
 
@@ -52,11 +58,13 @@ export const TOOL_NARRATIVES: Record<string, string> = {
   project_health:
     'Four parallel JQL queries run through the gateway to assess project readiness: open issues, high-priority items, overdue tickets, and blocked work. Each query is independently policy-checked and audit-logged. The readiness score is computed from overdue, blocked, and critical issue counts.',
   generate_architecture:
-    'Using the project context, the MCP server\'s knowledge base recommends an architecture pattern. It matches against four pre-built patterns, then generates a cloud-native component breakdown with specific AWS services and Anthropic API integration points.',
+    'The agent searches Confluence for existing architecture documentation using CQL, then reads the top matches with getConfluencePage. The knowledge base recommends a pattern, and Confluence context is shown alongside the recommendation \u2014 demonstrating how the agent discovers your team\'s existing docs.',
   assess_compliance:
-    'The MCP server cross-references detected compliance tags against its knowledge base of regulatory frameworks. It identifies applicable frameworks, generates detailed requirements, flags risk areas specific to LLM deployments, and produces an implementation checklist.',
+    'The agent searches Confluence for compliance documentation per applicable framework using CQL queries. It identifies which frameworks have existing docs, partial coverage, or missing documentation \u2014 acting as an automated compliance auditor across your Confluence knowledge base.',
   create_implementation_plan:
     'The MCP server generates a phased implementation plan calibrated to the architecture pattern\'s complexity. It creates sprint-level timelines, identifies required skills, estimates effort, and generates Jira ticket templates ready for import.',
+  agent_actions:
+    'Write operations flow through the full security pipeline. The agent can label issues (editJiraIssue), add comments (addCommentToJiraIssue), transition statuses (transitionJiraIssue), create Confluence pages, and create Jira tickets. Each write is individually policy-checked \u2014 some may be blocked or require approval.',
 };
 
 export const HERO_COPY = {

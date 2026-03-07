@@ -2,7 +2,7 @@ import { Activity, AlertTriangle, Clock, Ban } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { StepSkeleton } from '../ui/Skeleton';
-import { ToolNarrative } from '../ToolNarrative';
+import { SecurityPipeline } from '../SecurityPipeline';
 
 export interface HealthData {
   readinessScore: number;
@@ -57,7 +57,7 @@ export function HealthStep({ data, isGenerating, requestParams }: HealthStepProp
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <ToolNarrative toolName="project_health" parameters={requestParams} />
+      <SecurityPipeline toolName="project_health" parameters={requestParams} isGenerating={isGenerating} />
 
       {/* Readiness Score */}
       <Card variant="highlighted" className="text-center !py-6">

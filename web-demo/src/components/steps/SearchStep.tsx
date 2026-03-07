@@ -2,7 +2,7 @@ import { Search, FileText, Bug } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { StepSkeleton } from '../ui/Skeleton';
-import { ToolNarrative } from '../ToolNarrative';
+import { SecurityPipeline } from '../SecurityPipeline';
 
 export interface SearchResult {
   type: 'jira' | 'confluence';
@@ -30,7 +30,7 @@ export function SearchStep({ results, isGenerating, requestParams }: SearchStepP
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <ToolNarrative toolName="cross_product_search" parameters={requestParams} />
+      <SecurityPipeline toolName="cross_product_search" parameters={requestParams} isGenerating={isGenerating} />
 
       <div className="flex items-center gap-2 mb-2">
         <Search className="w-4 h-4 text-claude-orange" />

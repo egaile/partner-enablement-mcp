@@ -1,10 +1,11 @@
-import { AlertTriangle, CheckSquare, ShieldAlert } from 'lucide-react';
-import type { ComplianceData, ComplianceRequirement, RiskArea, ChecklistItem } from '@/types/api';
+import { AlertTriangle, CheckSquare, ShieldAlert, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
+import type { ComplianceData, ComplianceRequirement, RiskArea, ChecklistItem, ComplianceDocCoverage } from '@/types/api';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Accordion } from '../ui/Accordion';
 import { StepSkeleton } from '../ui/Skeleton';
-import { ToolNarrative } from '../ToolNarrative';
+import { SecurityPipeline } from '../SecurityPipeline';
+import { ConfluenceSearchCallout } from '../SecurityCallout';
 
 interface ComplianceStepProps {
   data: ComplianceData | null;
@@ -36,7 +37,41 @@ export function ComplianceStep({ data, isGenerating, requestParams }: Compliance
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <ToolNarrative toolName="assess_compliance" parameters={requestParams} />
+      <SecurityPipeline toolName="assess_compliance" parameters={requestParams} isGenerating={isGenerating} />
+
+      {/* Documentation Coverage */}
+      {data.documentCoverage && data.documentCoverage.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <FileText className="w-4 h-4 text-purple-500" />
+            <h4 className="text-sm font-semibold text-gray-700">Documentation Coverage</h4>
+            <Badge variant="purple">via searchConfluenceUsingCql</Badge>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {data.documentCoverage.map((cov) => (
+              <Card key={cov.framework} className="!p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h5 className="text-sm font-semibold text-gray-900 uppercase">{cov.framework}</h5>
+                  <CoverageBadge coverage={cov.coverage} />
+                </div>
+                {cov.existingDocs.length > 0 ? (
+                  <ul className="space-y-1">
+                    {cov.existingDocs.map((doc, i) => (
+                      <li key={i} className="flex items-start gap-1.5 text-xs text-gray-600">
+                        <CheckCircle2 className="w-3 h-3 text-green-500 mt-0.5 shrink-0" />
+                        <span className="line-clamp-1">{doc.title}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-gray-400 italic">No documentation found</p>
+                )}
+              </Card>
+            ))}
+          </div>
+          <ConfluenceSearchCallout />
+        </div>
+      )}
 
       {/* Framework Priority Cards */}
       <div>
@@ -129,6 +164,12 @@ function RequirementRow({ requirement }: { requirement: ComplianceRequirement })
       <p className="text-xs text-gray-500">{requirement.implementation}</p>
     </div>
   );
+}
+
+function CoverageBadge({ coverage }: { coverage: 'full' | 'partial' | 'missing' }) {
+  if (coverage === 'full') return <Badge variant="green">Full</Badge>;
+  if (coverage === 'partial') return <Badge variant="amber">Partial</Badge>;
+  return <Badge variant="red">Missing</Badge>;
 }
 
 function RiskCard({ risk }: { risk: RiskArea }) {

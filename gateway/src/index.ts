@@ -385,6 +385,29 @@ async function main(): Promise<void> {
   );
 
   // =========================================================================
+  // REST API — Demo Audit Trail (for web-demo consumption)
+  // =========================================================================
+
+  app.get(
+    "/api/demo/audit-trail",
+    requireAuth,
+    async (req: AuthenticatedRequest, res) => {
+      try {
+        const result = await getAuditLogs(req.tenant!.tenantId, {
+          limit: Math.min(Number(req.query.limit) || 20, 50),
+          offset: Number(req.query.offset) || 0,
+          serverId: req.query.serverId as string | undefined,
+          toolName: req.query.toolName as string | undefined,
+        });
+        res.json(result);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : "Unknown error";
+        res.status(500).json({ error: msg });
+      }
+    }
+  );
+
+  // =========================================================================
   // REST API — Alerts
   // =========================================================================
 

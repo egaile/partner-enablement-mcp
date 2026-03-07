@@ -1,11 +1,12 @@
-import { Sparkles, Shield, TrendingUp } from 'lucide-react';
-import type { ArchitectureData, ArchitectureComponent } from '@/types/api';
+import { Sparkles, Shield, TrendingUp, FileText, ExternalLink } from 'lucide-react';
+import type { ArchitectureData, ArchitectureComponent, ConfluenceContextPage } from '@/types/api';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Accordion } from '../ui/Accordion';
 import { StepSkeleton } from '../ui/Skeleton';
-import { ToolNarrative } from '../ToolNarrative';
+import { SecurityPipeline } from '../SecurityPipeline';
 import { MermaidDiagram } from '../MermaidDiagram';
+import { ConfluenceSearchCallout } from '../SecurityCallout';
 
 interface ArchitectureStepProps {
   data: ArchitectureData | null;
@@ -19,7 +20,47 @@ export function ArchitectureStep({ data, isGenerating, requestParams }: Architec
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <ToolNarrative toolName="generate_architecture" parameters={requestParams} />
+      <SecurityPipeline toolName="generate_architecture" parameters={requestParams} isGenerating={isGenerating} />
+
+      {/* Referenced Confluence Docs */}
+      {data.confluenceContext && data.confluenceContext.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <FileText className="w-4 h-4 text-purple-500" />
+            <h4 className="text-sm font-semibold text-gray-700">Referenced Confluence Docs</h4>
+            <Badge variant="purple">via searchConfluenceUsingCql</Badge>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {data.confluenceContext.map((page, i) => (
+              <Card key={i} className="!p-4 border-purple-100 hover:border-purple-200 transition-colors">
+                <div className="flex items-start gap-2">
+                  <FileText className="w-4 h-4 text-purple-400 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900">{page.title}</p>
+                    {page.spaceKey && (
+                      <span className="text-[10px] font-mono text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">
+                        {page.spaceKey}
+                      </span>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1 line-clamp-3">{page.excerpt}</p>
+                    {page.url && (
+                      <a
+                        href={page.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800 mt-1.5"
+                      >
+                        Open in Confluence <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+          <ConfluenceSearchCallout />
+        </div>
+      )}
 
       {/* Pattern Selection Card */}
       <Card variant="bordered">

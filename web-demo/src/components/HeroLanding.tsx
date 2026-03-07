@@ -1,5 +1,6 @@
 import { Play, Zap, Layers, Clock } from 'lucide-react';
 import { Card } from './ui/Card';
+import { ArchitectureDiagram } from './ArchitectureDiagram';
 import { HERO_COPY, EXPLAINER_CARDS, LIVE_INTEGRATION_COPY, SCENARIOS, TAG_COLORS } from '@/lib/constants';
 import type { Industry } from '@/types/api';
 
@@ -48,6 +49,12 @@ export function HeroLanding({ onSelectIndustry }: HeroLandingProps) {
           </Card>
         ))}
       </div>
+
+      {/* Architecture Diagram */}
+      <ArchitectureDiagram />
+
+      {/* Spacer */}
+      <div className="h-8" />
 
       {/* Live Integration Notice */}
       <div className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-8">

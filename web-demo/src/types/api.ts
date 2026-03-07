@@ -1,5 +1,45 @@
 // TypeScript interfaces for all API responses
 
+// Confluence context for Architecture/Compliance enrichment
+export interface ConfluenceContextPage {
+  title: string;
+  excerpt: string;
+  spaceKey?: string;
+  url?: string;
+  lastModified?: string;
+}
+
+// Compliance doc coverage
+export interface ComplianceDocCoverage {
+  framework: string;
+  existingDocs: ConfluenceContextPage[];
+  coverage: 'full' | 'partial' | 'missing';
+}
+
+// Agent Actions step
+export type ActionType = 'label_issues' | 'add_comment' | 'transition_issue' | 'create_confluence' | 'create_jira';
+export interface ActionResult {
+  type: ActionType;
+  description: string;
+  toolUsed: string;
+  success: boolean;
+  policyBlocked?: boolean;
+  approvalRequired?: boolean;
+  blockReason?: string;
+  details?: Record<string, unknown>;
+}
+export interface AgentActionsData {
+  actions: ActionResult[];
+}
+
+// Security pipeline stage for visualization
+export type PipelineStageStatus = 'pending' | 'processing' | 'passed' | 'blocked';
+export interface PipelineStage {
+  name: string;
+  status: PipelineStageStatus;
+  detail?: string;
+}
+
 export interface ProjectContextData {
   project: {
     key: string;
@@ -42,6 +82,7 @@ export interface ArchitectureData {
     pattern: string;
     rationale: string;
   }>;
+  confluenceContext?: ConfluenceContextPage[];
 }
 
 export interface ArchitectureComponent {
@@ -56,6 +97,7 @@ export interface ComplianceData {
   keyRequirements: ComplianceRequirement[];
   riskAreas: RiskArea[];
   checklist?: ChecklistItem[];
+  documentCoverage?: ComplianceDocCoverage[];
 }
 
 export interface ComplianceFramework {
@@ -151,7 +193,7 @@ export interface HealthData {
   source: 'gateway' | 'mock';
 }
 
-export type Step = 'select' | 'context' | 'search' | 'health' | 'architecture' | 'compliance' | 'plan' | 'complete';
+export type Step = 'select' | 'context' | 'search' | 'health' | 'architecture' | 'compliance' | 'plan' | 'actions' | 'complete';
 export type Industry = 'healthcare' | 'financial';
 
 export interface DemoState {
@@ -166,5 +208,6 @@ export interface DemoState {
     architecture: ArchitectureData | null;
     compliance: ComplianceData | null;
     plan: PlanData | null;
+    actions: AgentActionsData | null;
   };
 }

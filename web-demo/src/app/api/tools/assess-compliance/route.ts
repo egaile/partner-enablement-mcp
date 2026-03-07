@@ -1,7 +1,119 @@
 import { NextResponse } from 'next/server';
 import { AssessComplianceInputSchema } from 'partner-enablement-mcp-server/schemas';
-import { knowledgeBase } from '../_shared';
+import { knowledgeBase, ROVO_SERVER_NAME } from '../_shared';
+import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
 import { rateLimit } from '../_rateLimit';
+
+interface ComplianceDocCoverage {
+  framework: string;
+  existingDocs: Array<{ title: string; excerpt: string; spaceKey?: string; url?: string }>;
+  coverage: 'full' | 'partial' | 'missing';
+}
+
+function rovo(toolName: string): string {
+  return `${ROVO_SERVER_NAME}__${toolName}`;
+}
+
+function extractText(result: { content: Array<{ type: string; text?: string }> }): string {
+  const block = result.content.find((c) => c.type === 'text');
+  return block?.text ?? '';
+}
+
+/**
+ * Search Confluence for compliance docs per framework.
+ */
+async function fetchComplianceDocs(cloudId: string, frameworks: string[]): Promise<ComplianceDocCoverage[]> {
+  const coverage: ComplianceDocCoverage[] = [];
+
+  for (const framework of frameworks) {
+    const frameworkName = framework.replace(/_/g, '-').toUpperCase();
+    const searchTerms = framework === 'hipaa' ? 'HIPAA OR "PHI" OR "protected health"'
+      : framework === 'soc2' ? 'SOC2 OR "SOC 2" OR "trust services"'
+      : framework === 'pci_dss' ? '"PCI-DSS" OR "PCI DSS" OR "payment card"'
+      : framework === 'fedramp' ? 'FedRAMP OR "federal risk"'
+      : framework === 'gdpr' ? 'GDPR OR "data protection"'
+      : `"${frameworkName}" OR "compliance"`;
+
+    try {
+      const searchResult = await callTool(rovo('searchConfluenceUsingCql'), {
+        cloudId,
+        cql: `type = page AND (text ~ "${searchTerms}")`,
+        limit: 3,
+      });
+
+      if (searchResult.isError) {
+        coverage.push({ framework, existingDocs: [], coverage: 'missing' });
+        continue;
+      }
+
+      const searchText = extractText(searchResult);
+      const searchData = JSON.parse(searchText);
+      const results = searchData?.results ?? searchData ?? [];
+
+      if (!Array.isArray(results) || results.length === 0) {
+        coverage.push({ framework, existingDocs: [], coverage: 'missing' });
+        continue;
+      }
+
+      const docs = results.slice(0, 3).map((r: Record<string, unknown>) => {
+        const content = r.content as Record<string, unknown> | undefined;
+        return {
+          title: (content?.title ?? r.title ?? 'Untitled') as string,
+          excerpt: ((r.excerpt ?? '') as string).replace(/<\/?[^>]+(>|$)/g, '').substring(0, 200),
+          spaceKey: ((content?.space as Record<string, unknown>)?.key ?? '') as string,
+        };
+      });
+
+      coverage.push({
+        framework,
+        existingDocs: docs,
+        coverage: docs.length >= 2 ? 'full' : 'partial',
+      });
+    } catch {
+      coverage.push({ framework, existingDocs: [], coverage: 'missing' });
+    }
+  }
+
+  return coverage;
+}
+
+/**
+ * Mock compliance doc coverage for when gateway is unavailable.
+ */
+function getMockComplianceDocs(frameworks: string[], projectKey: string): ComplianceDocCoverage[] {
+  const isHealthcare = projectKey === 'HEALTH' || projectKey.toLowerCase().includes('health');
+  return frameworks.map((fw) => {
+    if (fw === 'hipaa' && isHealthcare) {
+      return {
+        framework: fw,
+        existingDocs: [
+          { title: 'HIPAA Compliance Policy', excerpt: 'PHI handling procedures, BAA requirements, audit controls, encryption standards, access control matrix.', spaceKey: 'HAI' },
+          { title: 'PHI Data Classification Guide', excerpt: 'Data classification tiers, handling rules per tier, AI/ML pipeline considerations for PHI.', spaceKey: 'HAI' },
+        ],
+        coverage: 'full' as const,
+      };
+    }
+    if (fw === 'soc2' && !isHealthcare) {
+      return {
+        framework: fw,
+        existingDocs: [
+          { title: 'SOC2 Type II Control Matrix', excerpt: 'Control objectives, evidence requirements, continuous monitoring, AI-specific controls.', spaceKey: 'FSAI' },
+        ],
+        coverage: 'partial' as const,
+      };
+    }
+    if (fw === 'pci_dss' && !isHealthcare) {
+      return {
+        framework: fw,
+        existingDocs: [
+          { title: 'PCI-DSS Compliance Runbook', excerpt: 'Tokenization procedures, key management, network segmentation for AI workloads.', spaceKey: 'FSAI' },
+        ],
+        coverage: 'partial' as const,
+      };
+    }
+    return { framework: fw, existingDocs: [], coverage: 'missing' as const };
+  });
+}
 
 export async function POST(request: Request) {
   const rateLimited = rateLimit(request);
@@ -104,6 +216,28 @@ export async function POST(request: Request) {
         ]
       : undefined;
 
+    // Fetch compliance doc coverage from Confluence
+    let documentCoverage: ComplianceDocCoverage[] = [];
+    if (isConfigured()) {
+      try {
+        const resourcesResult = await callTool(rovo('getAccessibleAtlassianResources'), {});
+        if (!resourcesResult.isError) {
+          const resourcesText = extractText(resourcesResult);
+          const resources = JSON.parse(resourcesText);
+          const cloudId: string = Array.isArray(resources) ? resources[0]?.id : resources?.id;
+          if (cloudId) {
+            documentCoverage = await fetchComplianceDocs(cloudId, applicableFrameworks);
+          }
+        }
+      } catch (err) {
+        console.warn('[assess-compliance] Confluence search failed, using mock:', err instanceof Error ? err.message : err);
+        resetSession();
+        documentCoverage = getMockComplianceDocs(applicableFrameworks, projectContext.projectKey);
+      }
+    } else {
+      documentCoverage = getMockComplianceDocs(applicableFrameworks, projectContext.projectKey);
+    }
+
     const output = {
       applicableFrameworks: frameworkDetails,
       keyRequirements:
@@ -115,6 +249,7 @@ export async function POST(request: Request) {
           : [],
       riskAreas,
       checklist,
+      documentCoverage,
     };
 
     return NextResponse.json(output);

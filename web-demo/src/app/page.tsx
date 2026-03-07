@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { ChevronRight, RotateCcw } from 'lucide-react';
 import type {
   Step,
@@ -12,10 +12,12 @@ import type {
   HealthData,
   ComplianceData,
   PlanData,
+  AgentActionsData,
 } from '@/types/api';
 import { SCENARIOS } from '@/lib/constants';
 import { Header } from '@/components/Header';
 import { StepProgress } from '@/components/StepProgress';
+import { ToolCallStats } from '@/components/ToolCallStats';
 import { HeroLanding } from '@/components/HeroLanding';
 import { ContextStep } from '@/components/steps/ContextStep';
 import { SearchStep } from '@/components/steps/SearchStep';
@@ -23,10 +25,10 @@ import { HealthStep } from '@/components/steps/HealthStep';
 import { ArchitectureStep } from '@/components/steps/ArchitectureStep';
 import { ComplianceStep } from '@/components/steps/ComplianceStep';
 import { PlanStep } from '@/components/steps/PlanStep';
-import type { ConfluenceResult, JiraCreateResult } from '@/components/steps/PlanStep';
+import { ActionsStep } from '@/components/steps/ActionsStep';
 import { CompleteStep } from '@/components/steps/CompleteStep';
 
-const STEP_ORDER: Step[] = ['select', 'context', 'search', 'health', 'architecture', 'compliance', 'plan', 'complete'];
+const STEP_ORDER: Step[] = ['select', 'context', 'search', 'health', 'architecture', 'compliance', 'plan', 'actions', 'complete'];
 
 export default function Home() {
   const [state, setState] = useState<DemoState>({
@@ -34,14 +36,8 @@ export default function Home() {
     currentStep: 'select',
     isGenerating: false,
     error: null,
-    data: { context: null, search: null, health: null, architecture: null, compliance: null, plan: null },
+    data: { context: null, search: null, health: null, architecture: null, compliance: null, plan: null, actions: null },
   });
-
-  // Write operation state
-  const [confluenceResult, setConfluenceResult] = useState<ConfluenceResult | null>(null);
-  const [jiraCreateResult, setJiraCreateResult] = useState<JiraCreateResult | null>(null);
-  const [isCreatingDoc, setIsCreatingDoc] = useState(false);
-  const [isCreatingIssues, setIsCreatingIssues] = useState(false);
 
   const { selectedIndustry, currentStep, isGenerating, error, data } = state;
 
@@ -50,10 +46,35 @@ export default function Home() {
     : '';
 
   const completedSteps = new Set(
-    (['context', 'search', 'health', 'architecture', 'compliance', 'plan'] as const).filter(
+    (['context', 'search', 'health', 'architecture', 'compliance', 'plan', 'actions'] as const).filter(
       (s) => data[s] !== null
     )
   );
+
+  // Tool call stats — computed from completed steps
+  const toolCallStats = useMemo(() => {
+    let totalCalls = 0;
+    let blocked = 0;
+
+    if (data.context) totalCalls += 3; // getResources + getProjects + searchJql
+    if (data.search) totalCalls += 2; // rovo search + jql fallback
+    if (data.health) totalCalls += 4; // 4 parallel JQL
+    if (data.architecture) {
+      totalCalls += 1; // knowledge base
+      if (data.architecture.confluenceContext?.length) totalCalls += 2; // CQL + getPage
+    }
+    if (data.compliance) {
+      totalCalls += 1; // knowledge base
+      if (data.compliance.documentCoverage?.length) totalCalls += data.compliance.documentCoverage.length; // CQL per framework
+    }
+    if (data.plan) totalCalls += 1;
+    if (data.actions) {
+      totalCalls += data.actions.actions.length;
+      blocked += data.actions.actions.filter((a) => a.policyBlocked).length;
+    }
+
+    return { totalCalls, blocked, piiScans: totalCalls, threats: 0 };
+  }, [data]);
 
   // Auto-fetch context preview on industry selection
   useEffect(() => {
@@ -82,7 +103,7 @@ export default function Home() {
     return () => { cancelled = true; };
   }, [selectedIndustry]);
 
-  // Build request params for each step (used by ToolNarrative)
+  // Build request params for each step (used by SecurityPipeline)
   const getRequestParams = useCallback(
     (step: Step, ctxOverride?: ProjectContextData, archOverride?: ArchitectureData) => {
       const ctx = ctxOverride ?? data.context;
@@ -123,6 +144,12 @@ export default function Home() {
           teamSize: 5,
           sprintLengthWeeks: 2,
           includeJiraTickets: true,
+        };
+      }
+      if (step === 'actions') {
+        return {
+          projectKey,
+          enabledActions: ['label_issues', 'add_comment', 'transition_issue', 'create_confluence', 'create_jira'],
         };
       }
       return {};
@@ -265,6 +292,7 @@ export default function Home() {
             data: { ...prev.data, plan: planData },
           }));
         }
+        // Note: 'actions' step is handled separately via handleExecuteActions
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Unknown error';
         setState((prev) => ({ ...prev, error: msg }));
@@ -283,10 +311,8 @@ export default function Home() {
       currentStep: 'context',
       isGenerating: false,
       error: null,
-      data: { context: null, search: null, health: null, architecture: null, compliance: null, plan: null },
+      data: { context: null, search: null, health: null, architecture: null, compliance: null, plan: null, actions: null },
     });
-    setConfluenceResult(null);
-    setJiraCreateResult(null);
     // Auto-start context generation
     await generateStep('context');
   };
@@ -297,10 +323,8 @@ export default function Home() {
       currentStep: 'select',
       isGenerating: false,
       error: null,
-      data: { context: null, search: null, health: null, architecture: null, compliance: null, plan: null },
+      data: { context: null, search: null, health: null, architecture: null, compliance: null, plan: null, actions: null },
     });
-    setConfluenceResult(null);
-    setJiraCreateResult(null);
   };
 
   const handleNextStep = async () => {
@@ -310,84 +334,89 @@ export default function Home() {
 
     if (next === 'complete') {
       setState((prev) => ({ ...prev, currentStep: 'complete' }));
+    } else if (next === 'actions') {
+      // Actions step doesn't auto-generate — user picks actions first
+      setState((prev) => ({ ...prev, currentStep: 'actions' }));
     } else {
       setState((prev) => ({ ...prev, currentStep: next }));
       await generateStep(next);
     }
   };
 
-  // Write operation handlers
-  const handleCreateConfluenceDoc = useCallback(async () => {
-    if (!data.architecture) return;
-    setIsCreatingDoc(true);
+  // Agent Actions handler
+  const handleExecuteActions = useCallback(async (enabledActions: string[]) => {
+    setState((prev) => ({ ...prev, isGenerating: true, error: null }));
     try {
-      const title = `${data.context?.project.name ?? projectKey} - Architecture: ${data.architecture.patternName}`;
-      const content = [
-        `# ${title}`,
-        '',
-        `## Pattern: ${data.architecture.patternName}`,
-        '',
-        data.architecture.rationale,
-        '',
-        '## Components',
-        ...data.architecture.components.map((c) => `- **${c.name}**: ${c.description}`),
-        '',
-        '## Security Considerations',
-        ...data.architecture.securityConsiderations.map((s) => `- ${s}`),
-      ].join('\n');
+      // Build architecture content for Confluence creation
+      const architectureTitle = data.architecture
+        ? `${data.context?.project.name ?? projectKey} - Architecture: ${data.architecture.patternName}`
+        : undefined;
+      const architectureContent = data.architecture
+        ? [
+            `# ${architectureTitle}`,
+            '',
+            `## Pattern: ${data.architecture.patternName}`,
+            '',
+            data.architecture.rationale,
+            '',
+            '## Components',
+            ...data.architecture.components.map((c) => `- **${c.name}**: ${c.description}`),
+            '',
+            '## Security Considerations',
+            ...data.architecture.securityConsiderations.map((s) => `- ${s}`),
+          ].join('\n')
+        : undefined;
 
-      const res = await fetch('/api/tools/create-confluence-doc', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, content }),
-      });
-      if (!res.ok) throw new Error(`API error: ${res.status}`);
-      const result: ConfluenceResult = await res.json();
-      setConfluenceResult(result);
-    } catch (err) {
-      setConfluenceResult({
-        success: false,
-        blockReason: err instanceof Error ? err.message : 'Unknown error',
-      });
-    } finally {
-      setIsCreatingDoc(false);
-    }
-  }, [data.architecture, data.context, projectKey]);
-
-  const handleCreateJiraIssues = useCallback(async () => {
-    if (!data.plan?.jiraTickets) return;
-    setIsCreatingIssues(true);
-    try {
-      const tickets = data.plan.jiraTickets.slice(0, 5).map((t) => ({
+      const issueKey = data.context?.issues?.[0]?.key;
+      const jiraTickets = data.plan?.jiraTickets?.slice(0, 3).map((t) => ({
         summary: t.summary,
         description: t.description,
         type: t.type,
       }));
 
-      const res = await fetch('/api/tools/create-jira-issues', {
+      const res = await fetch('/api/tools/agent-actions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectKey, tickets }),
+        body: JSON.stringify({
+          projectKey,
+          enabledActions,
+          issueKey,
+          architectureTitle,
+          architectureContent,
+          jiraTickets,
+        }),
       });
       if (!res.ok) throw new Error(`API error: ${res.status}`);
-      const result: JiraCreateResult = await res.json();
-      setJiraCreateResult(result);
+      const actionsData: AgentActionsData = await res.json();
+      setState((prev) => ({
+        ...prev,
+        data: { ...prev.data, actions: actionsData },
+      }));
     } catch (err) {
-      setJiraCreateResult({
-        success: false,
-        blockReason: err instanceof Error ? err.message : 'Unknown error',
-      });
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      setState((prev) => ({ ...prev, error: msg }));
     } finally {
-      setIsCreatingIssues(false);
+      setState((prev) => ({ ...prev, isGenerating: false }));
     }
-  }, [data.plan, projectKey]);
+  }, [projectKey, data.architecture, data.context, data.plan]);
+
+  // For the actions step, show the next button after actions data exists OR when it's the current step without data (pre-execute state)
+  const showNavigation =
+    selectedIndustry &&
+    currentStep !== 'select' &&
+    currentStep !== 'complete' &&
+    !isGenerating &&
+    (currentStep === 'actions' ? data.actions !== null : completedSteps.has(currentStep));
 
   return (
     <main className="min-h-screen">
-      <Header />
+      <Header isRunning={isGenerating} />
 
       {selectedIndustry && currentStep !== 'select' && (
-        <StepProgress currentStep={currentStep} completedSteps={completedSteps} />
+        <>
+          <StepProgress currentStep={currentStep} completedSteps={completedSteps} />
+          <ToolCallStats {...toolCallStats} />
+        </>
       )}
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -456,12 +485,16 @@ export default function Home() {
             data={data.plan}
             isGenerating={isGenerating}
             requestParams={getRequestParams('plan')}
-            onCreateConfluenceDoc={handleCreateConfluenceDoc}
-            onCreateJiraIssues={handleCreateJiraIssues}
-            confluenceResult={confluenceResult}
-            jiraCreateResult={jiraCreateResult}
-            isCreatingDoc={isCreatingDoc}
-            isCreatingIssues={isCreatingIssues}
+          />
+        )}
+
+        {/* Agent Actions */}
+        {currentStep === 'actions' && (
+          <ActionsStep
+            data={data.actions}
+            isGenerating={isGenerating}
+            requestParams={getRequestParams('actions')}
+            onExecuteActions={handleExecuteActions}
           />
         )}
 
@@ -471,32 +504,28 @@ export default function Home() {
         )}
 
         {/* Step Navigation */}
-        {selectedIndustry &&
-          currentStep !== 'select' &&
-          currentStep !== 'complete' &&
-          !isGenerating &&
-          completedSteps.has(currentStep) && (
-            <div className="flex items-center justify-between mt-6 bg-white rounded-xl border border-gray-200 px-5 py-4">
-              <button
-                onClick={handleStartOver}
-                className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                <RotateCcw className="w-4 h-4" />
-                Start Over
-              </button>
-              <button
-                onClick={handleNextStep}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  currentStep === 'plan'
-                    ? 'bg-green-600 text-white hover:bg-green-700'
-                    : 'bg-anthropic-900 text-white hover:bg-anthropic-800'
-                }`}
-              >
-                {currentStep === 'plan' ? 'Complete Demo' : 'Next Step'}
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
+        {showNavigation && (
+          <div className="flex items-center justify-between mt-6 bg-white rounded-xl border border-gray-200 px-5 py-4">
+            <button
+              onClick={handleStartOver}
+              className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Start Over
+            </button>
+            <button
+              onClick={handleNextStep}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                currentStep === 'actions'
+                  ? 'bg-green-600 text-white hover:bg-green-700'
+                  : 'bg-anthropic-900 text-white hover:bg-anthropic-800'
+              }`}
+            >
+              {currentStep === 'actions' ? 'Complete Demo' : 'Next Step'}
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
     </main>
   );

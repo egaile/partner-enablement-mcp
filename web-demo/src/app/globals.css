@@ -61,6 +61,19 @@ code {
   animation: fade-in 300ms ease-out forwards;
 }
 
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 250ms ease-out forwards;
+}
+
 /* Card hover effects */
 .card-hover {
   transition: all 0.2s ease-in-out;
