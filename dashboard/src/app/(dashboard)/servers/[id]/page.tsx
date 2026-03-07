@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, Trash2, KeyRound, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import ToolInventory from "@/components/servers/ToolInventory";
@@ -21,6 +21,17 @@ interface ServerDetail {
   url: string | null;
   enabled: boolean;
   created_at: string;
+  auth_type?: string;
+  oauth_scopes?: string[];
+}
+
+interface OAuthStatus {
+  authType: string;
+  configured: boolean;
+  hasToken: boolean;
+  expiresAt: string | null;
+  scopes: string[] | null;
+  hasRefreshToken: boolean;
 }
 
 interface ToolSnapshot {
@@ -73,6 +84,8 @@ export default function ServerDetailPage() {
   const [health, setHealth] = useState<HealthStatus>({ status: "unknown" });
   const [recentAudit, setRecentAudit] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [oauthStatus, setOauthStatus] = useState<OAuthStatus | null>(null);
+  const [authorizing, setAuthorizing] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -109,6 +122,16 @@ export default function ServerDetailPage() {
         setRecentAudit(auditData.data);
       } catch {
         // non-critical
+      }
+
+      try {
+        const oauth = await gatewayFetch<OAuthStatus>(
+          `/api/servers/${id}/oauth/status`,
+          token
+        );
+        setOauthStatus(oauth);
+      } catch {
+        // non-critical — server may not use OAuth
       }
     } catch (err) {
       console.error("Failed to load server:", err);
@@ -155,6 +178,30 @@ export default function ServerDetailPage() {
       setServer({ ...server, enabled: !newEnabled });
       console.error("Failed to toggle:", err);
       toast.error("Failed to update server");
+    }
+  }
+
+  async function handleReauthorize() {
+    setAuthorizing(true);
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const data = await gatewayFetch<{ authorizeUrl?: string; status?: string }>(
+        `/api/servers/${id}/oauth/authorize`,
+        token
+      );
+      if (data.authorizeUrl) {
+        window.open(data.authorizeUrl, "_blank");
+        toast.info("Complete the OAuth consent in the new tab, then refresh this page.");
+      } else {
+        toast.success("Server already authorized");
+        load();
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to start OAuth flow";
+      toast.error(msg);
+    } finally {
+      setAuthorizing(false);
     }
   }
 
@@ -244,6 +291,43 @@ export default function ServerDetailPage() {
                 </div>
               )}
             </dl>
+
+            {/* OAuth Section */}
+            {oauthStatus && (
+              <div className="pt-3 border-t border-border/50 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                    <KeyRound className="w-3.5 h-3.5" />
+                    OAuth
+                  </span>
+                  <span className={`text-xs font-medium ${oauthStatus.hasToken ? "text-emerald-400" : "text-amber-400"}`}>
+                    {oauthStatus.hasToken ? "Connected" : "Not connected"}
+                  </span>
+                </div>
+                {oauthStatus.scopes && oauthStatus.scopes.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {oauthStatus.scopes.map((s) => (
+                      <span key={s} className="px-1.5 py-0.5 text-[10px] bg-muted rounded font-mono text-muted-foreground">
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {oauthStatus.expiresAt && (
+                  <p className="text-xs text-muted-foreground">
+                    Token expires: {new Date(oauthStatus.expiresAt).toLocaleString()}
+                  </p>
+                )}
+                <button
+                  onClick={handleReauthorize}
+                  disabled={authorizing}
+                  className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 disabled:opacity-50"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  {authorizing ? "Starting..." : oauthStatus.hasToken ? "Re-authorize" : "Authorize"}
+                </button>
+              </div>
+            )}
 
             <div className="pt-3 border-t border-border/50">
               <button
