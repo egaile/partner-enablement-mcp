@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { Play, ChevronRight, RotateCcw } from 'lucide-react';
+import { ChevronRight, RotateCcw } from 'lucide-react';
 import type {
   Step,
   Industry,
@@ -277,7 +277,7 @@ export default function Home() {
     [projectKey, selectedIndustry, data.context, data.architecture]
   );
 
-  const handleSelectIndustry = (industry: Industry) => {
+  const handleSelectIndustry = async (industry: Industry) => {
     setState({
       selectedIndustry: industry,
       currentStep: 'context',
@@ -287,6 +287,8 @@ export default function Home() {
     });
     setConfluenceResult(null);
     setJiraCreateResult(null);
+    // Auto-start context generation
+    await generateStep('context');
   };
 
   const handleStartOver = () => {
@@ -312,11 +314,6 @@ export default function Home() {
       setState((prev) => ({ ...prev, currentStep: next }));
       await generateStep(next);
     }
-  };
-
-  const handleRunDemo = async () => {
-    setState((prev) => ({ ...prev, currentStep: 'context' }));
-    await generateStep('context');
   };
 
   // Write operation handlers
@@ -406,39 +403,8 @@ export default function Home() {
           <HeroLanding onSelectIndustry={handleSelectIndustry} />
         )}
 
-        {/* Context - pre-generation preview */}
-        {currentStep === 'context' && !completedSteps.has('context') && !isGenerating && (
-          <div className="space-y-5 animate-fade-in">
-            {data.context && data.context.issues.length > 0 && (
-              <ContextStep
-                data={data.context}
-                isGenerating={false}
-                projectKey={projectKey}
-                industry={selectedIndustry || 'healthcare'}
-                requestParams={getRequestParams('context')}
-              />
-            )}
-            <div className="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-5 py-4">
-              <button
-                onClick={handleStartOver}
-                className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                &larr; Back to scenarios
-              </button>
-              <button
-                onClick={handleRunDemo}
-                disabled={isGenerating}
-                className="flex items-center gap-2 px-4 py-2 bg-claude-orange text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 transition-colors text-sm font-medium"
-              >
-                <Play className="w-4 h-4" />
-                Run Demo
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Context - generated */}
-        {currentStep === 'context' && (completedSteps.has('context') || isGenerating) && (
+        {/* Context */}
+        {currentStep === 'context' && (
           <ContextStep
             data={data.context}
             isGenerating={isGenerating}
