@@ -83,7 +83,7 @@ const quickActions = [
 ];
 
 export default function DashboardPage() {
-  const { getToken } = useAuth();
+  const { getToken, isLoaded } = useAuth();
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [recentLogs, setRecentLogs] = useState<AuditLogEntry[]>([]);
   const [timelineLogs, setTimelineLogs] = useState<ChartAuditEntry[]>([]);
@@ -171,10 +171,11 @@ export default function DashboardPage() {
   }, [getToken, timeRange]);
 
   useEffect(() => {
+    if (!isLoaded) return;
     load();
     const interval = setInterval(load, 30000);
     return () => clearInterval(interval);
-  }, [load]);
+  }, [load, isLoaded]);
 
   const handleAcknowledgeAlert = useCallback(async (alertId: string) => {
     try {

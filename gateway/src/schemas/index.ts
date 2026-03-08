@@ -45,7 +45,9 @@ export type AuthType = z.infer<typeof AuthType>;
 
 export const RegisterServerSchema = z
   .object({
-    name: z.string().min(1).max(100),
+    name: z.string().min(1).max(100).refine((n) => !n.includes("__"), {
+      message: 'Server name cannot contain "__" (reserved as namespace separator)',
+    }),
     transport: ServerTransportType,
     command: z.string().optional().describe("Command for stdio transport"),
     args: z.array(z.string()).optional().describe("Args for stdio transport"),
@@ -67,6 +69,10 @@ export const RegisterServerSchema = z
   .strict();
 
 export type RegisterServerInput = z.infer<typeof RegisterServerSchema>;
+
+/** Partial schema for PATCH/PUT updates — all fields optional */
+export const UpdateServerSchema = RegisterServerSchema.partial();
+export type UpdateServerInput = z.infer<typeof UpdateServerSchema>;
 
 // === Policy Rule ===
 
@@ -104,6 +110,10 @@ export const PolicyRuleSchema = z
   .strict();
 
 export type PolicyRuleInput = z.infer<typeof PolicyRuleSchema>;
+
+/** Partial schema for PATCH/PUT updates — all fields optional */
+export const UpdatePolicySchema = PolicyRuleSchema.partial();
+export type UpdatePolicyInput = z.infer<typeof UpdatePolicySchema>;
 
 // === Audit Entry ===
 

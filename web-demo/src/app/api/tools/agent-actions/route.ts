@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
-import { ROVO_SERVER_NAME } from '../_shared';
+import { ROVO_SERVER_NAME, AgentActionsInputSchema } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 
 interface ActionResult {
@@ -29,6 +29,10 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
+    const parsed = AgentActionsInputSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid input', details: parsed.error.issues }, { status: 400 });
+    }
     const {
       projectKey,
       enabledActions,
@@ -36,14 +40,7 @@ export async function POST(request: Request) {
       architectureTitle,
       architectureContent,
       jiraTickets,
-    } = body as {
-      projectKey: string;
-      enabledActions: string[];
-      issueKey?: string;
-      architectureTitle?: string;
-      architectureContent?: string;
-      jiraTickets?: Array<{ summary: string; description: string; type: string }>;
-    };
+    } = parsed.data;
 
     const actions: ActionResult[] = [];
 

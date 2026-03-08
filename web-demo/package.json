@@ -9,12 +9,14 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "next": "14.2.35",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "@types/dompurify": "^3.0.5",
+    "dompurify": "^3.3.2",
     "lucide-react": "^0.263.1",
     "mermaid": "^11.4.0",
+    "next": "14.2.35",
     "partner-enablement-mcp-server": "*",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "react-markdown": "^9.0.1",
     "remark-gfm": "^4.0.0"
   },

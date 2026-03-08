@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { MockJiraClient } from 'partner-enablement-mcp-server/services/jiraClient';
 import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
-import { ROVO_SERVER_NAME } from '../_shared';
+import { ROVO_SERVER_NAME, ProjectKeySchema } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 
 function rovo(toolName: string): string {
@@ -164,7 +164,11 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const projectKey = (body.projectKey as string) ?? 'HEALTH';
+    const parsed = ProjectKeySchema.safeParse(body.projectKey);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid project key format' }, { status: 400 });
+    }
+    const projectKey = parsed.data;
 
     let healthData: HealthData;
 

@@ -17,7 +17,7 @@ async function autoProvisionUser(
   const { error } = await db.from("tenant_users").insert({
     tenant_id: DEFAULT_TENANT_ID,
     clerk_user_id: clerkUserId,
-    role: "owner",
+    role: "member",
   });
 
   if (error) throw error;
@@ -31,7 +31,7 @@ async function autoProvisionUser(
  * and use the "dev_user" tenant mapping seeded in the database.
  */
 function isDevMode(): boolean {
-  return process.env.CLERK_SECRET_KEY === "dev";
+  return process.env.NODE_ENV !== "production" && process.env.CLERK_SECRET_KEY === "dev";
 }
 
 export async function requireAuth(

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { toast } from "sonner";
 import { ScrollText, Download, ChevronDown, ChevronRight } from "lucide-react";
@@ -135,7 +135,12 @@ export default function AuditPage() {
       log.error_message || "",
       log.correlation_id,
     ]);
-    const csv = [headers, ...rows].map((row) => row.map((c) => `"${c}"`).join(",")).join("\n");
+    const sanitizeCell = (v: string) => {
+      const escaped = v.replace(/"/g, '""');
+      if (/^[=+\-@\t\r]/.test(escaped)) return `"\t${escaped}"`;
+      return `"${escaped}"`;
+    };
+    const csv = [headers, ...rows].map((row) => row.map((c) => sanitizeCell(c)).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -230,9 +235,8 @@ export default function AuditPage() {
                 </thead>
                 <tbody className="divide-y divide-border/50">
                   {logs.map((log) => (
-                    <>
+                    <React.Fragment key={log.id}>
                       <tr
-                        key={log.id}
                         className="hover:bg-muted/30 cursor-pointer"
                         onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
                       >
@@ -274,7 +278,7 @@ export default function AuditPage() {
                         </td>
                       </tr>
                       {expandedId === log.id && (
-                        <tr key={`${log.id}-detail`} className="bg-muted/30">
+                        <tr className="bg-muted/30">
                           <td colSpan={7} className="px-6 py-4">
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
                               <div>
@@ -315,7 +319,7 @@ export default function AuditPage() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>

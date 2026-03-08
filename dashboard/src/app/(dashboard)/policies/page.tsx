@@ -76,8 +76,8 @@ export default function PoliciesPage() {
 
   async function handleToggleEnabled(policy: PolicyRecord) {
     const newEnabled = !policy.enabled;
-    // Optimistic update
-    setPolicies(policies.map((p) => (p.id === policy.id ? { ...p, enabled: newEnabled } : p)));
+    // Optimistic update — use functional setState to avoid stale closure
+    setPolicies((prev) => prev.map((p) => (p.id === policy.id ? { ...p, enabled: newEnabled } : p)));
     try {
       const token = await getToken();
       if (!token) return;
@@ -88,7 +88,7 @@ export default function PoliciesPage() {
       toast.success(`Policy ${newEnabled ? "enabled" : "disabled"}`);
     } catch (err) {
       // Revert on failure
-      setPolicies(policies.map((p) => (p.id === policy.id ? { ...p, enabled: !newEnabled } : p)));
+      setPolicies((prev) => prev.map((p) => (p.id === policy.id ? { ...p, enabled: !newEnabled } : p)));
       console.error("Failed to toggle:", err);
       toast.error("Failed to update policy");
     }

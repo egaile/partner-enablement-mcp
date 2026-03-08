@@ -55,10 +55,11 @@ interface TopBarProps {
 
 export default function TopBar({ onToggleSidebar }: TopBarProps) {
   const pathname = usePathname();
-  const { getToken } = useAuth();
+  const { getToken, isLoaded } = useAuth();
   const [alertCount, setAlertCount] = useState(0);
 
   useEffect(() => {
+    if (!isLoaded) return;
     let interval: NodeJS.Timeout;
     async function fetchAlertCount() {
       try {
@@ -76,7 +77,7 @@ export default function TopBar({ onToggleSidebar }: TopBarProps) {
     fetchAlertCount();
     interval = setInterval(fetchAlertCount, 30000);
     return () => clearInterval(interval);
-  }, [getToken]);
+  }, [getToken, isLoaded]);
 
   const segments = pathname.split("/").filter(Boolean);
   const crumbs = segments.map((seg, i) => ({

@@ -40,11 +40,12 @@ interface SidebarProps {
 
 export default function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
-  const { getToken } = useAuth();
+  const { getToken, isLoaded } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [alertCount, setAlertCount] = useState(0);
 
   useEffect(() => {
+    if (!isLoaded) return;
     async function fetchAlertCount() {
       try {
         const token = await getToken();
@@ -61,7 +62,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
     fetchAlertCount();
     const interval = setInterval(fetchAlertCount, 30000);
     return () => clearInterval(interval);
-  }, [getToken]);
+  }, [getToken, isLoaded]);
 
   const NavContent = ({ isCollapsed = false }: { isCollapsed?: boolean }) => (
     <>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import DOMPurify from 'dompurify';
 
 let mermaidInitialized = false;
 
@@ -19,7 +20,8 @@ export function MermaidDiagram({ chart }: { chart: string }) {
         }
         const id = `mermaid-${Date.now()}`;
         const { svg: rendered } = await mermaid.render(id, chart);
-        if (!cancelled) setSvg(rendered);
+        const clean = DOMPurify.sanitize(rendered, { USE_PROFILES: { svg: true, svgFilters: true } });
+        if (!cancelled) setSvg(clean);
       } catch {
         if (!cancelled) setSvg('');
       }

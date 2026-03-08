@@ -107,13 +107,32 @@ export default function OnboardingPage() {
   const [apiKeyValue, setApiKeyValue] = useState<string | null>(null);
   const [generatingKey, setGeneratingKey] = useState(false);
 
-  function handleTestConnection() {
+  async function handleTestConnection() {
+    if (!serverForm.url) {
+      toast.error("Please enter a server URL first");
+      return;
+    }
     setTesting(true);
-    setTimeout(() => {
-      setTesting(false);
+    try {
+      // Validate URL format
+      new URL(serverForm.url);
+      // Attempt to reach the URL (may fail due to CORS, but we check for network errors)
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      try {
+        await fetch(serverForm.url, { method: "HEAD", mode: "no-cors", signal: controller.signal });
+      } finally {
+        clearTimeout(timeout);
+      }
       setTestPassed(true);
-      toast.success("Connection test successful");
-    }, 1500);
+      toast.success("URL is reachable");
+    } catch (err) {
+      const msg = err instanceof Error && err.name === "AbortError" ? "Connection timed out" : "Could not reach URL";
+      toast.error(msg);
+      setTestPassed(false);
+    } finally {
+      setTesting(false);
+    }
   }
 
   function toggleTemplate(id: string) {

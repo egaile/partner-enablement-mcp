@@ -68,6 +68,10 @@ export class GatewayProxyEngine {
     return this.planCache;
   }
 
+  clearPolicyCache(tenantId?: string): void {
+    this.policyEngine.clearCache(tenantId);
+  }
+
   getHealthChecker(): HealthChecker | null {
     return this.healthChecker;
   }

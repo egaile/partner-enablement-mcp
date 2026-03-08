@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
-import { ROVO_SERVER_NAME } from '../_shared';
+import { ROVO_SERVER_NAME, IssueDetailInputSchema } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 
 /** Prefix a Rovo tool name with the configured server name */
@@ -174,11 +174,11 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { issueKey, cloudId } = body as { issueKey?: string; cloudId?: string };
-
-    if (!issueKey) {
-      return NextResponse.json({ error: 'issueKey is required' }, { status: 400 });
+    const parsed = IssueDetailInputSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid input', details: parsed.error.issues }, { status: 400 });
     }
+    const { issueKey, cloudId } = parsed.data;
 
     let detail: IssueDetailResponse;
 

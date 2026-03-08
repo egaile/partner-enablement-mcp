@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
-import { ROVO_SERVER_NAME } from '../_shared';
+import { ROVO_SERVER_NAME, CreateIssuesInputSchema } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 
 function rovo(toolName: string): string {
@@ -107,8 +107,11 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const projectKey = (body.projectKey as string) ?? 'HEALTH';
-    const tickets = (body.tickets as TicketInput[]) ?? [];
+    const parsed = CreateIssuesInputSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Invalid input', details: parsed.error.issues }, { status: 400 });
+    }
+    const { projectKey, tickets } = parsed.data;
 
     let response: CreateIssuesResponse;
 

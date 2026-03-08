@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { ChevronRight, RotateCcw } from 'lucide-react';
 import type {
   Step,
@@ -41,9 +41,15 @@ export default function Home() {
 
   const { selectedIndustry, currentStep, isGenerating, error, data } = state;
 
+  // Ref mirrors selectedIndustry so async callbacks always read the latest value
+  const industryRef = useRef(selectedIndustry);
+  industryRef.current = selectedIndustry;
+
   const projectKey = selectedIndustry
     ? SCENARIOS.find((s) => s.industry === selectedIndustry)!.projectKey
     : '';
+  const projectKeyRef = useRef(projectKey);
+  projectKeyRef.current = projectKey;
 
   const completedSteps = new Set(
     (['context', 'search', 'health', 'architecture', 'compliance', 'plan', 'actions'] as const).filter(
@@ -157,7 +163,8 @@ export default function Home() {
     [selectedIndustry, projectKey, data.context, data.architecture]
   );
 
-  // Core API caller — returns typed data for chaining
+  // Core API caller — returns typed data for chaining.
+  // Uses refs for selectedIndustry/projectKey to avoid stale closure issues.
   const generateStep = useCallback(
     async (
       step: Step,
@@ -169,9 +176,10 @@ export default function Home() {
       const ctx = ctxOverride ?? data.context;
       const arch = archOverride ?? data.architecture;
       const result: { context?: ProjectContextData; architecture?: ArchitectureData } = {};
+      const pk = projectKeyRef.current;
 
       try {
-        const industry = selectedIndustry === 'healthcare' ? 'healthcare' : 'financial_services';
+        const industry = industryRef.current === 'healthcare' ? 'healthcare' : 'financial_services';
         const complianceTags = ctx?.allLabels.filter((l) =>
           ['hipaa', 'soc2', 'fedramp', 'pci_dss', 'gdpr', 'ccpa'].includes(l)
         ) || [];
@@ -180,7 +188,7 @@ export default function Home() {
           const res = await fetch('/api/tools/read-context', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ projectKey, includeIssues: true, issueLimit: 10 }),
+            body: JSON.stringify({ projectKey: pk, includeIssues: true, issueLimit: 10 }),
           });
           if (!res.ok) throw new Error(`API error: ${res.status}`);
           const ctxData: ProjectContextData = await res.json();
@@ -194,8 +202,8 @@ export default function Home() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              projectKey,
-              query: `${projectKey} architecture compliance deployment`,
+              projectKey: pk,
+              query: `${pk} architecture compliance deployment`,
             }),
           });
           if (!res.ok) throw new Error(`API error: ${res.status}`);
@@ -208,7 +216,7 @@ export default function Home() {
           const res = await fetch('/api/tools/project-health', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ projectKey }),
+            body: JSON.stringify({ projectKey: pk }),
           });
           if (!res.ok) throw new Error(`API error: ${res.status}`);
           const healthData: HealthData = await res.json();
@@ -222,7 +230,7 @@ export default function Home() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               projectContext: {
-                projectKey,
+                projectKey: pk,
                 industry,
                 useCaseDescription: ctx?.project.description || 'AI-powered enterprise application',
                 complianceTags,
@@ -247,7 +255,7 @@ export default function Home() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               projectContext: {
-                projectKey,
+                projectKey: pk,
                 industry,
                 useCaseDescription: ctx?.project.description || 'AI-powered enterprise application',
                 complianceTags,
@@ -271,7 +279,7 @@ export default function Home() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               projectContext: {
-                projectKey,
+                projectKey: pk,
                 industry,
                 useCaseDescription: ctx?.project.description || 'AI-powered enterprise application',
                 complianceTags,
@@ -302,7 +310,7 @@ export default function Home() {
 
       return result;
     },
-    [projectKey, selectedIndustry, data.context, data.architecture]
+    [data.context, data.architecture]
   );
 
   const handleSelectIndustry = async (industry: Industry) => {

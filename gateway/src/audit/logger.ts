@@ -13,13 +13,15 @@ export class AuditLogger {
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private batchSize: number;
   private flushIntervalMs: number;
+  private maxBufferSize: number;
   private usageMeter: UsageMeter | null = null;
 
-  constructor(options?: { batchSize?: number; flushIntervalMs?: number }) {
+  constructor(options?: { batchSize?: number; flushIntervalMs?: number; maxBufferSize?: number }) {
     const config = loadConfig();
     this.batchSize = options?.batchSize ?? config.auditBatchSize;
     this.flushIntervalMs =
       options?.flushIntervalMs ?? config.auditFlushIntervalMs;
+    this.maxBufferSize = options?.maxBufferSize ?? 10000;
   }
 
   /**
@@ -46,6 +48,13 @@ export class AuditLogger {
   }
 
   log(entry: AuditEntry): void {
+    // Drop oldest entries if buffer is at capacity
+    if (this.buffer.length >= this.maxBufferSize) {
+      const dropped = this.buffer.length - this.maxBufferSize + 1;
+      this.buffer.splice(0, dropped);
+      console.warn(`[audit] Buffer overflow: dropped ${dropped} oldest entries`);
+    }
+
     this.buffer.push(entry);
 
     // Record usage for billing
@@ -93,8 +102,11 @@ export class AuditLogger {
     try {
       await insertAuditEntries(batch);
     } catch (error) {
-      // Put failed entries back at the front for retry
-      this.buffer.unshift(...batch);
+      // Put failed entries back at the front for retry, respecting max buffer size
+      const available = this.maxBufferSize - this.buffer.length;
+      if (available > 0) {
+        this.buffer.unshift(...batch.slice(0, available));
+      }
       throw error;
     }
   }

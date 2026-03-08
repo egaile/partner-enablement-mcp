@@ -31,7 +31,7 @@ import {
   approveSnapshot,
   approveSnapshotWithNewHash,
 } from "./db/queries/snapshots.js";
-import { RegisterServerSchema, PolicyRuleSchema } from "./schemas/index.js";
+import { RegisterServerSchema, UpdateServerSchema, PolicyRuleSchema, UpdatePolicySchema } from "./schemas/index.js";
 import type { AlertSeverity, AlertType } from "./schemas/index.js";
 import { ApprovalEngine } from "./approval/engine.js";
 import {
@@ -57,6 +57,18 @@ import { getPlan, PLANS } from "./billing/plans.js";
 import { createCheckoutSession, createPortalSession, constructWebhookEvent } from "./billing/stripe.js";
 import { StripeWebhookHandler } from "./billing/webhook-handler.js";
 import { PlanCache } from "./billing/plan-cache.js";
+
+/** Sanitize error messages for API responses — strip internal details in production */
+function safeErrorMessage(error: unknown): string {
+  const msg = error instanceof Error ? error.message : "Unknown error";
+  if (process.env.NODE_ENV === "production") {
+    // Strip connection strings, file paths, and stack traces
+    if (msg.includes("ECONNREFUSED") || msg.includes("ENOTFOUND")) return "Service temporarily unavailable";
+    if (msg.includes("supabase") || msg.includes("postgres")) return "Database operation failed";
+    if (/\/[a-z].*\.[jt]s/i.test(msg)) return "Internal server error";
+  }
+  return msg;
+}
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -203,8 +215,7 @@ async function main(): Promise<void> {
         const servers = await getServersForTenant(req.tenant!.tenantId);
         res.json({ servers });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -235,8 +246,7 @@ async function main(): Promise<void> {
         const server = await createServer(req.tenant!.tenantId, parsed.data);
         res.status(201).json({ server });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -246,15 +256,19 @@ async function main(): Promise<void> {
     requireAuth,
     async (req: AuthenticatedRequest, res) => {
       try {
+        const parsed = UpdateServerSchema.safeParse(req.body);
+        if (!parsed.success) {
+          res.status(400).json({ error: parsed.error.issues });
+          return;
+        }
         const server = await updateServer(
           req.params.id,
           req.tenant!.tenantId,
-          req.body
+          parsed.data
         );
         res.json({ server });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -267,8 +281,7 @@ async function main(): Promise<void> {
         await deleteServer(req.params.id, req.tenant!.tenantId);
         res.json({ success: true });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -285,8 +298,7 @@ async function main(): Promise<void> {
         const policies = await getAllPoliciesForTenant(req.tenant!.tenantId);
         res.json({ policies });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -302,10 +314,10 @@ async function main(): Promise<void> {
           return;
         }
         const policy = await createPolicy(req.tenant!.tenantId, parsed.data);
+        engines.get(req.tenant!.tenantId)?.clearPolicyCache(req.tenant!.tenantId);
         res.json({ policy });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -315,15 +327,20 @@ async function main(): Promise<void> {
     requireAuth,
     async (req: AuthenticatedRequest, res) => {
       try {
+        const parsed = UpdatePolicySchema.safeParse(req.body);
+        if (!parsed.success) {
+          res.status(400).json({ error: parsed.error.issues });
+          return;
+        }
         const policy = await updatePolicy(
           req.params.id,
           req.tenant!.tenantId,
-          req.body
+          parsed.data
         );
+        engines.get(req.tenant!.tenantId)?.clearPolicyCache(req.tenant!.tenantId);
         res.json({ policy });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -334,10 +351,10 @@ async function main(): Promise<void> {
     async (req: AuthenticatedRequest, res) => {
       try {
         await deletePolicy(req.params.id, req.tenant!.tenantId);
+        engines.get(req.tenant!.tenantId)?.clearPolicyCache(req.tenant!.tenantId);
         res.json({ success: true });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -361,8 +378,7 @@ async function main(): Promise<void> {
         });
         res.json(result);
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -378,8 +394,7 @@ async function main(): Promise<void> {
         const metrics = await getAuditMetrics(req.tenant!.tenantId, since);
         res.json(metrics);
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -401,8 +416,7 @@ async function main(): Promise<void> {
         });
         res.json(result);
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -430,8 +444,7 @@ async function main(): Promise<void> {
         });
         res.json(result);
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -448,8 +461,7 @@ async function main(): Promise<void> {
         );
         res.json({ success: true });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -471,8 +483,7 @@ async function main(): Promise<void> {
         );
         res.json({ success: true, acknowledged: ids.length });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -492,8 +503,7 @@ async function main(): Promise<void> {
         );
         res.json({ snapshots });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -519,8 +529,7 @@ async function main(): Promise<void> {
         }
         res.json({ success: true });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -547,8 +556,7 @@ async function main(): Promise<void> {
         const status = healthChecker.getStatus(req.params.id);
         res.json(status ?? { status: "unknown", message: "Server not tracked" });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -625,8 +633,7 @@ async function main(): Promise<void> {
 
         res.json({ authorizeUrl: authUrl.toString() });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -740,8 +747,7 @@ async function main(): Promise<void> {
           hasRefreshToken: !!server.oauthRefreshToken,
         });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -788,8 +794,7 @@ async function main(): Promise<void> {
               : "Allowed",
         });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -806,8 +811,7 @@ async function main(): Promise<void> {
         const keys = await getApiKeysForTenant(req.tenant!.tenantId);
         res.json({ keys });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -835,8 +839,7 @@ async function main(): Promise<void> {
         // Return the raw key ONCE — it cannot be retrieved again
         res.status(201).json({ key, record });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -850,8 +853,7 @@ async function main(): Promise<void> {
         await deleteApiKey(req.params.id, req.tenant!.tenantId);
         res.json({ success: true });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -868,8 +870,7 @@ async function main(): Promise<void> {
         const members = await getTeamMembers(req.tenant!.tenantId);
         res.json({ members });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -888,8 +889,7 @@ async function main(): Promise<void> {
         const member = await inviteTeamMember(req.tenant!.tenantId, clerkUserId, role);
         res.status(201).json({ member });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -903,8 +903,7 @@ async function main(): Promise<void> {
         await removeTeamMember(req.tenant!.tenantId, req.params.userId);
         res.json({ success: true });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -923,8 +922,7 @@ async function main(): Promise<void> {
         const member = await updateMemberRole(req.tenant!.tenantId, req.params.userId, role);
         res.json({ member });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -946,8 +944,7 @@ async function main(): Promise<void> {
         });
         res.json(result);
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -964,8 +961,7 @@ async function main(): Promise<void> {
         );
         res.json({ approval: record });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -982,8 +978,7 @@ async function main(): Promise<void> {
         );
         res.json({ approval: record });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -1002,8 +997,7 @@ async function main(): Promise<void> {
         const webhooks = await getWebhooksForTenant(req.tenant!.tenantId);
         res.json({ webhooks });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -1026,8 +1020,7 @@ async function main(): Promise<void> {
         });
         res.status(201).json({ webhook });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -1044,8 +1037,7 @@ async function main(): Promise<void> {
         );
         res.json({ webhook });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -1058,8 +1050,7 @@ async function main(): Promise<void> {
         await deleteWebhook(req.params.id, req.tenant!.tenantId);
         res.json({ success: true });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -1072,8 +1063,7 @@ async function main(): Promise<void> {
         await dispatcher.sendTestEvent(req.params.id, req.tenant!.tenantId);
         res.json({ success: true });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -1113,8 +1103,7 @@ async function main(): Promise<void> {
 
         res.status(201).json({ template: template.id, policies: created });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -1162,8 +1151,7 @@ async function main(): Promise<void> {
           },
         });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -1177,8 +1165,7 @@ async function main(): Promise<void> {
         const history = await getUsageHistory(req.tenant!.tenantId, months);
         res.json({ history });
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -1208,6 +1195,22 @@ async function main(): Promise<void> {
           return;
         }
 
+        // Validate redirect URLs to prevent open redirect
+        const allowedRedirectHosts = [
+          ...allowedOrigins.map((o) => { try { return new URL(o).host; } catch { return null; } }).filter(Boolean),
+          "localhost:3001",
+        ];
+        const isAllowedUrl = (url: string): boolean => {
+          try {
+            const parsed = new URL(url);
+            return allowedRedirectHosts.some((h) => parsed.host === h) || parsed.host.endsWith(".vercel.app");
+          } catch { return false; }
+        };
+        if (!isAllowedUrl(successUrl) || !isAllowedUrl(cancelUrl)) {
+          res.status(400).json({ error: "Redirect URLs must be from an allowed domain" });
+          return;
+        }
+
         const plan = PLANS[planId as keyof typeof PLANS];
         if (!plan || !plan.stripePriceId) {
           res.status(400).json({ error: "Invalid plan or plan has no Stripe price" });
@@ -1223,8 +1226,7 @@ async function main(): Promise<void> {
 
         res.json(session);
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
@@ -1240,6 +1242,19 @@ async function main(): Promise<void> {
           return;
         }
 
+        // Validate redirect URL to prevent open redirect
+        const isAllowedReturn = (() => {
+          try {
+            const parsed = new URL(returnUrl);
+            const hosts = allowedOrigins.map((o) => { try { return new URL(o).host; } catch { return null; } }).filter(Boolean);
+            return hosts.some((h) => parsed.host === h) || parsed.host === "localhost:3001" || parsed.host.endsWith(".vercel.app");
+          } catch { return false; }
+        })();
+        if (!isAllowedReturn) {
+          res.status(400).json({ error: "returnUrl must be from an allowed domain" });
+          return;
+        }
+
         const session = await createPortalSession(
           req.tenant!.tenantId,
           returnUrl
@@ -1247,8 +1262,7 @@ async function main(): Promise<void> {
 
         res.json(session);
       } catch (error) {
-        const msg = error instanceof Error ? error.message : "Unknown error";
-        res.status(500).json({ error: msg });
+        res.status(500).json({ error: safeErrorMessage(error) });
       }
     }
   );
