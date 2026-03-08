@@ -1,6 +1,6 @@
 # Injection Detection
 
-The gateway's `PromptInjectionScanner` runs four independent scanning strategies against every string value in tool call parameters. Each strategy produces zero or more `ThreatIndicator` results with a severity level. If any indicator reaches `critical` or `high` severity, the request is blocked.
+The gateway's `PromptInjectionScanner` runs five independent scanning strategies against every string value in tool call parameters. Each strategy produces zero or more `ThreatIndicator` results with a severity level. If any indicator reaches `critical` or `high` severity, the request is blocked.
 
 ## How scanning works
 
@@ -107,6 +107,33 @@ Detects patterns that indicate an attempt to transmit data to external endpoints
 
 **Low severity:**
 - Email addresses (potential exfiltration targets)
+
+## Strategy 5: Atlassian Injection Detection
+
+**Class:** `AtlassianInjectionStrategy`
+
+Detects injection attempts specifically targeting Atlassian tools. This strategy includes 20 patterns tuned for Jira and Confluence content vectors.
+
+### Detection categories
+
+**Critical severity:**
+- JQL injection: piggybacked SQL statements (`union select`, `; DROP TABLE`) appended to JQL queries
+- CQL injection: malicious CQL targeting Confluence search
+- Confluence page content injection: `<ac:structured-macro>` or `<ac:rich-text-body>` tags in page content parameters
+- Jira description injection: system prompt overrides embedded in issue descriptions or comments
+
+**High severity:**
+- Workflow transition manipulation: attempts to bypass workflow restrictions via crafted transition parameters
+- Permission escalation: references to admin-level operations in non-admin tool calls
+- Cross-project data access: patterns indicating attempts to access projects outside the intended scope
+
+**Medium severity:**
+- Unusual field combinations in issue updates
+- Embedded URLs in Jira fields that match known exfiltration patterns
+
+### Why this matters
+
+Atlassian tools process user-generated content from Jira issues and Confluence pages. An attacker could embed injection payloads in an issue description, and when an AI agent reads that issue via `getJiraIssue`, the payload flows into the agent's context. This strategy catches Atlassian-specific attack vectors before the content reaches the AI.
 
 ## Severity levels and blocking behavior
 

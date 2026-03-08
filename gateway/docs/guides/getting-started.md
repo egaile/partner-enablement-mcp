@@ -31,6 +31,9 @@ Or paste each file from `gateway/supabase/migrations/` into the SQL editor in or
 2. `002_approval_requests.sql` -- HITL approval workflow
 3. `003_webhooks.sql` -- webhook notification channels
 4. `004_api_keys.sql` -- programmatic API key access
+5. `005_billing.sql` -- billing plans, usage metering, Stripe integration
+6. `006_server_auth_headers.sql` -- auth headers for downstream servers
+7. `007_server_oauth.sql` -- OAuth 2.1 token storage for downstream servers
 
 After running migrations, seed a default tenant:
 
@@ -170,6 +173,7 @@ curl http://localhost:4000/api/audit?limit=10
 ## What's next
 
 - [Connecting Servers](./connecting-servers.md) -- detailed guide for HTTP and stdio servers
+- [Connecting Atlassian Rovo](./connecting-atlassian-rovo.md) -- connect Jira and Confluence via the Rovo MCP Server
 - [Policy Rules](./policy-rules.md) -- full policy DSL reference with examples
 - [Dashboard Walkthrough](./dashboard-walkthrough.md) -- visual management via the admin UI
 - [Deployment](../admin/deployment.md) -- deploy to Railway and Vercel

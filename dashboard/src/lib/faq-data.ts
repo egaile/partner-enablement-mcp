@@ -22,7 +22,7 @@ export const faqData: FaqItem[] = [
   {
     question: "How does injection scanning work?",
     answer:
-      "The gateway runs four scanning strategies on every tool call's string parameters: (1) Pattern matching detects known prompt injection phrases like 'ignore previous instructions'; (2) Unicode analysis flags suspicious characters used to bypass text filters; (3) Structural analysis identifies system prompt manipulation attempts; (4) Exfiltration detection catches attempts to send data to external URLs. If any strategy triggers, the call is blocked and an alert is created.",
+      "The gateway runs five scanning strategies on every tool call's string parameters: (1) Pattern matching detects known prompt injection phrases like 'ignore previous instructions'; (2) Unicode analysis flags suspicious characters used to bypass text filters; (3) Structural analysis identifies system prompt manipulation attempts; (4) Exfiltration detection catches attempts to send data to external URLs; (5) Atlassian-specific injection detection with 20 patterns targeting Jira/Confluence content (e.g., malicious JQL, CQL injection, issue description manipulation). If any strategy triggers, the call is blocked and an alert is created.",
   },
   {
     question: "What is tool drift detection?",
@@ -53,5 +53,25 @@ export const faqData: FaqItem[] = [
     question: "Can the gateway proxy to multiple downstream servers?",
     answer:
       "Yes. Each tenant can register multiple downstream MCP servers. The gateway aggregates tools from all connected servers and namespaces them as `serverName__toolName` to avoid collisions. When an agent calls a namespaced tool, the gateway routes the call to the correct downstream server. Each server can have its own transport type (stdio or HTTP) and independent policy rules.",
+  },
+  {
+    question: "How do I connect the Atlassian Rovo MCP Server?",
+    answer:
+      "The Atlassian Rovo MCP Server provides 40+ tools for Jira, Confluence, and Compass. You can connect it using API token authentication (Basic Auth with your Atlassian email and API token) or OAuth 2.1 (recommended for production). The gateway handles OAuth discovery, PKCE, and automatic token refresh via the MCP SDK. See the Connecting Atlassian Rovo guide for step-by-step instructions. Once connected, you can apply pre-built Atlassian policy templates like Read-Only Jira, Protected Projects, or Approval for Writes.",
+  },
+  {
+    question: "What are the Atlassian policy templates?",
+    answer:
+      "The gateway ships with 6 pre-built policy templates designed for Atlassian Rovo: (1) Read-Only Jira — blocks all write operations; (2) Protected Projects — blocks access to sensitive projects like HR or Security; (3) Approval for Writes — requires human approval before any create/update; (4) Confluence View-Only — allows reads but blocks edits; (5) Audit Everything — logs all calls without blocking; (6) PII Shield — scans Jira/Confluence content for PII. Apply templates from the Onboarding wizard or via the API.",
+  },
+  {
+    question: "How does OAuth 2.1 work for downstream servers?",
+    answer:
+      "The gateway uses the MCP SDK's built-in OAuthClientProvider to implement OAuth 2.1 with PKCE. When you authorize a server, the gateway automatically discovers the OAuth metadata, registers as a client, generates PKCE challenge pairs, and handles token exchange. Access tokens are refreshed automatically when they expire. For Atlassian Rovo, your admin must add your gateway's domain to the Rovo MCP Server allowlist in Atlassian Admin (Apps > AI settings > Rovo MCP Server > Your domains) — include the `/**` path wildcard.",
+  },
+  {
+    question: "How does billing and usage metering work?",
+    answer:
+      "The gateway tracks tool call usage per tenant and enforces plan limits. Four tiers are available: Starter (free, 1 server, 1,000 calls/month), Pro ($49/mo, 10 servers, 50,000 calls), Business ($149/mo, 50 servers, 500,000 calls), and Enterprise (custom). Usage is metered in-memory and flushed to Supabase periodically. When a tenant approaches their limit, a soft buffer (10% grace) is applied before enforcement. Plan upgrades and billing management are handled via Stripe Checkout and the Customer Portal.",
   },
 ];

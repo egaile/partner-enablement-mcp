@@ -47,7 +47,13 @@ The servers page lists all registered downstream MCP servers with their connecti
 - Click "Add Server" to open a form
 - Choose transport type (HTTP or stdio)
 - Fill in the required fields (URL for HTTP, command for stdio)
+- For Atlassian Rovo, the form auto-detects the URL and suggests Basic Auth or OAuth
 - The gateway will automatically connect and discover tools
+
+**OAuth connections:**
+- For servers supporting OAuth 2.1 (like Atlassian Rovo), click "Authorize" to start the OAuth flow
+- The gateway handles discovery, PKCE, and token exchange automatically via the MCP SDK
+- Check connection status from the server detail page; click "Re-authorize" if tokens need refreshing
 
 ### Policies
 
@@ -65,6 +71,15 @@ The policies page manages the policy rules that control tool access.
 - Time window configuration with day-of-week checkboxes and hour selectors
 - Action selector (allow, deny, require_approval, log_only)
 - Modifier toggles for PII redaction and rate limiting
+
+**Policy simulator:**
+- Test policy evaluation without making real tool calls
+- Enter a server name, tool name, user ID, and params
+- See which rule would match, the resulting action, and injection scan results
+
+**Atlassian templates:**
+- Pre-built policy templates for Atlassian Rovo (Read-Only Jira, Protected Projects, Approval for Writes, Confluence View-Only, Audit Everything, PII Shield)
+- Apply from the Onboarding wizard or via the API
 
 ### Audit Log
 
@@ -123,17 +138,22 @@ When a policy with `action: "require_approval"` matches a tool call, the gateway
 - Approve and reject buttons for each request
 - Expired requests are automatically marked
 
+### Tools
+
+A browsable catalog of all discovered tools across connected servers.
+
+- Grouped by server
+- Shows tool name, description, and input schema
+- Indicates which tools are active (server enabled) vs inactive
+
 ### Settings
 
-The settings page contains tenant-level configuration.
+The settings page is organized into 6 tabs.
 
-**API Keys:**
-- Generate new API keys for programmatic access (format: `mgw_<32 hex chars>`)
-- The raw key is shown only once at creation time
-- List existing keys showing prefix, name, creator, last used, and expiry
-- Delete keys (requires owner or admin role)
+**Account:**
+- Clerk profile management
 
-**Team Management:**
+**Team:**
 - List team members with their roles
 - Invite new members by Clerk user ID
 - Roles: `owner`, `admin`, `member`
@@ -143,22 +163,51 @@ The settings page contains tenant-level configuration.
 - Remove members (owner only)
 - Update member roles (owner only)
 
-**Webhooks:**
+**API Keys:**
+- Generate new API keys for programmatic access (format: `mgw_<32 hex chars>`)
+- The raw key is shown only once at creation time
+- List existing keys showing prefix, name, creator, last used, and expiry
+- Delete keys (requires owner or admin role)
+
+**Billing:**
+- View current plan and usage (tool calls, server count)
+- Upgrade plan via Stripe Checkout
+- Manage billing via Stripe Customer Portal
+- View billing history and invoices
+
+**Gateway:**
+- Webhook configuration
 - Configure webhook endpoints for alert notifications
 - Subscribe to specific event types
 - HMAC-SHA256 signed payloads for verification
 - Test button to send a test event
 - Enable/disable without deleting
 
+**General:**
+- Gateway configuration display
+
 ## Layout
 
-The dashboard uses a sidebar navigation on the left with page links:
+The dashboard uses a responsive sidebar navigation on the left (collapsible on desktop, Sheet overlay on mobile) with page links:
 - Dashboard (home)
 - Servers
 - Policies
+- Tools
+- Approvals (with pending count badge)
 - Audit Log
-- Alerts
-- Approvals
+- Alerts (with unacknowledged count badge)
+- Documentation
 - Settings
 
-A top bar shows the current page title and the authenticated user's profile via Clerk's `<UserButton>` component.
+A top bar shows breadcrumb navigation and a notification bell with unacknowledged alert count. The authenticated user's profile is managed via Clerk's `<UserButton>` component.
+
+### Onboarding
+
+New users are guided through a 4-step Atlassian-first onboarding wizard:
+
+1. **Welcome** -- overview of the gateway and its capabilities
+2. **Connect Atlassian** -- add the Rovo MCP Server with API token or OAuth
+3. **Choose Template** -- select and apply Atlassian policy templates
+4. **Get API Key** -- generate an API key for programmatic access
+
+The onboarding wizard is accessible from `/onboarding` and is automatically shown for new tenants.

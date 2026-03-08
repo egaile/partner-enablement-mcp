@@ -28,6 +28,7 @@ const manifest: { section: string; sectionSlug: string; pages: { slug: string; t
       { slug: "guides/connecting-servers", title: "Connecting Servers", file: "guides/connecting-servers.md" },
       { slug: "guides/policy-rules", title: "Policy Rules", file: "guides/policy-rules.md" },
       { slug: "guides/dashboard-walkthrough", title: "Dashboard Walkthrough", file: "guides/dashboard-walkthrough.md" },
+      { slug: "guides/connecting-atlassian-rovo", title: "Connecting Atlassian Rovo", file: "guides/connecting-atlassian-rovo.md" },
       { slug: "guides/troubleshooting", title: "Troubleshooting", file: "guides/troubleshooting.md" },
     ],
   },

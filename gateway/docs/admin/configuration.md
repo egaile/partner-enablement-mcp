@@ -20,6 +20,9 @@ All gateway configuration is managed through environment variables, validated at
 | `AUDIT_FLUSH_INTERVAL_MS` | `5000` | How often the audit logger flushes buffered entries to Supabase (in milliseconds). |
 | `AUDIT_BATCH_SIZE` | `50` | Maximum number of audit entries per Supabase insert batch. Also triggers an immediate flush when the buffer reaches this size. |
 | `POLICY_CACHE_TTL_MS` | `30000` | How long policy rules are cached in memory per tenant (in milliseconds). |
+| `STRIPE_SECRET_KEY` | (empty) | Stripe secret key for billing integration. Required for plan upgrades and usage metering. |
+| `STRIPE_WEBHOOK_SECRET` | (empty) | Stripe webhook signing secret for verifying incoming webhook events. |
+| `USAGE_FLUSH_INTERVAL_MS` | `60000` | How often usage meter data is flushed to Supabase (in milliseconds). |
 
 ## Dev mode
 
