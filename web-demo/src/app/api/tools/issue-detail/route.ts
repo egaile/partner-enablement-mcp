@@ -14,6 +14,16 @@ function extractText(result: { content: Array<{ type: string; text?: string }> }
   return block?.text ?? '';
 }
 
+/** Extract plain text from Jira's ADF (Atlassian Document Format) description */
+function extractAdfText(node: unknown): string {
+  if (!node || typeof node !== 'object') return '';
+  const n = node as Record<string, unknown>;
+  if (n.type === 'text' && typeof n.text === 'string') return n.text;
+  const content = n.content as unknown[] | undefined;
+  if (!Array.isArray(content)) return '';
+  return content.map(extractAdfText).join(n.type === 'paragraph' ? '\n' : '');
+}
+
 interface IssueDetailResponse {
   key: string;
   summary: string;
@@ -28,6 +38,15 @@ interface IssueDetailResponse {
   labels: string[];
   components: string[];
   commentCount?: number;
+}
+
+async function getCloudId(): Promise<string> {
+  const resourcesResult = await callTool(rovo('getAccessibleAtlassianResources'), {});
+  if (resourcesResult.isError) throw new Error(`Tool error: ${extractText(resourcesResult)}`);
+  const resources = JSON.parse(extractText(resourcesResult));
+  const cloudId: string = Array.isArray(resources) ? resources[0]?.id : resources?.id;
+  if (!cloudId) throw new Error('No Atlassian cloud resources found');
+  return cloudId;
 }
 
 async function fetchViaGateway(cloudId: string, issueKey: string): Promise<IssueDetailResponse> {
@@ -59,7 +78,11 @@ async function fetchViaGateway(cloudId: string, issueKey: string): Promise<Issue
   return {
     key: (data.key as string) ?? issueKey,
     summary: (fields.summary as string) ?? '',
-    description: (fields.description as string) || undefined,
+    description: typeof fields.description === 'string'
+      ? fields.description || undefined
+      : fields.description && typeof fields.description === 'object'
+        ? extractAdfText(fields.description) || undefined
+        : undefined,
     type:
       ((fields.issuetype as Record<string, unknown>)?.name as string) ??
       (fields.issuetype as string) ?? 'Unknown',
@@ -178,12 +201,13 @@ export async function POST(request: Request) {
     if (!parsed.success) {
       return NextResponse.json({ error: 'Invalid input', details: parsed.error.issues }, { status: 400 });
     }
-    const { issueKey, cloudId } = parsed.data;
+    const { issueKey } = parsed.data;
 
     let detail: IssueDetailResponse;
 
-    if (isConfigured() && cloudId) {
+    if (isConfigured()) {
       try {
+        const cloudId = await getCloudId();
         detail = await fetchViaGateway(cloudId, issueKey);
       } catch (err) {
         console.warn(
