@@ -28,6 +28,15 @@ interface SearchResponse {
   source: 'gateway' | 'mock';
 }
 
+/**
+ * Map Jira project keys to their corresponding Confluence space keys.
+ * Used to filter cross-product search results to the relevant space.
+ */
+const PROJECT_SPACE_MAP: Record<string, string[]> = {
+  HEALTH: ['health'],
+  FINSERV: ['SD'],
+};
+
 const MOCK_RESULTS: Record<string, SearchResult[]> = {
   HEALTH: [
     { type: 'jira', key: 'HEALTH-1', title: 'Patient Intake Conversational Flow', excerpt: 'Design and implement conversational AI flow for gathering patient information before appointments.', issueType: 'Epic', status: 'In Progress' },
@@ -42,6 +51,30 @@ const MOCK_RESULTS: Record<string, SearchResult[]> = {
     { type: 'confluence', title: 'PCI-DSS Tokenization Architecture', excerpt: 'Reference architecture for tokenizing payment card data before AI processing.', spaceKey: 'ARCH' },
   ],
 };
+
+/**
+ * Extract Confluence space key from a URL like .../wiki/spaces/health/pages/...
+ */
+function extractSpaceFromUrl(url: string): string | null {
+  const match = url.match(/\/wiki\/spaces\/([^/]+)/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Filter Confluence results to only those belonging to the project's space(s).
+ */
+function filterConfluenceBySpace(results: SearchResult[], projectKey: string): SearchResult[] {
+  const allowedSpaces = PROJECT_SPACE_MAP[projectKey];
+  if (!allowedSpaces) return results; // no mapping → keep all
+
+  return results.filter((r) => {
+    if (r.type !== 'confluence') return true; // keep non-confluence as-is
+    // Check spaceKey field first, then extract from URL
+    const space = r.spaceKey || (r.url ? extractSpaceFromUrl(r.url) : null);
+    if (!space) return true; // can't determine space → keep it
+    return allowedSpaces.some((s) => s.toLowerCase() === space.toLowerCase());
+  });
+}
 
 /**
  * Parse Rovo search results — may be JSON or markdown.
@@ -65,12 +98,13 @@ function parseRovoResults(text: string, projectKey: string): SearchResult[] {
           status: item.status ?? item.fields?.status?.name ?? 'Unknown',
         });
       } else if (item.spaceKey || item.type === 'page' || item.contentType === 'page') {
+        const itemUrl = item.url ?? item.href ?? '';
         results.push({
           type: 'confluence',
           title: item.title ?? '',
-          excerpt: (item.excerpt ?? item.description ?? item.content ?? '').slice(0, 200),
-          spaceKey: item.spaceKey ?? item.space?.key ?? '',
-          url: item.url ?? item.href ?? '',
+          excerpt: (item.excerpt ?? item.description ?? item.content ?? item.text ?? '').slice(0, 200),
+          spaceKey: item.spaceKey ?? item.space?.key ?? extractSpaceFromUrl(itemUrl) ?? '',
+          url: itemUrl,
         });
       }
     }
@@ -171,46 +205,15 @@ async function fetchViaGateway(projectKey: string): Promise<SearchResult[]> {
     console.warn('[cross-product-search] JQL fallback failed');
   }
 
-  // Step 4: If Rovo search returned no Confluence pages, fall back to CQL search
+  // Step 4: Filter Rovo Confluence results to the relevant space for this project
   const rovoConfluence = rovoResults.filter((r) => r.type === 'confluence');
-  let confluenceResults: SearchResult[] = rovoConfluence;
-
-  if (confluenceResults.length === 0) {
-    try {
-      const cqlResult = await callTool(rovo('searchConfluenceUsingCql'), {
-        cloudId,
-        cql: `type = page AND (text ~ "${projectKey}" OR text ~ "architecture" OR text ~ "compliance")`,
-        limit: 5,
-      });
-
-      if (!cqlResult.isError) {
-        const text = extractText(cqlResult);
-        const data = JSON.parse(text);
-        const results = data?.results ?? [];
-        for (const item of results) {
-          const title = item.title ?? item.content?.title ?? '';
-          const excerpt = (item.excerpt ?? '').replace(/<\/?[^>]+(>|$)/g, '').slice(0, 200);
-          const spaceKey = item.resultGlobalContainer?.title ?? item.content?.space?.key ?? '';
-          const url = item.url ?? item.content?._links?.webui ?? '';
-          confluenceResults.push({
-            type: 'confluence',
-            title,
-            excerpt,
-            spaceKey,
-            url,
-          });
-        }
-      }
-    } catch {
-      console.warn('[cross-product-search] CQL Confluence fallback failed');
-    }
-  }
+  const filteredConfluence = filterConfluenceBySpace(rovoConfluence, projectKey);
 
   // Merge: JQL Jira issues + Confluence results (dedupe Jira by key)
   const jiraKeys = new Set(jiraResults.map((r) => r.key));
   const rovoJira = rovoResults.filter((r) => r.type === 'jira' && !jiraKeys.has(r.key));
 
-  return [...jiraResults, ...rovoJira, ...confluenceResults];
+  return [...jiraResults, ...rovoJira, ...filteredConfluence];
 }
 
 export async function POST(request: Request) {
