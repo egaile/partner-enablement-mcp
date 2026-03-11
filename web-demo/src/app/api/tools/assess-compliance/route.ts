@@ -27,17 +27,21 @@ async function fetchComplianceDocs(cloudId: string, frameworks: string[]): Promi
 
   for (const framework of frameworks) {
     const frameworkName = framework.replace(/_/g, '-').toUpperCase();
-    const searchTerms = framework === 'hipaa' ? 'HIPAA OR "PHI" OR "protected health"'
-      : framework === 'soc2' ? 'SOC2 OR "SOC 2" OR "trust services"'
-      : framework === 'pci_dss' ? '"PCI-DSS" OR "PCI DSS" OR "payment card"'
-      : framework === 'fedramp' ? 'FedRAMP OR "federal risk"'
-      : framework === 'gdpr' ? 'GDPR OR "data protection"'
-      : `"${frameworkName}" OR "compliance"`;
+    // Build CQL with separate text ~ clauses joined by OR
+    const searchTermGroups: string[] = framework === 'hipaa'
+      ? ['HIPAA', 'PHI', 'protected health']
+      : framework === 'soc2' ? ['SOC2', 'SOC 2', 'trust services']
+      : framework === 'pci_dss' ? ['PCI-DSS', 'PCI DSS', 'payment card']
+      : framework === 'fedramp' ? ['FedRAMP', 'federal risk']
+      : framework === 'gdpr' ? ['GDPR', 'data protection']
+      : [frameworkName, 'compliance'];
+
+    const textClauses = searchTermGroups.map((t) => `text ~ "${t}"`).join(' OR ');
 
     try {
       const searchResult = await callTool(rovo('searchConfluenceUsingCql'), {
         cloudId,
-        cql: `type = page AND (text ~ "${searchTerms}")`,
+        cql: `type = page AND (${textClauses})`,
         limit: 3,
       });
 
