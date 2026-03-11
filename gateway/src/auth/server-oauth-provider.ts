@@ -4,6 +4,7 @@ import type { McpServerRecord } from "../db/queries/servers.js";
 import {
   updateServerOAuthTokens,
   updateServerOAuthClientRegistration,
+  updateServerCodeVerifier,
 } from "../db/queries/servers.js";
 
 const OAUTH_CALLBACK_BASE_URL =
@@ -87,12 +88,17 @@ export class ServerOAuthProvider implements OAuthClientProvider {
       oauthTokenExpiresAt: expiresAt,
     });
 
+    // Clear the code verifier — no longer needed after token exchange
+    ServerOAuthProvider.codeVerifiers.delete(this.server.id);
+    await updateServerCodeVerifier(this.server.id, this.server.tenantId, null);
+
     // Update in-memory
     this.server = {
       ...this.server,
       oauthAccessToken: tokens.access_token,
       oauthRefreshToken: tokens.refresh_token ?? this.server.oauthRefreshToken,
       oauthTokenExpiresAt: expiresAt,
+      oauthCodeVerifier: null,
     };
   }
 
@@ -105,11 +111,15 @@ export class ServerOAuthProvider implements OAuthClientProvider {
   }
 
   async saveCodeVerifier(codeVerifier: string) {
+    // Persist to DB so the verifier survives container restarts
     ServerOAuthProvider.codeVerifiers.set(this.server.id, codeVerifier);
+    await updateServerCodeVerifier(this.server.id, this.server.tenantId, codeVerifier);
   }
 
   async codeVerifier(): Promise<string> {
-    const v = ServerOAuthProvider.codeVerifiers.get(this.server.id);
+    // Check in-memory first, fall back to DB-persisted value
+    const v = ServerOAuthProvider.codeVerifiers.get(this.server.id)
+      ?? this.server.oauthCodeVerifier;
     if (!v) throw new Error(`No code verifier stored for server ${this.server.id}`);
     return v;
   }

@@ -23,6 +23,7 @@ export interface McpServerRecord {
   oauthTokenUrl: string | null;
   oauthAuthorizeUrl: string | null;
   oauthScopes: string[] | null;
+  oauthCodeVerifier: string | null;
 }
 
 function toRecord(row: Record<string, unknown>): McpServerRecord {
@@ -48,6 +49,7 @@ function toRecord(row: Record<string, unknown>): McpServerRecord {
     oauthTokenUrl: (row.oauth_token_url as string) ?? null,
     oauthAuthorizeUrl: (row.oauth_authorize_url as string) ?? null,
     oauthScopes: (row.oauth_scopes as string[]) ?? null,
+    oauthCodeVerifier: (row.oauth_code_verifier as string) ?? null,
   };
 }
 
@@ -241,6 +243,26 @@ export async function updateServerOAuthTokens(
       oauth_access_token: tokens.oauthAccessToken,
       oauth_refresh_token: tokens.oauthRefreshToken,
       oauth_token_expires_at: tokens.oauthTokenExpiresAt,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("tenant_id", tenantId);
+
+  if (error) throw error;
+}
+
+/**
+ * Persist PKCE code verifier to survive container restarts during OAuth flow.
+ */
+export async function updateServerCodeVerifier(
+  id: string,
+  tenantId: string,
+  codeVerifier: string | null
+): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .from("mcp_servers")
+    .update({
+      oauth_code_verifier: codeVerifier,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)

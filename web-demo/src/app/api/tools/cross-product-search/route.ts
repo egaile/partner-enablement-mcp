@@ -171,12 +171,46 @@ async function fetchViaGateway(projectKey: string): Promise<SearchResult[]> {
     console.warn('[cross-product-search] JQL fallback failed');
   }
 
-  // Merge: JQL Jira issues + Rovo Confluence results (dedupe Jira by key)
+  // Step 4: If Rovo search returned no Confluence pages, fall back to CQL search
+  const rovoConfluence = rovoResults.filter((r) => r.type === 'confluence');
+  let confluenceResults: SearchResult[] = rovoConfluence;
+
+  if (confluenceResults.length === 0) {
+    try {
+      const cqlResult = await callTool(rovo('searchConfluenceUsingCql'), {
+        cloudId,
+        cql: `type = page AND (text ~ "${projectKey}" OR text ~ "architecture" OR text ~ "compliance")`,
+        limit: 5,
+      });
+
+      if (!cqlResult.isError) {
+        const text = extractText(cqlResult);
+        const data = JSON.parse(text);
+        const results = data?.results ?? [];
+        for (const item of results) {
+          const title = item.title ?? item.content?.title ?? '';
+          const excerpt = (item.excerpt ?? '').replace(/<\/?[^>]+(>|$)/g, '').slice(0, 200);
+          const spaceKey = item.resultGlobalContainer?.title ?? item.content?.space?.key ?? '';
+          const url = item.url ?? item.content?._links?.webui ?? '';
+          confluenceResults.push({
+            type: 'confluence',
+            title,
+            excerpt,
+            spaceKey,
+            url,
+          });
+        }
+      }
+    } catch {
+      console.warn('[cross-product-search] CQL Confluence fallback failed');
+    }
+  }
+
+  // Merge: JQL Jira issues + Confluence results (dedupe Jira by key)
   const jiraKeys = new Set(jiraResults.map((r) => r.key));
   const rovoJira = rovoResults.filter((r) => r.type === 'jira' && !jiraKeys.has(r.key));
-  const rovoConfluence = rovoResults.filter((r) => r.type === 'confluence');
 
-  return [...jiraResults, ...rovoJira, ...rovoConfluence];
+  return [...jiraResults, ...rovoJira, ...confluenceResults];
 }
 
 export async function POST(request: Request) {
