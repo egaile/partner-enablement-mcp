@@ -20,7 +20,10 @@ export function MermaidDiagram({ chart }: { chart: string }) {
         }
         const id = `mermaid-${Date.now()}`;
         const { svg: rendered } = await mermaid.render(id, chart);
-        const clean = DOMPurify.sanitize(rendered, { USE_PROFILES: { svg: true, svgFilters: true } });
+        const clean = DOMPurify.sanitize(rendered, {
+          USE_PROFILES: { svg: true, svgFilters: true, html: true },
+          ADD_TAGS: ['foreignObject'],
+        });
         if (!cancelled) setSvg(clean);
       } catch {
         if (!cancelled) setSvg('');
