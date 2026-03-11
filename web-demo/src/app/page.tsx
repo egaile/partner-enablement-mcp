@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { ChevronRight, RotateCcw } from 'lucide-react';
 import type {
   Step,
@@ -82,33 +82,6 @@ export default function Home() {
     return { totalCalls, blocked, piiScans: totalCalls, threats: 0 };
   }, [data]);
 
-  // Auto-fetch context preview on industry selection
-  useEffect(() => {
-    if (!selectedIndustry) return;
-    const key = SCENARIOS.find((s) => s.industry === selectedIndustry)!.projectKey;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/tools/read-context', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ projectKey: key, includeIssues: true, issueLimit: 10 }),
-        });
-        if (!res.ok) return;
-        const ctxData: ProjectContextData = await res.json();
-        if (!cancelled) {
-          setState((prev) => ({
-            ...prev,
-            data: { ...prev.data, context: prev.data.context ?? ctxData },
-          }));
-        }
-      } catch {
-        // Silent — will load when user clicks Generate
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [selectedIndustry]);
-
   // Build request params for each step (used by SecurityPipeline)
   const getRequestParams = useCallback(
     (step: Step, ctxOverride?: ProjectContextData, archOverride?: ArchitectureData) => {
@@ -131,7 +104,7 @@ export default function Home() {
       const projectContext = {
         projectKey,
         industry,
-        useCaseDescription: ctx?.project.description || 'AI-powered enterprise application',
+        useCaseDescription: (ctx?.project.description && ctx.project.description.length >= 10) ? ctx.project.description : 'AI-powered enterprise application',
         complianceTags,
         cloudProvider: 'aws',
         dataTypes: ctx?.detectedDataTypes || [],
@@ -232,7 +205,7 @@ export default function Home() {
               projectContext: {
                 projectKey: pk,
                 industry,
-                useCaseDescription: ctx?.project.description || 'AI-powered enterprise application',
+                useCaseDescription: (ctx?.project.description && ctx.project.description.length >= 10) ? ctx.project.description : 'AI-powered enterprise application',
                 complianceTags,
                 cloudProvider: 'aws',
                 dataTypes: ctx?.detectedDataTypes || [],
@@ -257,7 +230,7 @@ export default function Home() {
               projectContext: {
                 projectKey: pk,
                 industry,
-                useCaseDescription: ctx?.project.description || 'AI-powered enterprise application',
+                useCaseDescription: (ctx?.project.description && ctx.project.description.length >= 10) ? ctx.project.description : 'AI-powered enterprise application',
                 complianceTags,
                 cloudProvider: 'aws',
                 dataTypes: ctx?.detectedDataTypes || [],
@@ -281,7 +254,7 @@ export default function Home() {
               projectContext: {
                 projectKey: pk,
                 industry,
-                useCaseDescription: ctx?.project.description || 'AI-powered enterprise application',
+                useCaseDescription: (ctx?.project.description && ctx.project.description.length >= 10) ? ctx.project.description : 'AI-powered enterprise application',
                 complianceTags,
                 cloudProvider: 'aws',
                 dataTypes: ctx?.detectedDataTypes || [],
@@ -314,6 +287,11 @@ export default function Home() {
   );
 
   const handleSelectIndustry = async (industry: Industry) => {
+    // Eagerly update refs before generateStep reads them (avoids race with React render)
+    const pk = SCENARIOS.find((s) => s.industry === industry)!.projectKey;
+    industryRef.current = industry;
+    projectKeyRef.current = pk;
+
     setState({
       selectedIndustry: industry,
       currentStep: 'context',
