@@ -5,7 +5,7 @@ The gateway's `PromptInjectionScanner` runs five independent scanning strategies
 ## How scanning works
 
 1. **String extraction**: The scanner recursively walks all tool parameters, extracting every string value with its JSON path (e.g., `params.query`, `params.options[0].text`).
-2. **Strategy execution**: Each extracted string is passed through all four strategies.
+2. **Strategy execution**: Each extracted string is passed through all five strategies.
 3. **Aggregation**: All threat indicators are collected. The highest severity across all indicators determines the overall result.
 4. **Blocking decision**: `critical` or `high` severity blocks the request. `medium`, `low`, and `info` are logged but the request proceeds.
 

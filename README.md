@@ -136,7 +136,7 @@ The web demo (`web-demo/`) is a Next.js 14 application that exercises 14 Atlassi
 ### Demo Flow (7 Steps)
 
 1. **Project Context** -- Reads Jira backlog via `getVisibleJiraProjects` + `searchJiraIssuesUsingJql`, with expandable issue details via `getJiraIssue`
-2. **Cross-Product Search** -- Searches across Jira and Confluence using Rovo Search (`search`), with JQL fallback
+2. **Cross-Product Search** -- Searches across Jira and Confluence using Rovo Search (`search`), supplemented by JQL for Jira coverage. Confluence results are filtered by project space (HEALTH→`health`, FINSERV→`SD`)
 3. **Project Health** -- Runs 4 parallel JQL queries to assess readiness (overdue, blocked, critical issues)
 4. **Architecture** -- Searches Confluence for existing architecture docs via CQL (`searchConfluenceUsingCql`), reads top matches (`getConfluencePage`), recommends patterns
 5. **Compliance** -- Searches Confluence per applicable compliance framework, identifies doc coverage gaps

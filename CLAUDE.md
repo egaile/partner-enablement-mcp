@@ -66,7 +66,7 @@ Key services:
 
 ### Web Demo (`web-demo/`)
 
-Single-page Next.js 14 App Router app. All logic is in `src/app/page.tsx` — a client component with simulated streaming (character-by-character reveal of hardcoded markdown content). No actual MCP or Claude API calls; purely for demonstration. Uses Tailwind CSS + lucide-react icons.
+Next.js 14 App Router app. Main orchestration in `src/app/page.tsx` (client component). Calls the MCP Security Gateway via `lib/gateway-client.ts` to exercise live Atlassian Rovo MCP tools (Jira + Confluence). Falls back to realistic mock data when the gateway is unavailable. 11 API routes under `src/app/api/tools/` proxy tool calls through the gateway. Uses Tailwind CSS + lucide-react icons.
 
 ### Gateway (`gateway/src/`)
 
