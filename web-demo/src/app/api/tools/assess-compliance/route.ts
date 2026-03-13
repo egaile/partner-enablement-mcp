@@ -20,9 +20,17 @@ function extractText(result: { content: Array<{ type: string; text?: string }> }
 }
 
 /**
+ * Map project keys to their Confluence space keys for scoping compliance searches.
+ */
+const COMPLIANCE_SPACE_MAP: Record<string, string[]> = {
+  HEALTH: ['HA', 'health'],
+  FINSERV: ['SD', 'FINS'],
+};
+
+/**
  * Search Confluence for compliance docs per framework.
  */
-async function fetchComplianceDocs(cloudId: string, frameworks: string[]): Promise<ComplianceDocCoverage[]> {
+async function fetchComplianceDocs(cloudId: string, frameworks: string[], projectKey?: string): Promise<ComplianceDocCoverage[]> {
   const coverage: ComplianceDocCoverage[] = [];
 
   for (const framework of frameworks) {
@@ -34,14 +42,21 @@ async function fetchComplianceDocs(cloudId: string, frameworks: string[]): Promi
       : framework === 'pci_dss' ? ['PCI-DSS', 'PCI DSS', 'payment card']
       : framework === 'fedramp' ? ['FedRAMP', 'federal risk']
       : framework === 'gdpr' ? ['GDPR', 'data protection']
-      : [frameworkName, 'compliance'];
+      : framework === 'sox' ? ['SOX', 'Sarbanes-Oxley', 'financial reporting', 'internal controls']
+      : [frameworkName];
 
     const textClauses = searchTermGroups.map((t) => `text ~ "${t}"`).join(' OR ');
+
+    // Scope to project-relevant Confluence spaces if mapping exists
+    const allowedSpaces = projectKey ? COMPLIANCE_SPACE_MAP[projectKey] : undefined;
+    const spaceCql = allowedSpaces?.length
+      ? ` AND space.key IN (${allowedSpaces.map((s) => `"${s}"`).join(',')})`
+      : '';
 
     try {
       const searchResult = await callTool(rovo('searchConfluenceUsingCql'), {
         cloudId,
-        cql: `type = page AND (${textClauses})`,
+        cql: `type = page AND (${textClauses})${spaceCql}`,
         limit: 3,
       });
 
@@ -111,6 +126,15 @@ function getMockComplianceDocs(frameworks: string[], projectKey: string): Compli
         framework: fw,
         existingDocs: [
           { title: 'PCI-DSS Compliance Runbook', excerpt: 'Tokenization procedures, key management, network segmentation for AI workloads.', spaceKey: 'FSAI' },
+        ],
+        coverage: 'partial' as const,
+      };
+    }
+    if (fw === 'sox' && !isHealthcare) {
+      return {
+        framework: fw,
+        existingDocs: [
+          { title: 'SOX Internal Controls Matrix', excerpt: 'Financial reporting controls, IT general controls, segregation of duties, change management for automated systems.', spaceKey: 'SD' },
         ],
         coverage: 'partial' as const,
       };
@@ -230,7 +254,7 @@ export async function POST(request: Request) {
           const resources = JSON.parse(resourcesText);
           const cloudId: string = Array.isArray(resources) ? resources[0]?.id : resources?.id;
           if (cloudId) {
-            documentCoverage = await fetchComplianceDocs(cloudId, applicableFrameworks);
+            documentCoverage = await fetchComplianceDocs(cloudId, applicableFrameworks, projectContext.projectKey);
           }
         }
       } catch (err) {
