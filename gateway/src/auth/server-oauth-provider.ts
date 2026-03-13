@@ -10,6 +10,9 @@ import {
 const OAUTH_CALLBACK_BASE_URL =
   process.env.OAUTH_CALLBACK_BASE_URL || "http://localhost:4000";
 
+/** Refresh tokens 5 minutes before they expire */
+const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
+
 /**
  * MCP SDK OAuthClientProvider backed by the mcp_servers DB record.
  *
@@ -23,6 +26,9 @@ export class ServerOAuthProvider implements OAuthClientProvider {
 
   /** PKCE code verifiers — set before redirect, read during callback */
   static codeVerifiers = new Map<string, string>();
+
+  /** Prevents concurrent refresh attempts for the same server */
+  private static refreshLocks = new Map<string, Promise<OAuthTokens | null>>();
 
   private server: McpServerRecord;
 
@@ -70,11 +76,115 @@ export class ServerOAuthProvider implements OAuthClientProvider {
 
   async tokens(): Promise<OAuthTokens | undefined> {
     if (!this.server.oauthAccessToken) return undefined;
+
+    // Check if token is expired or about to expire
+    if (this.isTokenExpired() && this.server.oauthRefreshToken) {
+      const refreshed = await this.refreshAccessToken();
+      if (refreshed) {
+        return refreshed;
+      }
+      // Refresh failed — return existing token and let SDK handle the 401
+      console.warn(`[oauth] Token refresh failed for "${this.server.name}", returning stale token`);
+    }
+
     return {
       access_token: this.server.oauthAccessToken,
       token_type: "Bearer",
       refresh_token: this.server.oauthRefreshToken ?? undefined,
     };
+  }
+
+  /**
+   * Check whether the access token is expired or will expire within the buffer window.
+   */
+  private isTokenExpired(): boolean {
+    if (!this.server.oauthTokenExpiresAt) return false;
+    const expiresAt = new Date(this.server.oauthTokenExpiresAt).getTime();
+    return Date.now() >= expiresAt - TOKEN_REFRESH_BUFFER_MS;
+  }
+
+  /**
+   * Exchange the refresh token for a new access token directly with the token endpoint.
+   * Uses a lock to prevent concurrent refresh attempts for the same server.
+   */
+  private async refreshAccessToken(): Promise<OAuthTokens | null> {
+    const serverId = this.server.id;
+
+    // Deduplicate concurrent refresh attempts
+    const existingLock = ServerOAuthProvider.refreshLocks.get(serverId);
+    if (existingLock) {
+      return existingLock;
+    }
+
+    const refreshPromise = this.doRefresh();
+    ServerOAuthProvider.refreshLocks.set(serverId, refreshPromise);
+
+    try {
+      return await refreshPromise;
+    } finally {
+      ServerOAuthProvider.refreshLocks.delete(serverId);
+    }
+  }
+
+  private async doRefresh(): Promise<OAuthTokens | null> {
+    const tokenUrl = this.server.oauthTokenUrl ?? "https://auth.atlassian.com/oauth/token";
+    const refreshToken = this.server.oauthRefreshToken;
+    const clientId = this.server.oauthClientId;
+    const clientSecret = this.server.oauthClientSecret;
+
+    if (!refreshToken || !clientId) {
+      console.warn(`[oauth] Cannot refresh: missing refresh_token or client_id for "${this.server.name}"`);
+      return null;
+    }
+
+    console.log(`[oauth] Refreshing access token for "${this.server.name}"...`);
+
+    try {
+      const params = new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+        client_id: clientId,
+      });
+      if (clientSecret) {
+        params.set("client_secret", clientSecret);
+      }
+
+      const response = await fetch(tokenUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: params.toString(),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => "");
+        console.error(`[oauth] Token refresh failed (HTTP ${response.status}) for "${this.server.name}": ${errorText}`);
+        return null;
+      }
+
+      const data = await response.json() as {
+        access_token: string;
+        token_type?: string;
+        expires_in?: number;
+        refresh_token?: string;
+        scope?: string;
+      };
+
+      const tokens: OAuthTokens = {
+        access_token: data.access_token,
+        token_type: data.token_type ?? "Bearer",
+        expires_in: data.expires_in,
+        refresh_token: data.refresh_token ?? refreshToken,
+      };
+
+      // Persist new tokens to DB and update in-memory state
+      await this.saveTokens(tokens);
+
+      console.log(`[oauth] Successfully refreshed token for "${this.server.name}" (expires in ${data.expires_in ?? "unknown"}s)`);
+      return tokens;
+    } catch (err) {
+      console.error(`[oauth] Token refresh error for "${this.server.name}":`, err instanceof Error ? err.message : err);
+      return null;
+    }
   }
 
   async saveTokens(tokens: OAuthTokens) {
@@ -122,6 +232,45 @@ export class ServerOAuthProvider implements OAuthClientProvider {
       ?? this.server.oauthCodeVerifier;
     if (!v) throw new Error(`No code verifier stored for server ${this.server.id}`);
     return v;
+  }
+
+  /**
+   * Called by the MCP SDK when it detects invalid credentials.
+   * Clears stored tokens/client info so the next auth attempt starts fresh.
+   */
+  async invalidateCredentials(scope: "all" | "client" | "tokens" | "verifier"): Promise<void> {
+    console.log(`[oauth] Invalidating credentials (scope: ${scope}) for "${this.server.name}"`);
+
+    if (scope === "tokens" || scope === "all") {
+      await updateServerOAuthTokens(this.server.id, this.server.tenantId, {
+        oauthAccessToken: null,
+        oauthRefreshToken: scope === "all" ? null : this.server.oauthRefreshToken,
+        oauthTokenExpiresAt: null,
+      });
+      this.server = {
+        ...this.server,
+        oauthAccessToken: null,
+        oauthRefreshToken: scope === "all" ? null : this.server.oauthRefreshToken,
+        oauthTokenExpiresAt: null,
+      };
+    }
+
+    if (scope === "client" || scope === "all") {
+      await updateServerOAuthClientRegistration(this.server.id, this.server.tenantId, {
+        oauthClientId: null,
+        oauthClientSecret: null,
+      });
+      this.server = {
+        ...this.server,
+        oauthClientId: null,
+        oauthClientSecret: null,
+      };
+    }
+
+    if (scope === "verifier" || scope === "all") {
+      ServerOAuthProvider.codeVerifiers.delete(this.server.id);
+      await updateServerCodeVerifier(this.server.id, this.server.tenantId, null);
+    }
   }
 
   /**

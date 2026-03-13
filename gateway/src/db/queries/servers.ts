@@ -207,7 +207,7 @@ export async function updateServer(
 export async function updateServerOAuthClientRegistration(
   id: string,
   tenantId: string,
-  info: { oauthClientId: string; oauthClientSecret?: string | null }
+  info: { oauthClientId: string | null; oauthClientSecret?: string | null }
 ): Promise<void> {
   const updates: Record<string, unknown> = {
     oauth_client_id: info.oauthClientId,
@@ -232,9 +232,9 @@ export async function updateServerOAuthTokens(
   id: string,
   tenantId: string,
   tokens: {
-    oauthAccessToken: string;
+    oauthAccessToken: string | null;
     oauthRefreshToken: string | null;
-    oauthTokenExpiresAt: string;
+    oauthTokenExpiresAt: string | null;
   }
 ): Promise<void> {
   const { error } = await getSupabaseClient()

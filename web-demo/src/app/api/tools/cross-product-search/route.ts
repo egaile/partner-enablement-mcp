@@ -33,22 +33,24 @@ interface SearchResponse {
  * Used to filter cross-product search results to the relevant space.
  */
 const PROJECT_SPACE_MAP: Record<string, string[]> = {
-  HEALTH: ['health'],
-  FINSERV: ['SD'],
+  HEALTH: ['HA', 'health'],
+  FINSERV: ['SD', 'FINS'],
 };
 
 const MOCK_RESULTS: Record<string, SearchResult[]> = {
   HEALTH: [
     { type: 'jira', key: 'HEALTH-1', title: 'Patient Intake Conversational Flow', excerpt: 'Design and implement conversational AI flow for gathering patient information before appointments.', issueType: 'Epic', status: 'In Progress' },
     { type: 'jira', key: 'HEALTH-3', title: 'HIPAA Compliance Infrastructure', excerpt: 'Set up compliant infrastructure including encryption, audit logging, and access controls.', issueType: 'Epic', status: 'To Do' },
-    { type: 'confluence', title: 'HIPAA Architecture Guide', excerpt: 'Reference architecture for HIPAA-compliant AI deployments including PHI handling, encryption at rest, and audit requirements.', spaceKey: 'ARCH' },
-    { type: 'confluence', title: 'PHI Data Handling Procedures', excerpt: 'Standard operating procedures for Protected Health Information in AI/ML pipelines.', spaceKey: 'SEC' },
+    { type: 'confluence', title: 'Healthcare AI Reference Architecture', excerpt: 'Reference architecture for HIPAA-compliant AI deployments including PHI handling, encryption at rest, and audit requirements.', spaceKey: 'HA' },
+    { type: 'confluence', title: 'HIPAA Compliance Policy', excerpt: 'PHI handling procedures, BAA requirements, audit controls, encryption standards, access control matrix.', spaceKey: 'HA' },
+    { type: 'confluence', title: 'PHI Data Classification Guide', excerpt: 'Data classification tiers, handling rules per tier, AI/ML pipeline considerations for PHI.', spaceKey: 'HA' },
   ],
   FINSERV: [
     { type: 'jira', key: 'FINSERV-1', title: 'Loan Document Processing Pipeline', excerpt: 'Implement AI-powered document extraction and classification for loan applications.', issueType: 'Epic', status: 'In Progress' },
     { type: 'jira', key: 'FINSERV-3', title: 'SOC2 Compliance Automation', excerpt: 'Automate SOC2 evidence collection and continuous monitoring.', issueType: 'Task', status: 'To Do' },
-    { type: 'confluence', title: 'SOC2 Control Matrix', excerpt: 'Complete mapping of SOC2 Type II controls to our AI infrastructure, including continuous monitoring requirements.', spaceKey: 'COMP' },
-    { type: 'confluence', title: 'PCI-DSS Tokenization Architecture', excerpt: 'Reference architecture for tokenizing payment card data before AI processing.', spaceKey: 'ARCH' },
+    { type: 'confluence', title: 'SOC2 Type II Control Matrix', excerpt: 'Complete mapping of SOC2 Type II controls to our AI infrastructure, including continuous monitoring requirements.', spaceKey: 'SD' },
+    { type: 'confluence', title: 'PCI-DSS Compliance Runbook', excerpt: 'Tokenization procedures, key management, network segmentation for AI workloads.', spaceKey: 'SD' },
+    { type: 'confluence', title: 'Financial Services AI Architecture', excerpt: 'Reference architecture for AI-powered financial services including document processing and compliance automation.', spaceKey: 'SD' },
   ],
 };
 
@@ -202,7 +204,7 @@ async function fetchViaGateway(projectKey: string): Promise<SearchResult[]> {
       }
     }
   } catch {
-    console.warn('[cross-product-search] JQL fallback failed');
+    console.warn('[cross-product-search] JQL supplement failed');
   }
 
   // Step 4: Filter Rovo Confluence results to the relevant space for this project
