@@ -685,17 +685,54 @@ async function main(): Promise<void> {
           provider = new ServerOAuthProvider(server);
         }
 
-        // Use the SDK's auth() to exchange the authorization code for tokens (with PKCE)
-        const result = await mcpAuth(provider, {
-          serverUrl: server.url!,
-          authorizationCode: code as string,
-          scope: server.oauthScopes?.join(' '),
-        });
-
-        if (result !== "AUTHORIZED") {
-          res.status(500).send("Token exchange did not result in authorization. Please try again.");
+        // Exchange authorization code for tokens directly (bypass SDK metadata discovery
+        // which interferes with Atlassian's non-standard OAuth endpoints)
+        const codeVerifier = await provider.codeVerifier();
+        const clientInfo = await provider.clientInformation();
+        if (!clientInfo) {
+          res.status(500).send("Missing OAuth client information. Please re-initiate the OAuth flow.");
           return;
         }
+
+        const tokenUrl = server.oauthTokenUrl ?? "https://auth.atlassian.com/oauth/token";
+        const tokenParams = new URLSearchParams({
+          grant_type: "authorization_code",
+          code: code as string,
+          redirect_uri: provider.redirectUrl,
+          client_id: clientInfo.client_id,
+          code_verifier: codeVerifier,
+        });
+        if (clientInfo.client_secret) {
+          tokenParams.set("client_secret", clientInfo.client_secret);
+        }
+
+        const tokenResponse = await fetch(tokenUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: tokenParams.toString(),
+        });
+
+        if (!tokenResponse.ok) {
+          const errorBody = await tokenResponse.text().catch(() => "");
+          console.error(`[oauth] Token exchange failed (HTTP ${tokenResponse.status}):`, errorBody);
+          res.status(500).send(`Token exchange failed: ${errorBody}`);
+          return;
+        }
+
+        const tokenData = await tokenResponse.json() as {
+          access_token: string;
+          token_type?: string;
+          expires_in?: number;
+          refresh_token?: string;
+          scope?: string;
+        };
+
+        await provider.saveTokens({
+          access_token: tokenData.access_token,
+          token_type: tokenData.token_type ?? "Bearer",
+          expires_in: tokenData.expires_in,
+          refresh_token: tokenData.refresh_token,
+        });
 
         // Clean up
         oauthTenantMap.delete(serverId);
