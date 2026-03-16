@@ -50,7 +50,7 @@ function toRecord(row: Record<string, unknown>): McpServerRecord {
     oauthTokenUrl: (row.oauth_token_url as string) ?? null,
     oauthAuthorizeUrl: (row.oauth_authorize_url as string) ?? null,
     oauthScopes: (row.oauth_scopes as string[]) ?? null,
-    oauthCodeVerifier: (row.oauth_code_verifier as string) ?? null,
+    oauthCodeVerifier: row.oauth_code_verifier ? decryptToken(row.oauth_code_verifier as string) : null,
   };
 }
 
@@ -263,7 +263,7 @@ export async function updateServerCodeVerifier(
   const { error } = await getSupabaseClient()
     .from("mcp_servers")
     .update({
-      oauth_code_verifier: codeVerifier,
+      oauth_code_verifier: codeVerifier ? encryptToken(codeVerifier) : null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
