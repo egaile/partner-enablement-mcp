@@ -3,25 +3,27 @@ import { loadConfig } from "../config.js";
 import { enrichAtlassianMetadata, type AtlassianMetadata } from "./atlassian-enricher.js";
 import type { UsageMeter } from "../billing/usage-meter.js";
 import type { AuditEntry } from "../schemas/index.js";
+import { CircularBuffer } from "./circular-buffer.js";
 
 export interface EnrichedAuditEntry extends AuditEntry {
   atlassianMetadata?: AtlassianMetadata;
 }
 
 export class AuditLogger {
-  private buffer: AuditEntry[] = [];
+  private buffer: CircularBuffer<AuditEntry>;
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private batchSize: number;
   private flushIntervalMs: number;
-  private maxBufferSize: number;
   private usageMeter: UsageMeter | null = null;
+  private lastSeenDropCount = 0;
 
   constructor(options?: { batchSize?: number; flushIntervalMs?: number; maxBufferSize?: number }) {
     const config = loadConfig();
     this.batchSize = options?.batchSize ?? config.auditBatchSize;
     this.flushIntervalMs =
       options?.flushIntervalMs ?? config.auditFlushIntervalMs;
-    this.maxBufferSize = options?.maxBufferSize ?? 10000;
+    const maxBufferSize = options?.maxBufferSize ?? 10000;
+    this.buffer = new CircularBuffer<AuditEntry>(maxBufferSize);
   }
 
   /**
@@ -48,14 +50,15 @@ export class AuditLogger {
   }
 
   log(entry: AuditEntry): void {
-    // Drop oldest entries if buffer is at capacity
-    if (this.buffer.length >= this.maxBufferSize) {
-      const dropped = this.buffer.length - this.maxBufferSize + 1;
-      this.buffer.splice(0, dropped);
-      console.warn(`[audit] Buffer overflow: dropped ${dropped} oldest entries`);
-    }
-
     this.buffer.push(entry);
+
+    // Warn when new entries have been dropped since we last checked
+    const currentDropped = this.buffer.dropped;
+    if (currentDropped > this.lastSeenDropCount) {
+      const newDrops = currentDropped - this.lastSeenDropCount;
+      console.warn(`[audit] Buffer overflow: dropped ${newDrops} oldest entries`);
+      this.lastSeenDropCount = currentDropped;
+    }
 
     // Record usage for billing
     if (this.usageMeter) {
@@ -98,15 +101,12 @@ export class AuditLogger {
   async flush(): Promise<void> {
     if (this.buffer.length === 0) return;
 
-    const batch = this.buffer.splice(0, this.batchSize);
+    const batch = this.buffer.drain(this.batchSize);
     try {
       await insertAuditEntries(batch);
     } catch (error) {
-      // Put failed entries back at the front for retry, respecting max buffer size
-      const available = this.maxBufferSize - this.buffer.length;
-      if (available > 0) {
-        this.buffer.unshift(...batch.slice(0, available));
-      }
+      // Put failed entries back at the front for retry
+      this.buffer.prepend(batch);
       throw error;
     }
   }
