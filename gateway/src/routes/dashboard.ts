@@ -47,7 +47,7 @@ export function createDashboardRouter(state: GatewayState): Router {
         const plan = getPlan(req.tenant!.plan ?? "starter");
 
         res.json({
-          servers,
+          servers: servers.map(s => ({ id: s.id, name: s.name, transport: s.transport, enabled: s.enabled })),
           serverHealth,
           recentAudit: auditResult,
           metrics,

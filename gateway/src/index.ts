@@ -69,6 +69,7 @@ async function main(): Promise<void> {
   // Rec 4: Engine idle timeout — evict engines with no activity for 60 minutes
   const ENGINE_IDLE_TTL_MS = 60 * 60 * 1000;
   const engineLastActivity = new Map<string, number>();
+  const pendingShutdowns = new Set<Promise<void>>();
 
   async function getOrCreateEngine(
     tenantId: string,
@@ -114,9 +115,10 @@ async function main(): Promise<void> {
         const engine = engines.get(tenantId);
         if (engine) {
           console.log(`[gateway] Evicting idle engine for tenant ${tenantId}`);
-          engine.shutdown().catch((err) => {
+          const p = engine.shutdown().catch((err) => {
             console.error(`[gateway] Error shutting down idle engine for ${tenantId}:`, err);
-          });
+          }).finally(() => pendingShutdowns.delete(p));
+          pendingShutdowns.add(p);
           engines.delete(tenantId);
         }
         engineLastActivity.delete(tenantId);
@@ -167,6 +169,9 @@ async function main(): Promise<void> {
         console.error("[gateway] Error during engine shutdown:", err);
       }
     }
+
+    // Wait for any in-flight idle eviction shutdowns
+    await Promise.allSettled(pendingShutdowns);
 
     // Close MCP transports
     for (const transport of mcpTransports.values()) {
