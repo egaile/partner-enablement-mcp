@@ -54,7 +54,6 @@ async function runHTTP(): Promise<void> {
   const port = parseInt(process.env.PORT || "3000");
 
   app.get("/health", (_req, res) => {
-    console.error(`Partner Enablement MCP Server running on http://localhost:${port}/mcp`);
     res.json({ status: "healthy", server: "partner-enablement-mcp-server" });
   });
 
@@ -164,7 +163,7 @@ async function runHTTP(): Promise<void> {
 // =============================================================================
 // Entry Point
 // =============================================================================
-const mode = process.argv[2];
+const mode = process.env.TRANSPORT || process.argv[2] || "stdio";
 
 if (mode === "http") {
   runHTTP().catch((error) => {
