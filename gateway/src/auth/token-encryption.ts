@@ -12,10 +12,19 @@ const IV_LENGTH = 12;
 const TAG_LENGTH = 16;
 const SALT = "mcp-gateway-token-salt"; // static salt is fine — key is already high entropy
 
+// Cache the derived key at module scope — scryptSync is intentionally slow
+// (~50-200ms) and the result is deterministic for a given env var + salt.
+let _cachedKey: Buffer | null | undefined;
+
 function getDerivedKey(): Buffer | null {
+  if (_cachedKey !== undefined) return _cachedKey;
   const envKey = process.env.TOKEN_ENCRYPTION_KEY;
-  if (!envKey) return null;
-  return scryptSync(envKey, SALT, 32);
+  if (!envKey) {
+    _cachedKey = null;
+    return null;
+  }
+  _cachedKey = scryptSync(envKey, SALT, 32);
+  return _cachedKey;
 }
 
 /**
