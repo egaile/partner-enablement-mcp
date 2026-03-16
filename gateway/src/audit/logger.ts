@@ -15,6 +15,7 @@ export class AuditLogger {
   private batchSize: number;
   private flushIntervalMs: number;
   private usageMeter: UsageMeter | null = null;
+  private lastSeenDropCount = 0;
 
   constructor(options?: { batchSize?: number; flushIntervalMs?: number; maxBufferSize?: number }) {
     const config = loadConfig();
@@ -49,13 +50,15 @@ export class AuditLogger {
   }
 
   log(entry: AuditEntry): void {
-    // CircularBuffer.push is O(1) — oldest entries are dropped on overflow
-    if (this.buffer.dropped > 0 && this.buffer.length === 0) {
-      // Log once when we start dropping (buffer was just full)
-      console.warn(`[audit] Buffer overflow: entries have been dropped`);
-    }
-
     this.buffer.push(entry);
+
+    // Warn when new entries have been dropped since we last checked
+    const currentDropped = this.buffer.dropped;
+    if (currentDropped > this.lastSeenDropCount) {
+      const newDrops = currentDropped - this.lastSeenDropCount;
+      console.warn(`[audit] Buffer overflow: dropped ${newDrops} oldest entries`);
+      this.lastSeenDropCount = currentDropped;
+    }
 
     // Record usage for billing
     if (this.usageMeter) {
