@@ -137,3 +137,66 @@ export const AuditEntrySchema = z.object({
 });
 
 export type AuditEntry = z.infer<typeof AuditEntrySchema>;
+
+// === REST Endpoint Validation (Rec 5) ===
+
+export const BulkAcknowledgeSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1, "At least one alert ID is required"),
+}).strict();
+
+export type BulkAcknowledgeInput = z.infer<typeof BulkAcknowledgeSchema>;
+
+export const CreateWebhookSchema = z.object({
+  url: z.string().url(),
+  secret: z.string().min(1),
+  events: z.array(z.string()).min(1),
+  enabled: z.boolean().default(true),
+}).strict();
+
+export type CreateWebhookInput = z.infer<typeof CreateWebhookSchema>;
+
+export const UpdateWebhookSchema = CreateWebhookSchema.partial();
+export type UpdateWebhookInput = z.infer<typeof UpdateWebhookSchema>;
+
+export const CreateApiKeySchema = z.object({
+  name: z.string().min(1).max(100),
+  expiresAt: z.string().datetime().nullable().optional(),
+}).strict();
+
+export type CreateApiKeyInput = z.infer<typeof CreateApiKeySchema>;
+
+export const InviteTeamMemberSchema = z.object({
+  clerkUserId: z.string().min(1),
+  role: z.enum(["owner", "admin", "member", "viewer"]),
+}).strict();
+
+export type InviteTeamMemberInput = z.infer<typeof InviteTeamMemberSchema>;
+
+export const UpdateMemberRoleSchema = z.object({
+  role: z.enum(["owner", "admin", "member", "viewer"]),
+}).strict();
+
+export type UpdateMemberRoleInput = z.infer<typeof UpdateMemberRoleSchema>;
+
+export const CheckoutSchema = z.object({
+  planId: z.string().min(1),
+  successUrl: z.string().url(),
+  cancelUrl: z.string().url(),
+}).strict();
+
+export type CheckoutInput = z.infer<typeof CheckoutSchema>;
+
+export const PortalSchema = z.object({
+  returnUrl: z.string().url(),
+}).strict();
+
+export type PortalInput = z.infer<typeof PortalSchema>;
+
+export const SimulatePolicySchema = z.object({
+  serverName: z.string().min(1),
+  toolName: z.string().min(1),
+  userId: z.string().optional(),
+  params: z.record(z.unknown()).optional(),
+}).strict();
+
+export type SimulatePolicyInput = z.infer<typeof SimulatePolicySchema>;

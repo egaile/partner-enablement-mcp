@@ -1,4 +1,5 @@
 import { getSupabaseClient } from "../client.js";
+import { encryptToken, decryptToken } from "../../auth/token-encryption.js";
 
 export interface McpServerRecord {
   id: string;
@@ -42,9 +43,9 @@ function toRecord(row: Record<string, unknown>): McpServerRecord {
     updatedAt: row.updated_at as string,
     authType: (row.auth_type as "static" | "oauth2") ?? "static",
     oauthClientId: (row.oauth_client_id as string) ?? null,
-    oauthClientSecret: (row.oauth_client_secret as string) ?? null,
-    oauthRefreshToken: (row.oauth_refresh_token as string) ?? null,
-    oauthAccessToken: (row.oauth_access_token as string) ?? null,
+    oauthClientSecret: row.oauth_client_secret ? decryptToken(row.oauth_client_secret as string) : null,
+    oauthRefreshToken: row.oauth_refresh_token ? decryptToken(row.oauth_refresh_token as string) : null,
+    oauthAccessToken: row.oauth_access_token ? decryptToken(row.oauth_access_token as string) : null,
     oauthTokenExpiresAt: (row.oauth_token_expires_at as string) ?? null,
     oauthTokenUrl: (row.oauth_token_url as string) ?? null,
     oauthAuthorizeUrl: (row.oauth_authorize_url as string) ?? null,
@@ -131,7 +132,7 @@ export async function createServer(
   };
 
   if (server.oauthClientId !== undefined) insert.oauth_client_id = server.oauthClientId;
-  if (server.oauthClientSecret !== undefined) insert.oauth_client_secret = server.oauthClientSecret;
+  if (server.oauthClientSecret !== undefined) insert.oauth_client_secret = encryptToken(server.oauthClientSecret);
   if (server.oauthTokenUrl !== undefined) insert.oauth_token_url = server.oauthTokenUrl;
   if (server.oauthAuthorizeUrl !== undefined) insert.oauth_authorize_url = server.oauthAuthorizeUrl;
   if (server.oauthScopes !== undefined) insert.oauth_scopes = server.oauthScopes;
@@ -184,7 +185,7 @@ export async function updateServer(
   if (authHeaders !== undefined) dbUpdates.auth_headers = authHeaders;
   if (authType !== undefined) dbUpdates.auth_type = authType;
   if (oauthClientId !== undefined) dbUpdates.oauth_client_id = oauthClientId;
-  if (oauthClientSecret !== undefined) dbUpdates.oauth_client_secret = oauthClientSecret;
+  if (oauthClientSecret !== undefined) dbUpdates.oauth_client_secret = encryptToken(oauthClientSecret);
   if (oauthTokenUrl !== undefined) dbUpdates.oauth_token_url = oauthTokenUrl;
   if (oauthAuthorizeUrl !== undefined) dbUpdates.oauth_authorize_url = oauthAuthorizeUrl;
   if (oauthScopes !== undefined) dbUpdates.oauth_scopes = oauthScopes;
@@ -214,7 +215,7 @@ export async function updateServerOAuthClientRegistration(
     updated_at: new Date().toISOString(),
   };
   if (info.oauthClientSecret !== undefined) {
-    updates.oauth_client_secret = info.oauthClientSecret;
+    updates.oauth_client_secret = info.oauthClientSecret ? encryptToken(info.oauthClientSecret) : null;
   }
   const { error } = await getSupabaseClient()
     .from("mcp_servers")
@@ -240,8 +241,8 @@ export async function updateServerOAuthTokens(
   const { error } = await getSupabaseClient()
     .from("mcp_servers")
     .update({
-      oauth_access_token: tokens.oauthAccessToken,
-      oauth_refresh_token: tokens.oauthRefreshToken,
+      oauth_access_token: tokens.oauthAccessToken ? encryptToken(tokens.oauthAccessToken) : null,
+      oauth_refresh_token: tokens.oauthRefreshToken ? encryptToken(tokens.oauthRefreshToken) : null,
       oauth_token_expires_at: tokens.oauthTokenExpiresAt,
       updated_at: new Date().toISOString(),
     })
