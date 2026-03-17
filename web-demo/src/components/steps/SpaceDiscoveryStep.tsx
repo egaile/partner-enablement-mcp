@@ -18,7 +18,8 @@ export function SpaceDiscoveryStep({ data, isGenerating, requestParams }: SpaceD
     return (
       <div className="space-y-5 animate-fade-in">
         <SecurityPipeline
-          toolName="space_discovery"
+          toolName="getConfluenceSpaces"
+          narrativeKey="space_discovery"
           parameters={requestParams}
           isGenerating={isGenerating}
         />

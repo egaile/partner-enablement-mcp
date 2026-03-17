@@ -20,6 +20,8 @@ import { LiveDataBadge } from './LiveDataBadge';
 
 interface SecurityPipelineProps {
   toolName: string;
+  /** Optional key to look up TOOL_NARRATIVES when it differs from toolName */
+  narrativeKey?: string;
   parameters?: Record<string, unknown>;
   isGenerating?: boolean;
   isWriteOperation?: boolean;
@@ -41,6 +43,7 @@ type StageStatus = 'pending' | 'processing' | 'passed' | 'blocked';
 
 export function SecurityPipeline({
   toolName,
+  narrativeKey,
   parameters,
   isGenerating,
   isWriteOperation,
@@ -54,7 +57,7 @@ export function SecurityPipeline({
   const [showParams, setShowParams] = useState(false);
   const [animationComplete, setAnimationComplete] = useState(false);
 
-  const narrative = TOOL_NARRATIVES[toolName];
+  const narrative = TOOL_NARRATIVES[narrativeKey ?? toolName];
 
   // Animate stages sequentially when generating
   useEffect(() => {
