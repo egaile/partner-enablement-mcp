@@ -29,8 +29,44 @@ async function fetchViaGateway(spaceId: string, pageIds: string[]): Promise<Page
   const allPages = new Map<string, PageInfo>();
   const pageDetails: Record<string, { wordCount: number; lastModified?: string }> = {};
 
-  // Step 1: For each root page, fetch descendants
+  // Step 1: Fetch each root page's own data AND its descendants
   for (const pageId of pageIds) {
+    // 1a: Fetch the root page itself so it appears in allPages
+    try {
+      const pageResult = await callTool(rovo('getConfluencePage'), {
+        cloudId: CLOUD_ID,
+        pageId,
+        contentFormat: 'markdown',
+      });
+
+      if (!pageResult.isError) {
+        const pageText = extractText(pageResult);
+        console.log(`[page-tree] getConfluencePage raw (${pageId}):`, pageText.slice(0, 300));
+        const pageData = JSON.parse(pageText);
+        const body = (pageData?.body?.storage?.value as string) ??
+          (pageData?.body?.view?.value as string) ??
+          (typeof pageData?.body === 'string' ? pageData.body : '') ?? '';
+        const wordCount = body.split(/\s+/).filter(Boolean).length;
+        const lastMod = (pageData?.version?.when as string) ??
+          (pageData?.version?.createdAt as string) ??
+          (pageData?.lastModifiedDate as string) ?? undefined;
+
+        allPages.set(pageId, {
+          id: pageId,
+          title: (pageData?.title as string) ?? '',
+          spaceId,
+          parentId: pageData?.parentId ? String(pageData.parentId) : undefined,
+          status: (pageData?.status as string) ?? 'current',
+          lastModified: lastMod,
+          wordCount,
+        });
+        pageDetails[pageId] = { wordCount, lastModified: lastMod };
+      }
+    } catch (err) {
+      console.warn(`[page-tree] Failed to fetch page ${pageId}:`, err instanceof Error ? err.message : err);
+    }
+
+    // 1b: Fetch descendants
     try {
       const descResult = await callTool(rovo('getConfluencePageDescendants'), {
         cloudId: CLOUD_ID,
@@ -40,6 +76,7 @@ async function fetchViaGateway(spaceId: string, pageIds: string[]): Promise<Page
 
       if (!descResult.isError) {
         const descText = extractText(descResult);
+        console.log(`[page-tree] descendants raw (${pageId}):`, descText.slice(0, 300));
         const descData = JSON.parse(descText);
         const rawChildren = descData?.results ?? descData ?? [];
 
@@ -61,51 +98,7 @@ async function fetchViaGateway(spaceId: string, pageIds: string[]): Promise<Page
     }
   }
 
-  // Step 2: Fetch page content for key pages to get word counts
-  const pagesToFetch = pageIds.slice(0, 10); // limit to avoid too many calls
-  for (const pageId of pagesToFetch) {
-    try {
-      const pageResult = await callTool(rovo('getConfluencePage'), {
-        cloudId: CLOUD_ID,
-        pageId,
-        contentFormat: 'markdown',
-      });
-
-      if (!pageResult.isError) {
-        const pageText = extractText(pageResult);
-        const pageData = JSON.parse(pageText);
-        const body = (pageData?.body?.storage?.value as string) ??
-          (pageData?.body?.view?.value as string) ??
-          (pageData?.body as string) ?? '';
-        const wordCount = body.split(/\s+/).filter(Boolean).length;
-        const lastMod = (pageData?.version?.when as string) ??
-          (pageData?.lastModifiedDate as string) ?? undefined;
-
-        pageDetails[pageId] = { wordCount, lastModified: lastMod };
-
-        // Also store the page itself if not already in allPages
-        if (!allPages.has(pageId)) {
-          allPages.set(pageId, {
-            id: pageId,
-            title: (pageData?.title as string) ?? '',
-            spaceId,
-            parentId: pageData?.parentId ? String(pageData.parentId) : undefined,
-            status: (pageData?.status as string) ?? 'current',
-            lastModified: lastMod,
-            wordCount,
-          });
-        } else {
-          const existing = allPages.get(pageId)!;
-          existing.wordCount = wordCount;
-          existing.lastModified = lastMod ?? existing.lastModified;
-        }
-      }
-    } catch (err) {
-      console.warn(`[page-tree] Failed to fetch page ${pageId}:`, err instanceof Error ? err.message : err);
-    }
-  }
-
-  // Also fetch word counts for child pages (up to 10 more)
+  // Step 2: Fetch word counts for child pages (up to 10)
   const childIds = Array.from(allPages.keys()).filter((id) => !pageIds.includes(id)).slice(0, 10);
   for (const childId of childIds) {
     try {
@@ -120,9 +113,10 @@ async function fetchViaGateway(spaceId: string, pageIds: string[]): Promise<Page
         const pageData = JSON.parse(pageText);
         const body = (pageData?.body?.storage?.value as string) ??
           (pageData?.body?.view?.value as string) ??
-          (pageData?.body as string) ?? '';
+          (typeof pageData?.body === 'string' ? pageData.body : '') ?? '';
         const wordCount = body.split(/\s+/).filter(Boolean).length;
         const lastMod = (pageData?.version?.when as string) ??
+          (pageData?.version?.createdAt as string) ??
           (pageData?.lastModifiedDate as string) ?? undefined;
 
         pageDetails[childId] = { wordCount, lastModified: lastMod };
@@ -135,6 +129,13 @@ async function fetchViaGateway(spaceId: string, pageIds: string[]): Promise<Page
     } catch {
       // skip silently
     }
+  }
+
+  console.log(`[page-tree] Gateway collected ${allPages.size} pages for roots [${pageIds.join(', ')}]`);
+
+  // If no pages were collected, the gateway responses couldn't be parsed — throw to trigger mock fallback
+  if (allPages.size === 0) {
+    throw new Error('Gateway returned no parseable page data');
   }
 
   // Step 3: Build tree structure
@@ -198,12 +199,14 @@ function buildTree(
   };
 }
 
-function getMockData(spaceId: string, pageIds: string[]): PageTreeData {
+function getMockData(spaceId: string, _pageIds: string[]): PageTreeData {
   const pages = new Map<string, PageInfo>();
 
-  // Homepage
-  pages.set('page-001', {
-    id: 'page-001',
+  // Homepage — always the mock root regardless of input pageIds
+  const rootId = 'page-001';
+
+  pages.set(rootId, {
+    id: rootId,
     title: 'Healthcare AI Homepage',
     spaceId,
     status: 'current',
@@ -219,7 +222,7 @@ function getMockData(spaceId: string, pageIds: string[]): PageTreeData {
     id: 'page-002',
     title: 'AI Assistant Requirements',
     spaceId,
-    parentId: 'page-001',
+    parentId: rootId,
     status: 'current',
     lastModified: '2026-03-08T10:30:00.000Z',
     authorName: 'Mike Johnson',
@@ -232,7 +235,7 @@ function getMockData(spaceId: string, pageIds: string[]): PageTreeData {
     id: 'page-003',
     title: 'Healthcare AI Reference Architecture',
     spaceId,
-    parentId: 'page-001',
+    parentId: rootId,
     status: 'current',
     lastModified: '2026-02-28T16:45:00.000Z',
     authorName: 'Sarah Chen',
@@ -245,7 +248,7 @@ function getMockData(spaceId: string, pageIds: string[]): PageTreeData {
     id: 'page-006',
     title: 'HIPAA Compliance Policy',
     spaceId,
-    parentId: 'page-001',
+    parentId: rootId,
     status: 'current',
     lastModified: '2026-03-12T08:00:00.000Z',
     authorName: 'Sarah Chen',
@@ -258,7 +261,7 @@ function getMockData(spaceId: string, pageIds: string[]): PageTreeData {
     id: 'page-007',
     title: 'PHI Data Classification Guide',
     spaceId,
-    parentId: 'page-001',
+    parentId: rootId,
     status: 'current',
     lastModified: '2026-02-10T13:30:00.000Z',
     authorName: 'David Park',
@@ -302,10 +305,8 @@ function getMockData(spaceId: string, pageIds: string[]): PageTreeData {
     };
   }
 
-  // Use provided pageIds as roots, or default to homepage
-  const rootIds = pageIds.length > 0 ? pageIds : ['page-001'];
-
-  return buildTree(rootIds, pages, pageDetails, spaceId, 'mock');
+  // Always use mock's own root — caller's pageIds are real Confluence IDs that don't match mock data
+  return buildTree([rootId], pages, pageDetails, spaceId, 'mock');
 }
 
 export async function POST(request: Request) {
