@@ -1,19 +1,34 @@
-import { Play, Zap, Layers, Clock } from 'lucide-react';
+'use client';
+
+import { useState } from 'react';
+import { Play, Zap, Layers, Clock, ChevronLeft, Wrench, BookOpen, Users } from 'lucide-react';
 import { Card } from './ui/Card';
 import { ArchitectureDiagram } from './ArchitectureDiagram';
-import { HERO_COPY, EXPLAINER_CARDS, LIVE_INTEGRATION_COPY, SCENARIOS, TAG_COLORS } from '@/lib/constants';
-import type { Industry } from '@/types/api';
+import { HERO_COPY, EXPLAINER_CARDS, LIVE_INTEGRATION_COPY, SCENARIOS, TAG_COLORS, WORKFLOWS } from '@/lib/constants';
+import type { Industry, WorkflowId } from '@/types/api';
 
 interface HeroLandingProps {
-  onSelectIndustry: (industry: Industry) => void;
+  onStart: (workflow: WorkflowId, industry: Industry) => void;
 }
 
-export function HeroLanding({ onSelectIndustry }: HeroLandingProps) {
+const WORKFLOW_ICONS: Record<WorkflowId, React.ReactNode> = {
+  'deployment-planning': <Wrench className="w-5 h-5" />,
+  'knowledge-audit': <BookOpen className="w-5 h-5" />,
+  'sprint-operations': <Users className="w-5 h-5" />,
+};
+
+export function HeroLanding({ onStart }: HeroLandingProps) {
+  const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowId | null>(null);
+
   const explainerIcons = [
     <Zap key="zap" className="w-5 h-5 text-claude-orange" />,
     <Layers key="layers" className="w-5 h-5 text-claude-orange" />,
     <Clock key="clock" className="w-5 h-5 text-claude-orange" />,
   ];
+
+  const activeWorkflow = selectedWorkflow
+    ? WORKFLOWS.find((w) => w.id === selectedWorkflow)
+    : null;
 
   return (
     <div className="animate-fade-in">
@@ -65,40 +80,108 @@ export function HeroLanding({ onSelectIndustry }: HeroLandingProps) {
         <p className="text-sm text-green-800">{LIVE_INTEGRATION_COPY}</p>
       </div>
 
-      {/* Scenario Cards */}
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Select a Client Scenario</h3>
-      <div className="grid md:grid-cols-2 gap-5">
-        {SCENARIOS.map((scenario) => (
-          <button
-            key={scenario.industry}
-            onClick={() => onSelectIndustry(scenario.industry)}
-            className="group text-left bg-white rounded-xl border border-gray-200 p-6 hover:border-claude-orange/40 hover:shadow-lg hover:shadow-orange-500/5 transition-all duration-200"
-          >
-            <h4 className="font-semibold text-gray-900 mb-2 group-hover:text-claude-orange transition-colors">
-              {scenario.title}
-            </h4>
-            <p className="text-sm text-gray-600 mb-4 leading-relaxed">
-              {scenario.description}
-            </p>
-            <div className="flex items-center justify-between">
-              <div className="flex flex-wrap gap-1.5">
-                <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded font-mono">
-                  {scenario.projectKey}
+      {/* Workflow Selector */}
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">Choose a Workflow</h3>
+      <div className="grid md:grid-cols-3 gap-4 mb-8">
+        {WORKFLOWS.map((workflow) => {
+          const isSelected = selectedWorkflow === workflow.id;
+          return (
+            <button
+              key={workflow.id}
+              onClick={() => setSelectedWorkflow(isSelected ? null : workflow.id)}
+              className={`group text-left rounded-xl border p-5 transition-all duration-200 ${
+                isSelected
+                  ? 'border-claude-orange bg-orange-50/50 shadow-md shadow-orange-500/10'
+                  : 'border-gray-200 bg-white hover:border-claude-orange/40 hover:shadow-lg hover:shadow-orange-500/5'
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <div className={`p-1.5 rounded-lg ${isSelected ? 'bg-claude-orange/10 text-claude-orange' : 'bg-gray-100 text-gray-500 group-hover:text-claude-orange'}`}>
+                  {WORKFLOW_ICONS[workflow.id]}
+                </div>
+                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                  isSelected ? 'bg-claude-orange/10 text-claude-orange' : 'bg-gray-100 text-gray-500'
+                }`}>
+                  {workflow.persona}
                 </span>
-                {scenario.tags.map((tag) => (
-                  <span
-                    key={tag.label}
-                    className={`text-xs px-2 py-0.5 rounded-full font-medium ${TAG_COLORS[tag.color] || TAG_COLORS.gray}`}
-                  >
-                    {tag.label}
-                  </span>
-                ))}
               </div>
-              <Play className="w-4 h-4 text-gray-300 group-hover:text-claude-orange transition-colors" />
-            </div>
-          </button>
-        ))}
+              <h4 className={`font-semibold mb-1 transition-colors ${isSelected ? 'text-claude-orange' : 'text-gray-900 group-hover:text-claude-orange'}`}>
+                {workflow.name}
+              </h4>
+              <p className="text-xs text-gray-500 mb-3 leading-relaxed line-clamp-2">
+                {workflow.description}
+              </p>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-gray-400">{workflow.steps.length} steps</span>
+                <span className="text-gray-300">&middot;</span>
+                <span className="text-gray-400">{workflow.toolCount} tools</span>
+                <span className="text-gray-300">&middot;</span>
+                <span className="text-gray-400 capitalize">
+                  {workflow.selectorType === 'jira-project' ? 'Jira' : 'Confluence'}
+                </span>
+              </div>
+            </button>
+          );
+        })}
       </div>
+
+      {/* Scenario Cards — shown when workflow is selected */}
+      {activeWorkflow && (
+        <div className="animate-fade-in">
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              onClick={() => setSelectedWorkflow(null)}
+              className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <h3 className="text-lg font-semibold text-gray-900">
+              Select a Client Scenario
+            </h3>
+            <span className="text-sm text-gray-400">
+              for {activeWorkflow.name}
+            </span>
+          </div>
+          <div className="grid md:grid-cols-2 gap-5">
+            {SCENARIOS.map((scenario) => (
+              <button
+                key={scenario.industry}
+                onClick={() => onStart(activeWorkflow.id, scenario.industry)}
+                className="group text-left bg-white rounded-xl border border-gray-200 p-6 hover:border-claude-orange/40 hover:shadow-lg hover:shadow-orange-500/5 transition-all duration-200"
+              >
+                <h4 className="font-semibold text-gray-900 mb-2 group-hover:text-claude-orange transition-colors">
+                  {scenario.title}
+                </h4>
+                <p className="text-sm text-gray-600 mb-4 leading-relaxed">
+                  {scenario.description}
+                </p>
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap gap-1.5">
+                    {activeWorkflow.selectorType === 'jira-project' ? (
+                      <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded font-mono">
+                        {scenario.projectKey}
+                      </span>
+                    ) : (
+                      <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded font-mono">
+                        Space: {scenario.spaceKey}
+                      </span>
+                    )}
+                    {scenario.tags.map((tag) => (
+                      <span
+                        key={tag.label}
+                        className={`text-xs px-2 py-0.5 rounded-full font-medium ${TAG_COLORS[tag.color] || TAG_COLORS.gray}`}
+                      >
+                        {tag.label}
+                      </span>
+                    ))}
+                  </div>
+                  <Play className="w-4 h-4 text-gray-300 group-hover:text-claude-orange transition-colors" />
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

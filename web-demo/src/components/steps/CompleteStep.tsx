@@ -1,22 +1,16 @@
-import { CheckCircle2, RotateCcw, Github, Linkedin, ExternalLink, Shield, ShieldCheck, Eye, BookOpen } from 'lucide-react';
-import type { ProjectContextData, ArchitectureData, ComplianceData, PlanData, SearchData, HealthData, AgentActionsData } from '@/types/api';
+import { CheckCircle2, RotateCcw, Github, Linkedin, ExternalLink, ShieldCheck, Eye, BookOpen } from 'lucide-react';
+import type { DemoData, WorkflowId } from '@/types/api';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
+import { getToolsForWorkflow, getAllUsedToolCount, ROVO_TOOLS } from '@/lib/rovo-tools';
+import { getWorkflowConfig, WORKFLOWS } from '@/lib/constants';
 
 interface CompleteStepProps {
-  data: {
-    context: ProjectContextData | null;
-    search: SearchData | null;
-    health: HealthData | null;
-    architecture: ArchitectureData | null;
-    compliance: ComplianceData | null;
-    plan: PlanData | null;
-    actions: AgentActionsData | null;
-  };
+  data: DemoData;
+  workflowId: WorkflowId;
   onStartOver: () => void;
 }
 
-// Tool usage tracking for the matrix
 interface ToolUsageEntry {
   tool: string;
   step: string;
@@ -24,95 +18,119 @@ interface ToolUsageEntry {
   type: 'read' | 'write';
 }
 
-function getToolUsageMatrix(data: CompleteStepProps['data']): ToolUsageEntry[] {
+function getToolUsageMatrix(data: CompleteStepProps['data'], workflowId: WorkflowId): ToolUsageEntry[] {
   const entries: ToolUsageEntry[] = [];
 
-  // Context step (3 tool calls + expandable issue details)
-  entries.push({ tool: 'getAccessibleAtlassianResources', step: 'Context', count: 1, type: 'read' });
-  entries.push({ tool: 'getVisibleJiraProjects', step: 'Context', count: 1, type: 'read' });
-  entries.push({ tool: 'searchJiraIssuesUsingJql', step: 'Context', count: 1, type: 'read' });
-  entries.push({ tool: 'getJiraIssue', step: 'Context', count: 1, type: 'read' });
-
-  // Search step
-  entries.push({ tool: 'search (Rovo)', step: 'Search', count: 1, type: 'read' });
-  entries.push({ tool: 'searchJiraIssuesUsingJql', step: 'Health', count: 4, type: 'read' });
-
-  // Architecture step
-  if (data.architecture?.confluenceContext && data.architecture.confluenceContext.length > 0) {
-    entries.push({ tool: 'searchConfluenceUsingCql', step: 'Architecture', count: 1, type: 'read' });
-    entries.push({ tool: 'getConfluencePage', step: 'Architecture', count: data.architecture.confluenceContext.length, type: 'read' });
-  }
-
-  // Compliance step
-  if (data.compliance?.documentCoverage && data.compliance.documentCoverage.length > 0) {
-    entries.push({ tool: 'searchConfluenceUsingCql', step: 'Compliance', count: data.compliance.documentCoverage.length, type: 'read' });
-  }
-
-  // Actions step
-  if (data.actions) {
-    for (const action of data.actions.actions) {
-      entries.push({
-        tool: action.toolUsed,
-        step: 'Actions',
-        count: 1,
-        type: 'write',
-      });
+  if (workflowId === 'deployment-planning') {
+    entries.push({ tool: 'getAccessibleAtlassianResources', step: 'Context', count: 1, type: 'read' });
+    entries.push({ tool: 'getVisibleJiraProjects', step: 'Context', count: 1, type: 'read' });
+    entries.push({ tool: 'searchJiraIssuesUsingJql', step: 'Context', count: 1, type: 'read' });
+    entries.push({ tool: 'getJiraIssue', step: 'Context', count: 1, type: 'read' });
+    entries.push({ tool: 'search (Rovo)', step: 'Search', count: 1, type: 'read' });
+    entries.push({ tool: 'searchJiraIssuesUsingJql', step: 'Health', count: 4, type: 'read' });
+    if (data.architecture?.confluenceContext && data.architecture.confluenceContext.length > 0) {
+      entries.push({ tool: 'searchConfluenceUsingCql', step: 'Architecture', count: 1, type: 'read' });
+      entries.push({ tool: 'getConfluencePage', step: 'Architecture', count: data.architecture.confluenceContext.length, type: 'read' });
+    }
+    if (data.compliance?.documentCoverage && data.compliance.documentCoverage.length > 0) {
+      entries.push({ tool: 'searchConfluenceUsingCql', step: 'Compliance', count: data.compliance.documentCoverage.length, type: 'read' });
+    }
+    if (data.actions) {
+      for (const action of data.actions.actions) {
+        entries.push({ tool: action.toolUsed, step: 'Actions', count: 1, type: 'write' });
+      }
+    }
+  } else if (workflowId === 'knowledge-audit') {
+    entries.push({ tool: 'getAccessibleAtlassianResources', step: 'Space Discovery', count: 1, type: 'read' });
+    entries.push({ tool: 'getConfluenceSpaces', step: 'Space Discovery', count: 1, type: 'read' });
+    entries.push({ tool: 'getPagesInConfluenceSpace', step: 'Space Discovery', count: 1, type: 'read' });
+    if (data['page-tree']) {
+      entries.push({ tool: 'getConfluencePageDescendants', step: 'Page Tree', count: data['page-tree'].totalPages, type: 'read' });
+      entries.push({ tool: 'getConfluencePage', step: 'Page Tree', count: data['page-tree'].totalPages, type: 'read' });
+    }
+    if (data['comment-audit']) {
+      const pageCount = data['comment-audit'].pagesWithComments + data['comment-audit'].pagesWithoutComments;
+      entries.push({ tool: 'getConfluencePageFooterComments', step: 'Comment Audit', count: pageCount, type: 'read' });
+      entries.push({ tool: 'getConfluencePageInlineComments', step: 'Comment Audit', count: pageCount, type: 'read' });
+      if (data['comment-audit'].footerComments.some((c) => c.replyCount && c.replyCount > 0)) {
+        entries.push({ tool: 'getConfluenceCommentChildren', step: 'Comment Audit', count: 1, type: 'read' });
+      }
+    }
+    if (data['knowledge-actions']) {
+      for (const action of data['knowledge-actions'].actions) {
+        entries.push({ tool: action.toolUsed, step: 'Agent Actions', count: 1, type: 'write' });
+      }
+    }
+  } else if (workflowId === 'sprint-operations') {
+    entries.push({ tool: 'getAccessibleAtlassianResources', step: 'Sprint Context', count: 1, type: 'read' });
+    entries.push({ tool: 'getVisibleJiraProjects', step: 'Sprint Context', count: 1, type: 'read' });
+    entries.push({ tool: 'getJiraProjectIssueTypesMetadata', step: 'Sprint Context', count: 1, type: 'read' });
+    entries.push({ tool: 'getJiraIssueTypeMetaWithFields', step: 'Sprint Context', count: 1, type: 'read' });
+    if (data['issue-deep-dive']) {
+      entries.push({ tool: 'searchJiraIssuesUsingJql', step: 'Issue Deep Dive', count: 1, type: 'read' });
+      entries.push({ tool: 'getJiraIssue', step: 'Issue Deep Dive', count: data['issue-deep-dive'].issues.length, type: 'read' });
+      entries.push({ tool: 'getJiraIssueRemoteIssueLinks', step: 'Issue Deep Dive', count: data['issue-deep-dive'].issues.length, type: 'read' });
+      entries.push({ tool: 'jiraRead (getIssueLinkTypes)', step: 'Issue Deep Dive', count: 1, type: 'read' });
+    }
+    if (data['team-lookup']) {
+      entries.push({ tool: 'lookupJiraAccountId', step: 'Team Lookup', count: 1, type: 'read' });
+    }
+    if (data['sprint-actions']) {
+      for (const action of data['sprint-actions'].actions) {
+        entries.push({ tool: action.toolUsed, step: 'Sprint Actions', count: 1, type: 'write' });
+      }
     }
   }
 
   return entries;
 }
 
-export function CompleteStep({ data, onStartOver }: CompleteStepProps) {
-  const toolUsage = getToolUsageMatrix(data);
+function getSummaryCards(data: DemoData, workflowId: WorkflowId) {
+  if (workflowId === 'deployment-planning') {
+    return [
+      { title: 'Project Context', stat: data.context ? `${data.context.summary.totalIssues} issues analyzed` : 'Completed', tools: ['getVisibleJiraProjects', 'searchJiraIssuesUsingJql'] },
+      { title: 'Cross-Product Search', stat: data.search ? `${data.search.results.length} results found` : 'Completed', tools: ['search (Rovo)'] },
+      { title: 'Project Health', stat: data.health ? `Readiness: ${data.health.readinessScore}/100` : 'Completed', tools: ['searchJiraIssuesUsingJql x4'] },
+      { title: 'Architecture', stat: data.architecture?.patternName || 'Pattern generated', tools: ['searchConfluenceUsingCql', 'getConfluencePage'] },
+      { title: 'Compliance', stat: data.compliance ? `${data.compliance.applicableFrameworks.length} frameworks assessed` : 'Completed', tools: ['searchConfluenceUsingCql'] },
+      { title: 'Implementation Plan', stat: data.plan ? `${data.plan.summary.totalWeeks}-week plan` : 'Completed', tools: ['knowledge_base'] },
+      ...(data.actions ? [{ title: 'Agent Actions', stat: `${data.actions.actions.filter((a) => a.success).length}/${data.actions.actions.length} succeeded`, tools: Array.from(new Set(data.actions.actions.map((a) => a.toolUsed))) }] : []),
+    ];
+  } else if (workflowId === 'knowledge-audit') {
+    return [
+      { title: 'Space Discovery', stat: data['space-discovery'] ? `${data['space-discovery'].pages.length} pages found` : 'Completed', tools: ['getConfluenceSpaces', 'getPagesInConfluenceSpace'] },
+      { title: 'Page Tree', stat: data['page-tree'] ? `${data['page-tree'].totalPages} pages, depth ${data['page-tree'].maxDepth}` : 'Completed', tools: ['getConfluencePageDescendants', 'getConfluencePage'] },
+      { title: 'Comment Audit', stat: data['comment-audit'] ? `${data['comment-audit'].totalComments} comments found` : 'Completed', tools: ['getConfluencePageFooterComments', 'getConfluencePageInlineComments'] },
+      { title: 'Health Scoring', stat: data['health-scoring'] ? `Avg: ${data['health-scoring'].averageScore}/100` : 'Completed', tools: ['local computation'] },
+      ...(data['knowledge-actions'] ? [{ title: 'Agent Actions', stat: `${data['knowledge-actions'].actions.filter((a) => a.success).length}/${data['knowledge-actions'].actions.length} succeeded`, tools: Array.from(new Set(data['knowledge-actions'].actions.map((a) => a.toolUsed))) }] : []),
+    ];
+  } else {
+    return [
+      { title: 'Sprint Context', stat: data['sprint-context'] ? `${data['sprint-context'].selectedProject.issueTypes.length} issue types` : 'Completed', tools: ['getJiraProjectIssueTypesMetadata'] },
+      { title: 'Issue Deep Dive', stat: data['issue-deep-dive'] ? `${data['issue-deep-dive'].totalInProgress} in progress` : 'Completed', tools: ['getJiraIssue', 'getJiraIssueRemoteIssueLinks'] },
+      { title: 'Team Lookup', stat: data['team-lookup'] ? `${data['team-lookup'].members.length} members found` : 'Completed', tools: ['lookupJiraAccountId'] },
+      ...(data['sprint-actions'] ? [{ title: 'Sprint Actions', stat: `${data['sprint-actions'].actions.filter((a) => a.success).length}/${data['sprint-actions'].actions.length} succeeded`, tools: Array.from(new Set(data['sprint-actions'].actions.map((a) => a.toolUsed))) }] : []),
+    ];
+  }
+}
+
+export function CompleteStep({ data, workflowId, onStartOver }: CompleteStepProps) {
+  const toolUsage = getToolUsageMatrix(data, workflowId);
   const totalCalls = toolUsage.reduce((sum, e) => sum + e.count, 0);
   const uniqueTools = new Set(toolUsage.map((e) => e.tool)).size;
-  const writeOps = toolUsage.filter((e) => e.type === 'write');
-  const blockedOps = data.actions?.actions.filter((a) => a.policyBlocked)?.length ?? 0;
+  const workflowConfig = getWorkflowConfig(workflowId);
 
-  const summaryCards = [
-    {
-      title: 'Project Context',
-      stat: data.context ? `${data.context.summary.totalIssues} issues analyzed` : 'Completed',
-      tools: ['getVisibleJiraProjects', 'searchJiraIssuesUsingJql', 'getJiraIssue'],
-    },
-    {
-      title: 'Cross-Product Search',
-      stat: data.search ? `${data.search.results.length} results found` : 'Completed',
-      tools: ['search (Rovo)'],
-    },
-    {
-      title: 'Project Health',
-      stat: data.health ? `Readiness: ${data.health.readinessScore}/100` : 'Completed',
-      tools: ['searchJiraIssuesUsingJql x4'],
-    },
-    {
-      title: 'Architecture',
-      stat: data.architecture?.patternName || 'Pattern generated',
-      tools: ['searchConfluenceUsingCql', 'getConfluencePage'],
-    },
-    {
-      title: 'Compliance',
-      stat: data.compliance
-        ? `${data.compliance.applicableFrameworks.length} frameworks assessed`
-        : 'Completed',
-      tools: ['searchConfluenceUsingCql'],
-    },
-    {
-      title: 'Implementation Plan',
-      stat: data.plan ? `${data.plan.summary.totalWeeks}-week plan` : 'Completed',
-      tools: ['knowledge_base'],
-    },
-    ...(data.actions
-      ? [
-          {
-            title: 'Agent Actions',
-            stat: `${data.actions.actions.filter((a) => a.success).length}/${data.actions.actions.length} succeeded`,
-            tools: Array.from(new Set(data.actions.actions.map((a) => a.toolUsed))),
-          },
-        ]
-      : []),
-  ];
+  // Cross-workflow coverage
+  const workflowTools = getToolsForWorkflow(workflowId);
+  const allUsedCount = getAllUsedToolCount();
+  const totalAvailable = ROVO_TOOLS.filter((t) => t.available).length;
+
+  // Blocked ops across workflows
+  const blockedOps = (data.actions?.actions.filter((a) => a.policyBlocked)?.length ?? 0)
+    + (data['knowledge-actions']?.actions.filter((a) => a.policyBlocked)?.length ?? 0)
+    + (data['sprint-actions']?.actions.filter((a) => a.policyBlocked)?.length ?? 0);
+
+  const summaryCards = getSummaryCards(data, workflowId);
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -121,12 +139,58 @@ export function CompleteStep({ data, onStartOver }: CompleteStepProps) {
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <CheckCircle2 className="w-8 h-8 text-green-600" />
         </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Demo Complete</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">{workflowConfig.name} Complete</h2>
         <p className="text-gray-500 max-w-lg mx-auto text-sm">
           {uniqueTools} unique Rovo tools executed across {totalCalls} calls through the MCP Security Gateway,
           producing structured enterprise deliverables from live Atlassian data.
         </p>
       </div>
+
+      {/* Tool Coverage Progress */}
+      <Card className="!p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <Eye className="w-5 h-5 text-claude-orange" />
+          <h3 className="font-semibold text-gray-900">Rovo Tool Coverage</h3>
+        </div>
+        <div className="grid grid-cols-3 gap-4 mb-4">
+          <div className="text-center">
+            <p className="text-2xl font-bold text-claude-orange">{workflowTools.length}</p>
+            <p className="text-xs text-gray-500">Tools in this workflow</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-gray-900">{allUsedCount}</p>
+            <p className="text-xs text-gray-500">Tools across all workflows</p>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-gray-900">{totalAvailable}</p>
+            <p className="text-xs text-gray-500">Available Rovo tools</p>
+          </div>
+        </div>
+        {/* Coverage bar */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs text-gray-500">
+            <span>Cross-workflow coverage</span>
+            <span>{allUsedCount}/{totalAvailable} ({Math.round(allUsedCount / totalAvailable * 100)}%)</span>
+          </div>
+          <div className="w-full bg-gray-100 rounded-full h-2">
+            <div
+              className="bg-gradient-to-r from-claude-orange to-amber-400 h-2 rounded-full transition-all"
+              style={{ width: `${(allUsedCount / totalAvailable) * 100}%` }}
+            />
+          </div>
+          <div className="flex gap-2 flex-wrap mt-2">
+            {WORKFLOWS.map((w) => {
+              const count = getToolsForWorkflow(w.id).length;
+              const isCurrent = w.id === workflowId;
+              return (
+                <span key={w.id} className={`text-xs px-2 py-0.5 rounded-full ${isCurrent ? 'bg-claude-orange/10 text-claude-orange font-medium' : 'bg-gray-100 text-gray-500'}`}>
+                  {w.name}: {count} tools
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      </Card>
 
       {/* What Was Demonstrated */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -259,7 +323,7 @@ export function CompleteStep({ data, onStartOver }: CompleteStepProps) {
           className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
         >
           <RotateCcw className="w-4 h-4" />
-          Try Another Scenario
+          Try Another Workflow
         </button>
         <a
           href="https://github.com/egaile/partner-enablement-mcp"
@@ -278,7 +342,7 @@ export function CompleteStep({ data, onStartOver }: CompleteStepProps) {
         <p className="text-sm text-gray-600 mb-5 leading-relaxed">
           This demonstration was built to show how Global System Integrators can
           operationalize Claude deployments faster. The MCP server architecture
-          enables Claude to read project context from enterprise tools (like Jira) and generate
+          enables Claude to read project context from enterprise tools (like Jira and Confluence) and generate
           compliant, deployment-ready artifacts.
         </p>
         <div className="flex items-center gap-4 pt-4 border-t border-gray-100">
