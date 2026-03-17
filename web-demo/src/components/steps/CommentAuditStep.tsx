@@ -27,7 +27,7 @@ export function CommentAuditStep({ data, isGenerating, requestParams }: CommentA
     return (
       <div className="space-y-5 animate-fade-in">
         <SecurityPipeline
-          toolName="getConfluencePageComments"
+          toolName="comment_activity_audit"
           parameters={requestParams}
           isGenerating={isGenerating}
         />
