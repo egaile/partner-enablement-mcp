@@ -34,6 +34,7 @@ export function PageTreeStep({ data, isGenerating, requestParams }: PageTreeStep
     <div className="space-y-5 animate-fade-in">
       <SecurityPipeline
         toolName="getConfluencePageDescendants"
+        narrativeKey="page_tree_analysis"
         parameters={requestParams}
         isGenerating={isGenerating}
       />
