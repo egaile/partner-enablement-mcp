@@ -27,9 +27,25 @@ export interface McpServerRecord {
   oauthCodeVerifier: string | null;
 }
 
+/**
+ * Safely decrypt a token field, returning null on failure instead of crashing.
+ */
+function safeDecrypt(value: unknown, serverId: string, fieldName: string): string | null {
+  if (!value) return null;
+  try {
+    return decryptToken(value as string);
+  } catch (err) {
+    console.warn(
+      `[servers] Failed to decrypt ${fieldName} for server ${serverId}: ${err instanceof Error ? err.message : err}`
+    );
+    return null;
+  }
+}
+
 function toRecord(row: Record<string, unknown>): McpServerRecord {
+  const id = row.id as string;
   return {
-    id: row.id as string,
+    id,
     tenantId: row.tenant_id as string,
     name: row.name as string,
     transport: row.transport as "stdio" | "http",
@@ -43,14 +59,14 @@ function toRecord(row: Record<string, unknown>): McpServerRecord {
     updatedAt: row.updated_at as string,
     authType: (row.auth_type as "static" | "oauth2") ?? "static",
     oauthClientId: (row.oauth_client_id as string) ?? null,
-    oauthClientSecret: row.oauth_client_secret ? decryptToken(row.oauth_client_secret as string) : null,
-    oauthRefreshToken: row.oauth_refresh_token ? decryptToken(row.oauth_refresh_token as string) : null,
-    oauthAccessToken: row.oauth_access_token ? decryptToken(row.oauth_access_token as string) : null,
+    oauthClientSecret: safeDecrypt(row.oauth_client_secret, id, "oauthClientSecret"),
+    oauthRefreshToken: safeDecrypt(row.oauth_refresh_token, id, "oauthRefreshToken"),
+    oauthAccessToken: safeDecrypt(row.oauth_access_token, id, "oauthAccessToken"),
     oauthTokenExpiresAt: (row.oauth_token_expires_at as string) ?? null,
     oauthTokenUrl: (row.oauth_token_url as string) ?? null,
     oauthAuthorizeUrl: (row.oauth_authorize_url as string) ?? null,
     oauthScopes: (row.oauth_scopes as string[]) ?? null,
-    oauthCodeVerifier: row.oauth_code_verifier ? decryptToken(row.oauth_code_verifier as string) : null,
+    oauthCodeVerifier: safeDecrypt(row.oauth_code_verifier, id, "oauthCodeVerifier"),
   };
 }
 

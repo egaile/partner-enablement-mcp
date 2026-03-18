@@ -15,6 +15,18 @@ export const GATEWAY_URL = process.env.GATEWAY_URL ?? '';
 export const GATEWAY_API_KEY = process.env.GATEWAY_API_KEY ?? '';
 export const ROVO_SERVER_NAME = process.env.ROVO_SERVER_NAME ?? 'atlassian-rovo';
 
+/** Atlassian Cloud ID — configurable via env, with hardcoded fallback for demo */
+export const ATLASSIAN_CLOUD_ID = process.env.ATLASSIAN_CLOUD_ID ?? '7c2ac73e-d0b6-4fa3-8059-3d5aa405c0e1';
+
+/** Shared helpers — duplicated across routes, centralized here */
+export function rovo(toolName: string): string {
+  return `${ROVO_SERVER_NAME}__${toolName}`;
+}
+
+export function extractText(result: { content: Array<{ type: string; text?: string }> }): string {
+  return result.content.find((c) => c.type === 'text')?.text ?? '';
+}
+
 /** Shared Zod schemas for API route input validation */
 export const ProjectKeySchema = z.string().regex(/^[A-Z][A-Z0-9_]{0,9}$/).default('HEALTH');
 
@@ -26,7 +38,7 @@ export const TicketInputSchema = z.object({
 
 export const AgentActionsInputSchema = z.object({
   projectKey: ProjectKeySchema,
-  enabledActions: z.array(z.string().max(50)).max(10),
+  enabledActions: z.array(z.enum(['label_issues', 'add_comment', 'transition_issue', 'create_confluence', 'create_jira'])).max(10),
   issueKey: z.string().regex(/^[A-Z][A-Z0-9_]{0,9}-\d+$/).optional(),
   architectureTitle: z.string().max(255).optional(),
   architectureContent: z.string().max(100000).optional(),

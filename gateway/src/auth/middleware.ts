@@ -20,7 +20,14 @@ async function autoProvisionUser(
     role: "member",
   });
 
-  if (error) throw error;
+  if (error) {
+    // If the user already exists (unique_violation), fall through to lookup
+    if (error.code === "23505") {
+      console.log(`[auth] User ${clerkUserId} already provisioned (duplicate key), looking up tenant`);
+      return getTenantForUser(clerkUserId);
+    }
+    throw error;
+  }
 
   console.log(`[auth] Auto-provisioned user ${clerkUserId} to default tenant`);
   return getTenantForUser(clerkUserId);
@@ -71,7 +78,7 @@ export async function requireAuth(
       tenantId: tenant.id,
       tenantName: tenant.name,
       userId: `apikey:${keyRecord.id}`,
-      userRole: "admin",
+      userRole: "member",
       plan: tenant.plan ?? "starter",
     };
 

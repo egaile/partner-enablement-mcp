@@ -65,29 +65,52 @@ async function main(): Promise<void> {
   const mcpTransports = new Map<string, StreamableHTTPServerTransport>();
   const transportLastActivity = new Map<string, number>();
   const oauthTenantMap = new Map<string, string>();
+  const oauthStateMap = new Map<string, string>();
 
   // Rec 4: Engine idle timeout — evict engines with no activity for 60 minutes
   const ENGINE_IDLE_TTL_MS = 60 * 60 * 1000;
   const engineLastActivity = new Map<string, number>();
   const pendingShutdowns = new Set<Promise<void>>();
 
+  // Deduplicate concurrent engine creation for the same tenant
+  const engineCreationPromises = new Map<string, Promise<GatewayProxyEngine>>();
+
   async function getOrCreateEngine(
     tenantId: string,
     tenantContext: AuthenticatedRequest["tenant"]
   ): Promise<GatewayProxyEngine> {
-    let engine = engines.get(tenantId);
+    const existing = engines.get(tenantId);
+    if (existing) {
+      existing.setTenantContext(tenantContext!);
+      engineLastActivity.set(tenantId, Date.now());
+      return existing;
+    }
 
-    if (!engine) {
-      engine = new GatewayProxyEngine();
+    // If a creation is already in-flight for this tenant, return the existing promise
+    const inflight = engineCreationPromises.get(tenantId);
+    if (inflight) {
+      return inflight;
+    }
+
+    const creationPromise = (async () => {
+      const engine = new GatewayProxyEngine();
       engine.setTenantContext(tenantContext!);
       engine.getAuditLogger().start();
       engine.getUsageMeter().start();
       await engine.connectDownstreamServers(tenantId);
       engines.set(tenantId, engine);
-    }
+      return engine;
+    })();
 
-    engineLastActivity.set(tenantId, Date.now());
-    return engine;
+    engineCreationPromises.set(tenantId, creationPromise);
+
+    try {
+      const engine = await creationPromise;
+      engineLastActivity.set(tenantId, Date.now());
+      return engine;
+    } finally {
+      engineCreationPromises.delete(tenantId);
+    }
   }
 
   // Stale transport cleanup — evict transports with no activity for 30 minutes
@@ -135,6 +158,7 @@ async function main(): Promise<void> {
     mcpTransports,
     transportLastActivity,
     oauthTenantMap,
+    oauthStateMap,
     allowedOrigins,
     getOrCreateEngine,
     safeErrorMessage,

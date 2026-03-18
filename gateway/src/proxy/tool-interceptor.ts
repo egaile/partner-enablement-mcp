@@ -371,8 +371,11 @@ export class ToolInterceptor {
       };
     } catch (error) {
       const latencyMs = performance.now() - startTime;
-      const errorMessage =
+      const rawErrorMessage =
         error instanceof Error ? error.message : "Unknown error";
+
+      // Redact any PII that may have leaked into the error message
+      const errorMessage = redactPii(rawErrorMessage);
 
       // Fire server error alert for downstream failures
       this.alertEngine

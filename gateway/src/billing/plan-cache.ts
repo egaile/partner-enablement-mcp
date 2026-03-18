@@ -21,12 +21,26 @@ export class PlanCache {
   }
 
   /**
+   * Remove all expired entries from the cache to prevent unbounded growth.
+   */
+  private pruneExpired(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.cache.entries()) {
+      if (now - entry.cachedAt >= this.ttlMs) {
+        this.cache.delete(key);
+      }
+    }
+  }
+
+  /**
    * Get plan and current usage for a tenant.
    * Returns cached data if within TTL.
    */
   async getPlanAndUsage(
     tenantId: string
   ): Promise<{ plan: PlanDefinition; usage: { callCount: number; blockedCount: number } }> {
+    this.pruneExpired();
+
     const cached = this.cache.get(tenantId);
     if (cached && Date.now() - cached.cachedAt < this.ttlMs) {
       return { plan: cached.plan, usage: cached.usage };

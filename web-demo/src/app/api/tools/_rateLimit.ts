@@ -14,8 +14,10 @@ setInterval(() => {
 }, WINDOW_MS);
 
 export function rateLimit(request: Request): NextResponse | null {
-  const forwarded = request.headers.get('x-forwarded-for');
-  const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+  // x-real-ip is set by Vercel/trusted proxies and cannot be spoofed by clients
+  const ip = request.headers.get('x-real-ip')
+    ?? request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    ?? 'unknown';
 
   const now = Date.now();
   const entry = hits.get(ip);

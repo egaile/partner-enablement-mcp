@@ -5,6 +5,58 @@ import {
   type WebhookRecord,
 } from "../db/queries/webhooks.js";
 
+/**
+ * SSRF protection: validate that a webhook URL points to a public endpoint.
+ * Blocks private IP ranges, localhost, IPv6 loopback, non-http(s) protocols,
+ * and cloud metadata IPs.
+ */
+function isPublicUrl(urlString: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(urlString);
+  } catch {
+    return false;
+  }
+
+  // Only allow http and https protocols
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return false;
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+
+  // Block IPv6 loopback
+  if (hostname === "[::1]" || hostname === "::1") {
+    return false;
+  }
+
+  // Block localhost variants
+  if (hostname === "localhost" || hostname === "localhost.localdomain") {
+    return false;
+  }
+
+  // Check if hostname is an IP address
+  const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4Match) {
+    const [, a, b, c] = ipv4Match.map(Number);
+
+    // 10.0.0.0/8
+    if (a === 10) return false;
+    // 172.16.0.0/12
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    // 192.168.0.0/16
+    if (a === 192 && b === 168) return false;
+    // 127.0.0.0/8 (loopback)
+    if (a === 127) return false;
+    // 169.254.0.0/16 (link-local, includes cloud metadata 169.254.169.254)
+    if (a === 169 && b === 254) return false;
+    // 0.0.0.0
+    if (a === 0 && b === 0 && c === 0) return false;
+  }
+
+  return true;
+}
+
 export class AlertDispatcher {
   async dispatch(
     tenantId: string,
@@ -48,6 +100,12 @@ export class AlertDispatcher {
       timestamp: new Date().toISOString(),
       data: payload,
     });
+
+    if (!isPublicUrl(webhook.url)) {
+      throw new Error(
+        `Webhook URL rejected: ${webhook.url} resolves to a private or disallowed address (SSRF protection)`
+      );
+    }
 
     const signature = createHmac("sha256", webhook.secret)
       .update(body)

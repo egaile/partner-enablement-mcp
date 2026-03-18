@@ -58,7 +58,21 @@ export class PolicyEngine {
     }
   }
 
+  /**
+   * Remove all expired entries from the cache to prevent unbounded growth.
+   */
+  private pruneExpired(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.cache.entries()) {
+      if (entry.expiresAt <= now) {
+        this.cache.delete(key);
+      }
+    }
+  }
+
   private async getRules(tenantId: string): Promise<PolicyRuleRecord[]> {
+    this.pruneExpired();
+
     const now = Date.now();
     const cached = this.cache.get(tenantId);
 

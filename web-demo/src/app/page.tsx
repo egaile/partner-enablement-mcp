@@ -94,6 +94,8 @@ export default function Home() {
   projectKeyRef.current = projectKey;
   const spaceIdRef = useRef(spaceId);
   spaceIdRef.current = spaceId;
+  const dataRef = useRef(data);
+  dataRef.current = data;
 
   // Completed steps for all workflow data keys
   const completedSteps = useMemo(() => {
@@ -146,7 +148,7 @@ export default function Home() {
     return { totalCalls, blocked, piiScans: totalCalls, threats: 0 };
   }, [data]);
 
-  // Build request params for each step (used by SecurityPipeline)
+  // Build request params for each step (used by SecurityPipeline — display only, not for fetching)
   const getRequestParams = useCallback(
     (step: Step) => {
       const ctx = data.context;
@@ -189,7 +191,7 @@ export default function Home() {
     [selectedIndustry, projectKey, spaceId, data]
   );
 
-  // Core API caller
+  // Core API caller — uses refs to avoid stale closures when called from handleStart
   const generateStep = useCallback(
     async (step: Step): Promise<void> => {
       setState((prev) => ({ ...prev, isGenerating: true, error: null }));
@@ -197,6 +199,7 @@ export default function Home() {
       const pk = projectKeyRef.current;
       const sid = spaceIdRef.current;
       const ind = industryRef.current;
+      const data = dataRef.current;
 
       try {
         const industry = ind === 'healthcare' ? 'healthcare' : 'financial_services';
@@ -355,15 +358,18 @@ export default function Home() {
         setState((prev) => ({ ...prev, isGenerating: false }));
       }
     },
-    [data, spaceId]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
   );
 
   // Agent Actions handler (deployment planning)
   const handleExecuteActions = useCallback(async (enabledActions: string[]) => {
     setState((prev) => ({ ...prev, isGenerating: true, error: null }));
     try {
+      const data = dataRef.current;
+      const pk = projectKeyRef.current;
       const architectureTitle = data.architecture
-        ? `${data.context?.project.name ?? projectKey} - Architecture: ${data.architecture.patternName}`
+        ? `${data.context?.project.name ?? pk} - Architecture: ${data.architecture.patternName}`
         : undefined;
       const architectureContent = data.architecture
         ? [
@@ -384,7 +390,7 @@ export default function Home() {
 
       const res = await fetch('/api/tools/agent-actions', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectKey, enabledActions, issueKey, architectureTitle, architectureContent, jiraTickets }),
+        body: JSON.stringify({ projectKey: pk, enabledActions, issueKey, architectureTitle, architectureContent, jiraTickets }),
       });
       if (!res.ok) throw new Error(`API error: ${res.status}`);
       const actionsData: AgentActionsData = await res.json();
@@ -395,12 +401,15 @@ export default function Home() {
     } finally {
       setState((prev) => ({ ...prev, isGenerating: false }));
     }
-  }, [projectKey, data.architecture, data.context, data.plan]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Knowledge Actions handler
   const handleExecuteKnowledgeActions = useCallback(async (enabledActions: string[]) => {
     setState((prev) => ({ ...prev, isGenerating: true, error: null }));
     try {
+      const data = dataRef.current;
+      const sid = spaceIdRef.current;
       const pages = data['space-discovery']?.pages ?? [];
       const scores = data['health-scoring']?.pageScores ?? [];
       const stalePage = scores.find((s) => s.status === 'stale' || s.status === 'critical');
@@ -410,26 +419,29 @@ export default function Home() {
       if (enabledActions.includes('footer_comment') && stalePage) {
         actions.push({
           type: 'footer_comment', pageId: stalePage.pageId,
-          body: `[Knowledge Audit] This page scored ${stalePage.score}/100. Recommendations: ${stalePage.recommendations.join(', ')}`,
+          pageTitle: stalePage.title,
+          content: `[Knowledge Audit] This page scored ${stalePage.score}/100. Recommendations: ${stalePage.recommendations.join(', ')}`,
         });
       }
       if (enabledActions.includes('inline_comment') && thinPage) {
         actions.push({
           type: 'inline_comment', pageId: thinPage.pageId,
-          body: '[Knowledge Audit] This section needs expansion — word count is below minimum threshold.',
+          pageTitle: thinPage.title,
+          content: '[Knowledge Audit] This section needs expansion — word count is below minimum threshold.',
           textSelection: thinPage.title,
         });
       }
       if (enabledActions.includes('update_page') && pages.length > 0) {
         actions.push({
           type: 'update_page', pageId: pages[0].id,
-          title: pages[0].title, // keep existing title
+          pageTitle: pages[0].title,
+          content: `Last audited: ${new Date().toISOString().split('T')[0]}`,
         });
       }
 
       const res = await fetch('/api/tools/knowledge-actions', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ spaceId, actions }),
+        body: JSON.stringify({ spaceId: sid, actions }),
       });
       if (!res.ok) throw new Error(`API error: ${res.status}`);
       const kaData: KnowledgeActionsData = await res.json();
@@ -440,12 +452,15 @@ export default function Home() {
     } finally {
       setState((prev) => ({ ...prev, isGenerating: false }));
     }
-  }, [spaceId, data]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Sprint Actions handler
   const handleExecuteSprintActions = useCallback(async (enabledActions: string[]) => {
     setState((prev) => ({ ...prev, isGenerating: true, error: null }));
     try {
+      const data = dataRef.current;
+      const pk = projectKeyRef.current;
       const issues = data['issue-deep-dive']?.issues ?? [];
       const members = data['team-lookup']?.members ?? [];
       const firstIssue = issues[0];
@@ -454,7 +469,7 @@ export default function Home() {
       const res = await fetch('/api/tools/sprint-actions', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          projectKey,
+          projectKey: pk,
           enabledActions,
           issueKey: firstIssue?.key,
           targetIssueKey: issues[1]?.key,
@@ -471,7 +486,8 @@ export default function Home() {
     } finally {
       setState((prev) => ({ ...prev, isGenerating: false }));
     }
-  }, [projectKey, data]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleStart = async (workflow: WorkflowId, industry: Industry) => {
     const sc = SCENARIOS.find((s) => s.industry === industry)!;

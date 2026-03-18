@@ -1,17 +1,15 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
-import { ROVO_SERVER_NAME } from '../_shared';
+import { ATLASSIAN_CLOUD_ID, rovo, extractText } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 import type { KnowledgeActionResult, KnowledgeActionsData } from '@/types/api';
-
-const CLOUD_ID = '7c2ac73e-d0b6-4fa3-8059-3d5aa405c0e1';
 
 const ActionSchema = z.object({
   type: z.enum(['footer_comment', 'inline_comment', 'update_page']),
   pageId: z.string().max(50),
-  pageTitle: z.string().max(500),
-  content: z.string().max(32767),
+  pageTitle: z.string().max(500).optional(),
+  content: z.string().max(32767).optional(),
   textSelection: z.string().max(1000).optional(),
 });
 
@@ -19,15 +17,6 @@ const InputSchema = z.object({
   spaceId: z.string().max(50),
   actions: z.array(ActionSchema).max(10),
 }).strict();
-
-function rovo(toolName: string): string {
-  return `${ROVO_SERVER_NAME}__${toolName}`;
-}
-
-function extractText(result: { content: Array<{ type: string; text?: string }> }): string {
-  const block = result.content.find((c) => c.type === 'text');
-  return block?.text ?? '';
-}
 
 function detectPolicyBlock(errorText: string): {
   policyBlocked?: boolean;
@@ -49,8 +38,8 @@ async function executeViaGateway(
   actions: Array<{
     type: 'footer_comment' | 'inline_comment' | 'update_page';
     pageId: string;
-    pageTitle: string;
-    content: string;
+    pageTitle?: string;
+    content?: string;
     textSelection?: string;
   }>
 ): Promise<KnowledgeActionsData> {
@@ -60,7 +49,7 @@ async function executeViaGateway(
     try {
       if (action.type === 'footer_comment') {
         const result = await callTool(rovo('createConfluenceFooterComment'), {
-          cloudId: CLOUD_ID,
+          cloudId: ATLASSIAN_CLOUD_ID,
           pageId: action.pageId,
           body: action.content,
         });
@@ -87,7 +76,7 @@ async function executeViaGateway(
 
       if (action.type === 'inline_comment') {
         const params: Record<string, unknown> = {
-          cloudId: CLOUD_ID,
+          cloudId: ATLASSIAN_CLOUD_ID,
           pageId: action.pageId,
           body: action.content,
         };
@@ -128,7 +117,7 @@ async function executeViaGateway(
 
       if (action.type === 'update_page') {
         const result = await callTool(rovo('updateConfluencePage'), {
-          cloudId: CLOUD_ID,
+          cloudId: ATLASSIAN_CLOUD_ID,
           pageId: action.pageId,
           spaceId,
           body: action.content,
@@ -181,8 +170,8 @@ function getMockData(
   actions: Array<{
     type: 'footer_comment' | 'inline_comment' | 'update_page';
     pageId: string;
-    pageTitle: string;
-    content: string;
+    pageTitle?: string;
+    content?: string;
     textSelection?: string;
   }>
 ): KnowledgeActionsData {

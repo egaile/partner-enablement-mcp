@@ -1,17 +1,9 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
-import { ROVO_SERVER_NAME, ProjectKeySchema } from '../_shared';
+import { ProjectKeySchema, rovo, extractText } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 import type { SprintActionResult, SprintActionsData } from '@/types/api';
-
-function rovo(toolName: string): string {
-  return `${ROVO_SERVER_NAME}__${toolName}`;
-}
-
-function extractText(result: { content: Array<{ type: string; text?: string }> }): string {
-  return result.content.find((c) => c.type === 'text')?.text ?? '';
-}
 
 function detectPolicyBlock(errorText: string): {
   policyBlocked?: boolean;
@@ -30,15 +22,13 @@ function detectPolicyBlock(errorText: string): {
 
 const SprintActionsInputSchema = z.object({
   projectKey: ProjectKeySchema,
-  enabledActions: z.array(z.string().max(50)).max(10),
+  enabledActions: z.array(z.enum(['add_worklog', 'edit_issue', 'create_link', 'add_comment'])).max(10),
   issueKey: z.string().regex(/^[A-Z][A-Z0-9_]{0,9}-\d+$/).optional(),
   targetIssueKey: z.string().regex(/^[A-Z][A-Z0-9_]{0,9}-\d+$/).optional(),
   assigneeAccountId: z.string().max(200).optional(),
   linkType: z.string().max(100).optional(),
   worklogTime: z.string().max(20).optional(),
 }).strict();
-
-const CLOUD_ID = '7c2ac73e-d0b6-4fa3-8059-3d5aa405c0e1';
 
 export async function POST(request: Request) {
   const rateLimited = rateLimit(request);

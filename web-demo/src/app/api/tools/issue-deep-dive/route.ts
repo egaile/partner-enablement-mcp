@@ -1,16 +1,8 @@
 import { NextResponse } from 'next/server';
 import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
-import { ROVO_SERVER_NAME, ProjectKeySchema } from '../_shared';
+import { ProjectKeySchema, ATLASSIAN_CLOUD_ID, rovo, extractText } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 import type { IssueDeepDiveIssue, IssueLinkType, IssueDeepDiveData } from '@/types/api';
-
-function rovo(toolName: string): string {
-  return `${ROVO_SERVER_NAME}__${toolName}`;
-}
-
-function extractText(result: { content: Array<{ type: string; text?: string }> }): string {
-  return result.content.find((c) => c.type === 'text')?.text ?? '';
-}
 
 /** Extract plain text from Jira ADF descriptions */
 function extractAdfText(node: unknown): string {
@@ -32,8 +24,6 @@ function formatTimeSpent(seconds: number): string {
   return `${minutes}m`;
 }
 
-const CLOUD_ID = '7c2ac73e-d0b6-4fa3-8059-3d5aa405c0e1';
-
 async function fetchViaGateway(projectKey: string): Promise<IssueDeepDiveData> {
   // Step 1: Get cloudId
   let cloudId: string;
@@ -44,7 +34,7 @@ async function fetchViaGateway(projectKey: string): Promise<IssueDeepDiveData> {
     cloudId = Array.isArray(resources) ? resources[0]?.id : resources?.id;
     if (!cloudId) throw new Error('No Atlassian cloud resources found');
   } catch {
-    cloudId = CLOUD_ID;
+    cloudId = ATLASSIAN_CLOUD_ID;
   }
 
   // Step 2: Search for in-progress issues

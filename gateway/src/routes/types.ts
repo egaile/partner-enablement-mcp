@@ -10,6 +10,8 @@ export interface GatewayState {
   mcpTransports: Map<string, StreamableHTTPServerTransport>;
   transportLastActivity: Map<string, number>;
   oauthTenantMap: Map<string, string>;
+  /** Maps state nonce → serverId for OAuth CSRF protection */
+  oauthStateMap: Map<string, string>;
   allowedOrigins: string[];
   getOrCreateEngine: (
     tenantId: string,

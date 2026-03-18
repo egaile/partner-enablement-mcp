@@ -1,29 +1,18 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
-import { ROVO_SERVER_NAME } from '../_shared';
+import { ATLASSIAN_CLOUD_ID, rovo, extractText } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 import type { SpaceInfo, PageInfo, SpaceDiscoveryData } from '@/types/api';
-
-const CLOUD_ID = '7c2ac73e-d0b6-4fa3-8059-3d5aa405c0e1';
 
 const InputSchema = z.object({
   spaceId: z.string().max(50).optional(),
 }).strict();
 
-function rovo(toolName: string): string {
-  return `${ROVO_SERVER_NAME}__${toolName}`;
-}
-
-function extractText(result: { content: Array<{ type: string; text?: string }> }): string {
-  const block = result.content.find((c) => c.type === 'text');
-  return block?.text ?? '';
-}
-
 async function fetchViaGateway(spaceId?: string): Promise<SpaceDiscoveryData> {
   // Step 1: List all spaces
   const spacesResult = await callTool(rovo('getConfluenceSpaces'), {
-    cloudId: CLOUD_ID,
+    cloudId: ATLASSIAN_CLOUD_ID,
   });
   if (spacesResult.isError) {
     throw new Error(`Tool error: ${extractText(spacesResult)}`);
@@ -53,7 +42,7 @@ async function fetchViaGateway(spaceId?: string): Promise<SpaceDiscoveryData> {
 
   // Step 3: Get pages in that space
   const pagesResult = await callTool(rovo('getPagesInConfluenceSpace'), {
-    cloudId: CLOUD_ID,
+    cloudId: ATLASSIAN_CLOUD_ID,
     spaceId: selectedSpace.id,
     limit: 50,
     sort: '-modified-date',

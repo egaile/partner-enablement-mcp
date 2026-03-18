@@ -1,25 +1,14 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
-import { ROVO_SERVER_NAME } from '../_shared';
+import { ATLASSIAN_CLOUD_ID, rovo, extractText } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 import type { PageInfo, PageTreeNode, PageTreeData } from '@/types/api';
-
-const CLOUD_ID = '7c2ac73e-d0b6-4fa3-8059-3d5aa405c0e1';
 
 const InputSchema = z.object({
   spaceId: z.string().max(50),
   pageIds: z.array(z.string().max(50)).max(50),
 }).strict();
-
-function rovo(toolName: string): string {
-  return `${ROVO_SERVER_NAME}__${toolName}`;
-}
-
-function extractText(result: { content: Array<{ type: string; text?: string }> }): string {
-  const block = result.content.find((c) => c.type === 'text');
-  return block?.text ?? '';
-}
 
 /**
  * Build tree nodes recursively from flat page lists.
@@ -34,14 +23,13 @@ async function fetchViaGateway(spaceId: string, pageIds: string[]): Promise<Page
     // 1a: Fetch the root page itself so it appears in allPages
     try {
       const pageResult = await callTool(rovo('getConfluencePage'), {
-        cloudId: CLOUD_ID,
+        cloudId: ATLASSIAN_CLOUD_ID,
         pageId,
         contentFormat: 'markdown',
       });
 
       if (!pageResult.isError) {
         const pageText = extractText(pageResult);
-        console.log(`[page-tree] getConfluencePage raw (${pageId}):`, pageText.slice(0, 300));
         const pageData = JSON.parse(pageText);
         const body = (pageData?.body?.storage?.value as string) ??
           (pageData?.body?.view?.value as string) ??
@@ -69,14 +57,13 @@ async function fetchViaGateway(spaceId: string, pageIds: string[]): Promise<Page
     // 1b: Fetch descendants
     try {
       const descResult = await callTool(rovo('getConfluencePageDescendants'), {
-        cloudId: CLOUD_ID,
+        cloudId: ATLASSIAN_CLOUD_ID,
         pageId,
         limit: 50,
       });
 
       if (!descResult.isError) {
         const descText = extractText(descResult);
-        console.log(`[page-tree] descendants raw (${pageId}):`, descText.slice(0, 300));
         const descData = JSON.parse(descText);
         const rawChildren = descData?.results ?? descData ?? [];
 
@@ -103,7 +90,7 @@ async function fetchViaGateway(spaceId: string, pageIds: string[]): Promise<Page
   for (const childId of childIds) {
     try {
       const pageResult = await callTool(rovo('getConfluencePage'), {
-        cloudId: CLOUD_ID,
+        cloudId: ATLASSIAN_CLOUD_ID,
         pageId: childId,
         contentFormat: 'markdown',
       });
@@ -130,8 +117,6 @@ async function fetchViaGateway(spaceId: string, pageIds: string[]): Promise<Page
       // skip silently
     }
   }
-
-  console.log(`[page-tree] Gateway collected ${allPages.size} pages for roots [${pageIds.join(', ')}]`);
 
   // If no pages were collected, the gateway responses couldn't be parsed — throw to trigger mock fallback
   if (allPages.size === 0) {

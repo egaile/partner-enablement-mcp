@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
-import { ROVO_SERVER_NAME } from '../_shared';
+import { ATLASSIAN_CLOUD_ID, rovo, extractText } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 import type { CommentInfo, CommentAuditData } from '@/types/api';
-
-const CLOUD_ID = '7c2ac73e-d0b6-4fa3-8059-3d5aa405c0e1';
 
 const PageRefSchema = z.object({
   id: z.string().max(50),
@@ -15,15 +13,6 @@ const PageRefSchema = z.object({
 const InputSchema = z.object({
   pageIds: z.array(PageRefSchema).max(50),
 }).strict();
-
-function rovo(toolName: string): string {
-  return `${ROVO_SERVER_NAME}__${toolName}`;
-}
-
-function extractText(result: { content: Array<{ type: string; text?: string }> }): string {
-  const block = result.content.find((c) => c.type === 'text');
-  return block?.text ?? '';
-}
 
 /**
  * Parse a raw comment object from Confluence API into CommentInfo.
@@ -65,7 +54,7 @@ async function fetchViaGateway(
     // Fetch footer comments
     try {
       const footerResult = await callTool(rovo('getConfluencePageFooterComments'), {
-        cloudId: CLOUD_ID,
+        cloudId: ATLASSIAN_CLOUD_ID,
         pageId,
         limit: 25,
       });
@@ -83,7 +72,7 @@ async function fetchViaGateway(
           // Fetch replies for this footer comment
           try {
             const repliesResult = await callTool(rovo('getConfluenceCommentChildren'), {
-              cloudId: CLOUD_ID,
+              cloudId: ATLASSIAN_CLOUD_ID,
               commentId: comment.id,
               commentType: 'footer',
               limit: 10,
@@ -114,7 +103,7 @@ async function fetchViaGateway(
     // Fetch inline comments
     try {
       const inlineResult = await callTool(rovo('getConfluencePageInlineComments'), {
-        cloudId: CLOUD_ID,
+        cloudId: ATLASSIAN_CLOUD_ID,
         pageId,
         limit: 25,
       });
@@ -132,7 +121,7 @@ async function fetchViaGateway(
           // Fetch replies for inline comments too
           try {
             const repliesResult = await callTool(rovo('getConfluenceCommentChildren'), {
-              cloudId: CLOUD_ID,
+              cloudId: ATLASSIAN_CLOUD_ID,
               commentId: comment.id,
               commentType: 'inline',
               limit: 10,

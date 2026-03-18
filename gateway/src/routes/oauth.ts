@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { randomBytes } from "node:crypto";
 import { auth as mcpAuth } from "@modelcontextprotocol/sdk/client/auth.js";
 import { requireAuth } from "../auth/middleware.js";
 import type { AuthenticatedRequest } from "../auth/types.js";
@@ -29,6 +30,10 @@ export function createOAuthRouter(state: GatewayState): Router {
         }
 
         state.oauthTenantMap.set(server.id, req.tenant!.tenantId);
+
+        // Generate a random state nonce for CSRF protection
+        const stateNonce = randomBytes(32).toString("hex");
+        state.oauthStateMap.set(stateNonce, server.id);
 
         const engine = state.engines.get(req.tenant!.tenantId);
         let provider: ServerOAuthProvider;
@@ -63,7 +68,11 @@ export function createOAuthRouter(state: GatewayState): Router {
         }
 
         ServerOAuthProvider.pendingAuthUrls.delete(server.id);
-        res.json({ authorizeUrl: authUrl.toString() });
+
+        // Append state nonce to the authorization URL for CSRF protection
+        const authUrlWithState = new URL(authUrl.toString());
+        authUrlWithState.searchParams.set("state", stateNonce);
+        res.json({ authorizeUrl: authUrlWithState.toString() });
       } catch (error) {
         res.status(500).json({ error: state.safeErrorMessage(error) });
       }
@@ -75,7 +84,7 @@ export function createOAuthRouter(state: GatewayState): Router {
     async (req, res) => {
       try {
         const serverId = req.params.serverId;
-        const { code, error: oauthError } = req.query;
+        const { code, error: oauthError, state: stateParam } = req.query;
 
         if (oauthError) {
           res.status(400).send(`OAuth error: ${oauthError}`);
@@ -85,6 +94,18 @@ export function createOAuthRouter(state: GatewayState): Router {
           res.status(400).send("Missing authorization code");
           return;
         }
+
+        // Validate the state parameter against our stored nonces (CSRF protection)
+        if (!stateParam || typeof stateParam !== "string") {
+          res.status(400).send("Missing state parameter");
+          return;
+        }
+        const expectedServerId = state.oauthStateMap.get(stateParam);
+        if (!expectedServerId || expectedServerId !== serverId) {
+          res.status(403).send("Invalid or expired state parameter. Please re-initiate the OAuth flow.");
+          return;
+        }
+        state.oauthStateMap.delete(stateParam);
 
         const tenantId = state.oauthTenantMap.get(serverId);
         if (!tenantId) {

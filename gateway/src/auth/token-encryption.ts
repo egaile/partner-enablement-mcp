@@ -55,17 +55,27 @@ export function decryptToken(encrypted: string): string {
 
   const key = getDerivedKey();
   if (!key) {
-    console.warn("[token-encryption] TOKEN_ENCRYPTION_KEY not set but encrypted token found. Cannot decrypt.");
-    return encrypted;
+    throw new Error(
+      "[token-encryption] TOKEN_ENCRYPTION_KEY is not set but an encrypted token (enc: prefix) was found. " +
+      "Set TOKEN_ENCRYPTION_KEY to decrypt stored tokens."
+    );
   }
 
-  const combined = Buffer.from(encrypted.slice(4), "base64");
-  const iv = combined.subarray(0, IV_LENGTH);
-  const tag = combined.subarray(combined.length - TAG_LENGTH);
-  const ciphertext = combined.subarray(IV_LENGTH, combined.length - TAG_LENGTH);
+  try {
+    const combined = Buffer.from(encrypted.slice(4), "base64");
+    const iv = combined.subarray(0, IV_LENGTH);
+    const tag = combined.subarray(combined.length - TAG_LENGTH);
+    const ciphertext = combined.subarray(IV_LENGTH, combined.length - TAG_LENGTH);
 
-  const decipher = createDecipheriv(ALGORITHM, key, iv);
-  decipher.setAuthTag(tag);
-  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-  return decrypted.toString("utf8");
+    const decipher = createDecipheriv(ALGORITHM, key, iv);
+    decipher.setAuthTag(tag);
+    const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+    return decrypted.toString("utf8");
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    throw new Error(
+      `[token-encryption] Failed to decrypt token: ${msg}. ` +
+      "The TOKEN_ENCRYPTION_KEY may have changed or the encrypted data may be corrupted."
+    );
+  }
 }

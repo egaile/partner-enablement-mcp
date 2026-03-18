@@ -6,11 +6,27 @@ interface ExfilPattern {
   description: string;
 }
 
+/** Domains that are exempt from URL exfiltration detection */
+const EXEMPT_DOMAINS = [
+  /\.atlassian\.net$/i,
+  /\.atlassian\.com$/i,
+  /\.atl-paas\.net$/i,
+];
+
+function isExemptUrl(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname;
+    return EXEMPT_DOMAINS.some((re) => re.test(hostname));
+  } catch {
+    return false;
+  }
+}
+
 const EXFILTRATION_PATTERNS: ExfilPattern[] = [
   // URLs in unexpected fields
   {
     pattern: /https?:\/\/[^\s"'<>]{10,}/gi,
-    severity: "medium",
+    severity: "info",
     description: "Contains URL that could be used for data exfiltration",
   },
 
@@ -75,12 +91,21 @@ export class ExfiltrationStrategy implements ScanStrategy {
       pattern.lastIndex = 0;
       const match = input.match(pattern);
       if (match) {
+        // Skip URL matches that point to exempt Atlassian domains
+        const matchedContent = match[0].substring(0, 100);
+        if (
+          description.includes("URL") &&
+          isExemptUrl(match[0])
+        ) {
+          continue;
+        }
+
         indicators.push({
           strategy: this.name,
           severity,
           description,
           fieldPath,
-          matchedContent: match[0].substring(0, 100),
+          matchedContent,
         });
       }
     }
