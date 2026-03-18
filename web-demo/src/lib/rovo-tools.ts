@@ -11,15 +11,16 @@ export interface RovoTool {
 
 export const ROVO_TOOLS: RovoTool[] = [
   // Platform
-  { name: 'getAccessibleAtlassianResources', category: 'Platform', risk: 'read', description: 'Get available Atlassian cloud sites', usedInWorkflows: ['deployment-planning', 'knowledge-audit', 'sprint-operations'], available: true },
+  { name: 'getAccessibleAtlassianResources', category: 'Platform', risk: 'read', description: 'Get available Atlassian cloud sites', usedInWorkflows: ['deployment-planning', 'knowledge-audit', 'sprint-operations', 'risk-radar'], available: true },
+  { name: 'atlassianUserInfo', category: 'Platform', risk: 'read', description: 'Get authenticated user details', usedInWorkflows: ['risk-radar'], available: true },
 
   // Search
   { name: 'search', category: 'Search', risk: 'read', description: 'Rovo cross-product search across Jira and Confluence', usedInWorkflows: ['deployment-planning'], available: true },
-  { name: 'searchJiraIssuesUsingJql', category: 'Search', risk: 'read', description: 'Search Jira issues using JQL queries', usedInWorkflows: ['deployment-planning', 'sprint-operations'], available: true },
-  { name: 'searchConfluenceUsingCql', category: 'Search', risk: 'read', description: 'Search Confluence content using CQL queries', usedInWorkflows: ['deployment-planning'], available: true },
+  { name: 'searchJiraIssuesUsingJql', category: 'Search', risk: 'read', description: 'Search Jira issues using JQL queries', usedInWorkflows: ['deployment-planning', 'sprint-operations', 'risk-radar'], available: true },
+  { name: 'searchConfluenceUsingCql', category: 'Search', risk: 'read', description: 'Search Confluence content using CQL queries', usedInWorkflows: ['deployment-planning', 'risk-radar'], available: true },
 
   // Jira Read
-  { name: 'getVisibleJiraProjects', category: 'Jira Read', risk: 'read', description: 'List visible Jira projects', usedInWorkflows: ['deployment-planning', 'sprint-operations'], available: true },
+  { name: 'getVisibleJiraProjects', category: 'Jira Read', risk: 'read', description: 'List visible Jira projects', usedInWorkflows: ['deployment-planning', 'sprint-operations', 'risk-radar'], available: true },
   { name: 'getJiraIssue', category: 'Jira Read', risk: 'read', description: 'Get full details for a specific issue', usedInWorkflows: ['deployment-planning', 'sprint-operations'], available: true },
   { name: 'getTransitionsForJiraIssue', category: 'Jira Read', risk: 'read', description: 'Get available workflow transitions', usedInWorkflows: ['deployment-planning'], available: true },
   { name: 'getJiraProjectIssueTypesMetadata', category: 'Jira Read', risk: 'read', description: 'Get issue types for a project', usedInWorkflows: ['sprint-operations'], available: true },
@@ -35,7 +36,7 @@ export const ROVO_TOOLS: RovoTool[] = [
   { name: 'addWorklogToJiraIssue', category: 'Jira Write', risk: 'write', description: 'Log work time on an issue', usedInWorkflows: ['sprint-operations'], available: true },
 
   // Confluence Read
-  { name: 'getConfluenceSpaces', category: 'Confluence Read', risk: 'read', description: 'List available Confluence spaces', usedInWorkflows: ['deployment-planning', 'knowledge-audit'], available: true },
+  { name: 'getConfluenceSpaces', category: 'Confluence Read', risk: 'read', description: 'List available Confluence spaces', usedInWorkflows: ['deployment-planning', 'knowledge-audit', 'risk-radar'], available: true },
   { name: 'getConfluencePage', category: 'Confluence Read', risk: 'read', description: 'Read a Confluence page by ID', usedInWorkflows: ['deployment-planning', 'knowledge-audit'], available: true },
   { name: 'getPagesInConfluenceSpace', category: 'Confluence Read', risk: 'read', description: 'List pages in a space', usedInWorkflows: ['knowledge-audit'], available: true },
   { name: 'getConfluencePageDescendants', category: 'Confluence Read', risk: 'read', description: 'Get child pages of a page', usedInWorkflows: ['knowledge-audit'], available: true },

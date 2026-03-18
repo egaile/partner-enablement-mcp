@@ -1,23 +1,66 @@
 'use client';
 
 import { useState } from 'react';
-import { Play, Zap, Layers, Clock, ChevronLeft, Wrench, BookOpen, Users } from 'lucide-react';
+import { Play, Zap, Layers, Clock, ChevronLeft, Wrench, BookOpen, Users, Shield, Settings, Radar, ShieldAlert } from 'lucide-react';
 import { Card } from './ui/Card';
 import { ArchitectureDiagram } from './ArchitectureDiagram';
 import { HERO_COPY, EXPLAINER_CARDS, LIVE_INTEGRATION_COPY, SCENARIOS, TAG_COLORS, WORKFLOWS } from '@/lib/constants';
-import type { Industry, WorkflowId } from '@/types/api';
+import type { Industry, WorkflowId, FeatureId } from '@/types/api';
 
 interface HeroLandingProps {
   onStart: (workflow: WorkflowId, industry: Industry) => void;
+  onSelectFeature?: (feature: FeatureId) => void;
+  onStartRiskRadar?: () => void;
 }
 
-const WORKFLOW_ICONS: Record<WorkflowId, React.ReactNode> = {
+const WORKFLOW_ICONS: Record<string, React.ReactNode> = {
   'deployment-planning': <Wrench className="w-5 h-5" />,
   'knowledge-audit': <BookOpen className="w-5 h-5" />,
   'sprint-operations': <Users className="w-5 h-5" />,
+  'risk-radar': <Radar className="w-5 h-5" />,
 };
 
-export function HeroLanding({ onStart }: HeroLandingProps) {
+interface FeatureConfig {
+  id: FeatureId;
+  name: string;
+  description: string;
+  persona: string;
+  icon: React.ReactNode;
+  color: string;
+  features: string[];
+}
+
+const SECURITY_FEATURES: FeatureConfig[] = [
+  {
+    id: 'threat-simulator',
+    name: 'Security Threat Simulator',
+    description: 'Interactive red team playground — craft injection attacks and watch the gateway\'s 5-scanner pipeline catch them in real time.',
+    persona: 'CISO',
+    icon: <ShieldAlert className="w-5 h-5" />,
+    color: 'red',
+    features: ['5 scanner strategies', '8 attack scenarios', 'PII detection', 'Real-time blocking'],
+  },
+  {
+    id: 'governance',
+    name: 'Governance Control Room',
+    description: 'Toggle 6 Atlassian policy templates and watch tool calls get allowed, blocked, or routed to human approval.',
+    persona: 'VP Engineering',
+    icon: <Settings className="w-5 h-5" />,
+    color: 'blue',
+    features: ['6 policy templates', 'HITL approval flow', 'PII redaction demo', 'Client-side evaluation'],
+  },
+];
+
+const FEATURE_COLORS: Record<string, { bg: string; text: string; border: string; badge: string }> = {
+  red: { bg: 'bg-red-50/50', text: 'text-red-600', border: 'border-red-400', badge: 'bg-red-100 text-red-700' },
+  blue: { bg: 'bg-blue-50/50', text: 'text-blue-600', border: 'border-blue-400', badge: 'bg-blue-100 text-blue-700' },
+};
+
+// Separate the first 3 workflows (step-based with scenario selection) from risk-radar
+const STEP_WORKFLOWS = WORKFLOWS.filter((w) => w.selectorType !== 'none');
+const RISK_RADAR_WORKFLOW = WORKFLOWS.find((w) => w.id === 'risk-radar');
+
+export function HeroLanding({ onStart, onSelectFeature, onStartRiskRadar }: HeroLandingProps) {
   const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowId | null>(null);
 
   const explainerIcons = [
@@ -80,10 +123,10 @@ export function HeroLanding({ onStart }: HeroLandingProps) {
         <p className="text-sm text-green-800">{LIVE_INTEGRATION_COPY}</p>
       </div>
 
-      {/* Workflow Selector */}
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Choose a Workflow</h3>
-      <div className="grid md:grid-cols-3 gap-4 mb-8">
-        {WORKFLOWS.map((workflow) => {
+      {/* ======= Enterprise Workflows Section ======= */}
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">Enterprise Workflows</h3>
+      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+        {STEP_WORKFLOWS.map((workflow) => {
           const isSelected = selectedWorkflow === workflow.id;
           return (
             <button
@@ -123,11 +166,40 @@ export function HeroLanding({ onStart }: HeroLandingProps) {
             </button>
           );
         })}
+        {/* Risk Radar — launches directly without scenario selection */}
+        {RISK_RADAR_WORKFLOW && (
+          <button
+            onClick={() => onStartRiskRadar?.()}
+            className="group text-left rounded-xl border border-gray-200 bg-white p-5 hover:border-purple-400/40 hover:shadow-lg hover:shadow-purple-500/5 transition-all duration-200"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <div className="p-1.5 rounded-lg bg-gray-100 text-gray-500 group-hover:text-purple-600">
+                <Radar className="w-5 h-5" />
+              </div>
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                {RISK_RADAR_WORKFLOW.persona}
+              </span>
+            </div>
+            <h4 className="font-semibold mb-1 transition-colors text-gray-900 group-hover:text-purple-600">
+              {RISK_RADAR_WORKFLOW.name}
+            </h4>
+            <p className="text-xs text-gray-500 mb-3 leading-relaxed line-clamp-2">
+              {RISK_RADAR_WORKFLOW.description}
+            </p>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-gray-400">{RISK_RADAR_WORKFLOW.steps.length} steps</span>
+              <span className="text-gray-300">&middot;</span>
+              <span className="text-gray-400">{RISK_RADAR_WORKFLOW.toolCount} tools</span>
+              <span className="text-gray-300">&middot;</span>
+              <span className="text-gray-400">All Projects</span>
+            </div>
+          </button>
+        )}
       </div>
 
-      {/* Scenario Cards — shown when workflow is selected */}
-      {activeWorkflow && (
-        <div className="animate-fade-in">
+      {/* Scenario Cards — shown when a step-based workflow is selected */}
+      {activeWorkflow && activeWorkflow.selectorType !== 'none' && (
+        <div className="animate-fade-in mb-10">
           <div className="flex items-center gap-3 mb-4">
             <button
               onClick={() => setSelectedWorkflow(null)}
@@ -182,6 +254,54 @@ export function HeroLanding({ onStart }: HeroLandingProps) {
           </div>
         </div>
       )}
+
+      {/* ======= Security & Governance Section ======= */}
+      <div className="border-t border-gray-200 pt-8 mt-2">
+        <div className="flex items-center gap-3 mb-4">
+          <Shield className="w-5 h-5 text-gray-400" />
+          <h3 className="text-lg font-semibold text-gray-900">Security & Governance</h3>
+          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+            Interactive
+          </span>
+        </div>
+        <p className="text-sm text-gray-500 mb-5 max-w-2xl">
+          Explore the gateway&apos;s security capabilities hands-on. No Atlassian connection needed — these features run entirely in your browser.
+        </p>
+        <div className="grid md:grid-cols-2 gap-4">
+          {SECURITY_FEATURES.map((feature) => {
+            const colors = FEATURE_COLORS[feature.color];
+            return (
+              <button
+                key={feature.id}
+                onClick={() => onSelectFeature?.(feature.id)}
+                className={`group text-left rounded-xl border border-gray-200 bg-white p-6 hover:${colors.border} hover:shadow-lg transition-all duration-200`}
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <div className={`p-1.5 rounded-lg bg-gray-100 ${colors.text} group-hover:bg-opacity-50`}>
+                    {feature.icon}
+                  </div>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${colors.badge}`}>
+                    {feature.persona}
+                  </span>
+                </div>
+                <h4 className="font-semibold text-gray-900 mb-1 group-hover:text-gray-700 transition-colors">
+                  {feature.name}
+                </h4>
+                <p className="text-xs text-gray-500 mb-4 leading-relaxed">
+                  {feature.description}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {feature.features.map((f) => (
+                    <span key={f} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                      {f}
+                    </span>
+                  ))}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

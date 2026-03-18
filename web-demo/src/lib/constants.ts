@@ -17,7 +17,7 @@ export interface WorkflowConfig {
   toolCount: number;
   steps: StepDefinition[];
   stepOrder: Step[];
-  selectorType: 'jira-project' | 'confluence-space';
+  selectorType: 'jira-project' | 'confluence-space' | 'none';
 }
 
 // ---- Deployment Planning (existing) ----
@@ -38,6 +38,14 @@ const KNOWLEDGE_AUDIT_STEPS: StepDefinition[] = [
   { key: 'comment-audit', label: 'Comment Audit', toolName: 'comment_activity_audit', toolDescription: 'Audit footer/inline comments per page' },
   { key: 'health-scoring', label: 'Health Scoring', toolName: 'knowledge_health_scoring', toolDescription: 'Compute per-page health scores' },
   { key: 'knowledge-actions', label: 'Agent Actions', toolName: 'knowledge_actions', toolDescription: 'Add audit comments and flag stale pages' },
+];
+
+// ---- Risk Radar ----
+const RISK_RADAR_STEPS: StepDefinition[] = [
+  { key: 'portfolio-discovery', label: 'Portfolio Discovery', toolName: 'portfolio_discovery', toolDescription: 'Enumerate all projects, spaces, and users' },
+  { key: 'compliance-scan', label: 'Compliance Scan', toolName: 'compliance_scanning', toolDescription: 'Scan all projects for compliance keywords' },
+  { key: 'risk-heatmap', label: 'Risk Heatmap', toolName: 'risk_heatmap', toolDescription: 'Compute risk scores and visualize heatmap' },
+  { key: 'policy-recommendations', label: 'Policy Recommendations', toolName: 'policy_recommendations', toolDescription: 'Recommend gateway policies per project' },
 ];
 
 // ---- Sprint Operations ----
@@ -78,6 +86,16 @@ export const WORKFLOWS: WorkflowConfig[] = [
     steps: SPRINT_OPS_STEPS,
     stepOrder: ['select', 'sprint-context', 'issue-deep-dive', 'team-lookup', 'sprint-actions', 'complete'],
     selectorType: 'jira-project',
+  },
+  {
+    id: 'risk-radar',
+    name: 'Cross-Project Risk Radar',
+    description: 'Scan all Jira projects and Confluence spaces for compliance risks, visualize an enterprise heatmap, and recommend gateway policies.',
+    persona: 'Compliance Officer',
+    toolCount: 5,
+    steps: RISK_RADAR_STEPS,
+    stepOrder: ['select', 'portfolio-discovery', 'compliance-scan', 'risk-heatmap', 'policy-recommendations', 'complete'],
+    selectorType: 'none',
   },
 ];
 
@@ -128,12 +146,21 @@ export const TOOL_NARRATIVES: Record<string, string> = {
     'The agent calls lookupJiraAccountId to resolve team member names to account IDs. This is required before assigning issues or adding mentions \u2014 demonstrating how AI agents handle the name-to-ID resolution that humans do implicitly.',
   sprint_actions:
     'Sprint write operations include addWorklogToJiraIssue for time tracking, editJiraIssue for assignments, jiraWrite(createIssueLink) for cross-project dependencies, and addCommentToJiraIssue for sprint summaries. Each flows through the full security pipeline.',
+  // Risk radar
+  portfolio_discovery:
+    'The agent calls getVisibleJiraProjects and getConfluenceSpaces to enumerate all accessible projects and spaces across the enterprise. atlassianUserInfo provides the authenticated user context. Each call flows through the gateway\'s full security pipeline.',
+  compliance_scanning:
+    'For each project and space, the agent runs searchJiraIssuesUsingJql and searchConfluenceUsingCql with compliance keywords (PHI, PII, HIPAA, SOC2, PCI, encryption). Each cross-project query flows individually through the gateway\'s injection scanner and audit log.',
+  risk_heatmap:
+    'Risk scores are computed locally from compliance scan results. Each project/space is scored across 4 dimensions: PII exposure, compliance documentation coverage, documentation freshness, and open security issues. The heatmap visualizes enterprise-wide compliance posture.',
+  policy_recommendations:
+    'Based on risk analysis, the system recommends which gateway policy templates to apply per project. For example, projects containing PHI patterns get PII Shield recommended, while regulated projects get Approval for Writes.',
 };
 
 export const HERO_COPY = {
   headline: 'See MCP in Action: Multiple Rovo Tools, One Security Gateway',
   subheadline:
-    'Three enterprise workflows exercise 29 of 33 Atlassian Rovo MCP tools \u2014 reading Jira backlogs, auditing Confluence docs, managing sprints, and executing write operations \u2014 all through an MCP Security Gateway with injection scanning, policy enforcement, PII detection, and a live audit trail.',
+    'Four enterprise workflows exercise 30 of 33 Atlassian Rovo MCP tools \u2014 reading Jira backlogs, auditing Confluence docs, managing sprints, and scanning compliance risks \u2014 all through an MCP Security Gateway. Plus interactive security and governance features you can explore hands-on.',
 };
 
 export const EXPLAINER_CARDS = [
@@ -143,7 +170,7 @@ export const EXPLAINER_CARDS = [
   },
   {
     title: 'What This Demo Does',
-    body: 'Three workflows exercise 29 Rovo MCP tools across Jira and Confluence \u2014 from deployment planning to knowledge audits to sprint operations. Every call flows through the MCP Security Gateway with a live audit trail.',
+    body: 'Four workflows exercise 30 Rovo MCP tools across Jira and Confluence \u2014 from deployment planning to compliance risk radar. Interactive security and governance features showcase the gateway\'s 5-scanner pipeline, 6 policy templates, and HITL approval engine.',
   },
   {
     title: 'Why It Matters',
@@ -152,7 +179,7 @@ export const EXPLAINER_CARDS = [
 ];
 
 export const LIVE_INTEGRATION_COPY =
-  'Live data flows through the MCP Security Gateway \u2192 Atlassian Rovo MCP Server \u2192 Jira Cloud + Confluence Cloud. 29 Rovo tools are used across reads, searches, and writes \u2014 each scanned for prompt injection, evaluated against policies, checked for PII, and logged to the audit trail.';
+  'Live data flows through the MCP Security Gateway \u2192 Atlassian Rovo MCP Server \u2192 Jira Cloud + Confluence Cloud. 30 Rovo tools are used across reads, searches, and writes \u2014 each scanned for prompt injection, evaluated against policies, checked for PII, and logged to the audit trail.';
 
 export interface ScenarioConfig {
   industry: Industry;

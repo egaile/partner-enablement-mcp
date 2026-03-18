@@ -6,6 +6,7 @@ import type {
   Step,
   Industry,
   WorkflowId,
+  FeatureId,
   DemoState,
   DemoData,
   ProjectContextData,
@@ -24,6 +25,9 @@ import type {
   IssueDeepDiveData,
   TeamLookupData,
   SprintActionsData,
+  PortfolioDiscoveryData,
+  ComplianceScanData,
+  RiskScoringData,
 } from '@/types/api';
 import { SCENARIOS, getWorkflowConfig, getStepDefinitions } from '@/lib/constants';
 import { Header } from '@/components/Header';
@@ -49,6 +53,14 @@ import { SprintContextStep } from '@/components/steps/SprintContextStep';
 import { IssueDeepDiveStep } from '@/components/steps/IssueDeepDiveStep';
 import { TeamLookupStep } from '@/components/steps/TeamLookupStep';
 import { SprintActionsStep } from '@/components/steps/SprintActionsStep';
+// Risk Radar steps
+import { PortfolioDiscoveryStep } from '@/components/steps/PortfolioDiscoveryStep';
+import { ComplianceScanStep } from '@/components/steps/ComplianceScanStep';
+import { RiskHeatmapStep } from '@/components/steps/RiskHeatmapStep';
+import { PolicyRecommendationStep } from '@/components/steps/PolicyRecommendationStep';
+// Security & Governance features
+import { SecuritySimulator } from '@/components/SecuritySimulator';
+import { GovernanceControlRoom } from '@/components/GovernanceControlRoom';
 // Complete
 import { CompleteStep } from '@/components/steps/CompleteStep';
 
@@ -56,6 +68,7 @@ const EMPTY_DATA: DemoData = {
   context: null, search: null, health: null, architecture: null, compliance: null, plan: null, actions: null,
   'space-discovery': null, 'page-tree': null, 'comment-audit': null, 'health-scoring': null, 'knowledge-actions': null,
   'sprint-context': null, 'issue-deep-dive': null, 'team-lookup': null, 'sprint-actions': null,
+  'portfolio-discovery': null, 'compliance-scan': null, 'risk-heatmap': null, 'policy-recommendations': null,
 };
 
 /** Steps that don't auto-generate — user picks actions first */
@@ -70,6 +83,9 @@ export default function Home() {
     error: null,
     data: { ...EMPTY_DATA },
   });
+
+  // Feature state (for non-step-based interactive views)
+  const [selectedFeature, setSelectedFeature] = useState<FeatureId | null>(null);
 
   const { selectedWorkflow, selectedIndustry, currentStep, isGenerating, error, data } = state;
 
@@ -127,23 +143,29 @@ export default function Home() {
     }
 
     // Knowledge audit
-    if (data['space-discovery']) totalCalls += 2; // getSpaces + getPages
-    if (data['page-tree']) totalCalls += 1 + (data['page-tree'].totalPages); // descendants per page + reads
-    if (data['comment-audit']) totalCalls += 3; // footer + inline + children per page
-    if (data['health-scoring']) totalCalls += 0; // local computation
+    if (data['space-discovery']) totalCalls += 2;
+    if (data['page-tree']) totalCalls += 1 + (data['page-tree'].totalPages);
+    if (data['comment-audit']) totalCalls += 3;
+    if (data['health-scoring']) totalCalls += 0;
     if (data['knowledge-actions']) {
       totalCalls += data['knowledge-actions'].actions.length;
       blocked += data['knowledge-actions'].actions.filter((a) => a.policyBlocked).length;
     }
 
     // Sprint operations
-    if (data['sprint-context']) totalCalls += 3; // projects + issueTypes + fieldMeta
-    if (data['issue-deep-dive']) totalCalls += 4; // JQL + issue details + remote links + link types
+    if (data['sprint-context']) totalCalls += 3;
+    if (data['issue-deep-dive']) totalCalls += 4;
     if (data['team-lookup']) totalCalls += 1;
     if (data['sprint-actions']) {
       totalCalls += data['sprint-actions'].actions.length;
       blocked += data['sprint-actions'].actions.filter((a) => a.policyBlocked).length;
     }
+
+    // Risk radar
+    if (data['portfolio-discovery']) totalCalls += 3; // getVisibleJiraProjects + getConfluenceSpaces + atlassianUserInfo
+    if (data['compliance-scan']) totalCalls += Object.keys(data['compliance-scan'].scansByProject).length * 2;
+    if (data['risk-heatmap']) totalCalls += 0; // local computation
+    if (data['policy-recommendations']) totalCalls += 0; // local computation
 
     return { totalCalls, blocked, piiScans: totalCalls, threats: 0 };
   }, [data]);
@@ -185,6 +207,12 @@ export default function Home() {
       if (step === 'issue-deep-dive') return { projectKey };
       if (step === 'team-lookup') return { projectKey };
       if (step === 'sprint-actions') return { projectKey, enabledActions: ['add_worklog', 'edit_issue', 'create_link', 'add_comment'] };
+
+      // Risk radar params
+      if (step === 'portfolio-discovery') return { mode: 'all_projects' };
+      if (step === 'compliance-scan') return { projectKeys: data['portfolio-discovery']?.projects.map((p) => p.key) ?? [], spaceKeys: data['portfolio-discovery']?.spaces.map((s) => s.key) ?? [] };
+      if (step === 'risk-heatmap') return { projects: data['portfolio-discovery']?.projects ?? [], spaces: data['portfolio-discovery']?.spaces ?? [] };
+      if (step === 'policy-recommendations') return { scores: data['risk-heatmap']?.scores ?? [] };
 
       return {};
     },
@@ -350,6 +378,45 @@ export default function Home() {
           if (!res.ok) throw new Error(`API error: ${res.status}`);
           const tlData: TeamLookupData = await res.json();
           setState((prev) => ({ ...prev, data: { ...prev.data, 'team-lookup': tlData } }));
+
+        // ---- Risk Radar steps ----
+        } else if (step === 'portfolio-discovery') {
+          const res = await fetch('/api/tools/portfolio-discovery', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({}),
+          });
+          if (!res.ok) throw new Error(`API error: ${res.status}`);
+          const pdData: PortfolioDiscoveryData = await res.json();
+          setState((prev) => ({ ...prev, data: { ...prev.data, 'portfolio-discovery': pdData } }));
+        } else if (step === 'compliance-scan') {
+          const portfolio = data['portfolio-discovery'];
+          const res = await fetch('/api/tools/compliance-scan', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              projectKeys: portfolio?.projects.map((p) => p.key) ?? [],
+              spaceKeys: portfolio?.spaces.map((s) => s.key) ?? [],
+            }),
+          });
+          if (!res.ok) throw new Error(`API error: ${res.status}`);
+          const csData: ComplianceScanData = await res.json();
+          setState((prev) => ({ ...prev, data: { ...prev.data, 'compliance-scan': csData } }));
+        } else if (step === 'risk-heatmap') {
+          const portfolio = data['portfolio-discovery'];
+          const compScan = data['compliance-scan'];
+          const res = await fetch('/api/tools/risk-scoring', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              projects: portfolio?.projects.map((p) => ({ key: p.key, name: p.name, issueCount: p.issueCount })) ?? [],
+              spaces: portfolio?.spaces.map((s) => ({ key: s.key, name: s.name, pageCount: s.pageCount })) ?? [],
+              hits: compScan?.hits ?? [],
+            }),
+          });
+          if (!res.ok) throw new Error(`API error: ${res.status}`);
+          const rsData: RiskScoringData = await res.json();
+          setState((prev) => ({ ...prev, data: { ...prev.data, 'risk-heatmap': rsData, 'policy-recommendations': rsData } }));
+        } else if (step === 'policy-recommendations') {
+          // Data already loaded in risk-heatmap step
+          // Just set current step, data is shared
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -498,6 +565,8 @@ export default function Home() {
     projectKeyRef.current = pk;
     spaceIdRef.current = sid;
 
+    setSelectedFeature(null);
+
     const config = getWorkflowConfig(workflow);
     const firstStep = config.stepOrder[1]; // [0] is 'select', [1] is first real step
 
@@ -513,7 +582,38 @@ export default function Home() {
     await generateStep(firstStep);
   };
 
+  const handleStartRiskRadar = async () => {
+    setSelectedFeature(null);
+
+    const config = getWorkflowConfig('risk-radar');
+    const firstStep = config.stepOrder[1];
+
+    setState({
+      selectedWorkflow: 'risk-radar',
+      selectedIndustry: null,
+      currentStep: firstStep,
+      isGenerating: false,
+      error: null,
+      data: { ...EMPTY_DATA },
+    });
+
+    await generateStep(firstStep);
+  };
+
+  const handleSelectFeature = (feature: FeatureId) => {
+    setSelectedFeature(feature);
+    setState({
+      selectedWorkflow: null,
+      selectedIndustry: null,
+      currentStep: 'select',
+      isGenerating: false,
+      error: null,
+      data: { ...EMPTY_DATA },
+    });
+  };
+
   const handleStartOver = () => {
+    setSelectedFeature(null);
     setState({
       selectedWorkflow: null,
       selectedIndustry: null,
@@ -531,6 +631,9 @@ export default function Home() {
 
     if (next === 'complete') {
       setState((prev) => ({ ...prev, currentStep: 'complete' }));
+    } else if (next === 'policy-recommendations' && data['risk-heatmap']) {
+      // Policy recommendations shares data with risk-heatmap — no fetch needed
+      setState((prev) => ({ ...prev, currentStep: next }));
     } else if (ACTION_STEPS.has(next)) {
       setState((prev) => ({ ...prev, currentStep: next }));
     } else {
@@ -544,6 +647,7 @@ export default function Home() {
     if (currentStep === 'actions') return data.actions !== null;
     if (currentStep === 'knowledge-actions') return data['knowledge-actions'] !== null;
     if (currentStep === 'sprint-actions') return data['sprint-actions'] !== null;
+    if (currentStep === 'policy-recommendations') return data['policy-recommendations'] !== null;
     return completedSteps.has(currentStep);
   })();
 
@@ -552,13 +656,18 @@ export default function Home() {
     currentStep !== 'select' &&
     currentStep !== 'complete' &&
     !isGenerating &&
+    !selectedFeature &&
     (ACTION_STEPS.has(currentStep) ? currentStepHasData : completedSteps.has(currentStep));
+
+  // Rendering: feature views take over the full page
+  const isFeatureView = selectedFeature !== null;
 
   return (
     <main className="min-h-screen">
       <Header isRunning={isGenerating} />
 
-      {selectedWorkflow && currentStep !== 'select' && (
+      {/* Step progress bar for workflow views */}
+      {selectedWorkflow && currentStep !== 'select' && !isFeatureView && (
         <>
           <StepProgress currentStep={currentStep} completedSteps={completedSteps} steps={stepDefinitions} />
           <ToolCallStats {...toolCallStats} />
@@ -573,13 +682,25 @@ export default function Home() {
           </div>
         )}
 
-        {/* Landing */}
-        {currentStep === 'select' && (
-          <HeroLanding onStart={handleStart} />
+        {/* ======= Feature Views (non-step-based) ======= */}
+        {selectedFeature === 'threat-simulator' && (
+          <SecuritySimulator onBack={handleStartOver} />
+        )}
+        {selectedFeature === 'governance' && (
+          <GovernanceControlRoom onBack={handleStartOver} />
+        )}
+
+        {/* ======= Landing ======= */}
+        {!isFeatureView && currentStep === 'select' && (
+          <HeroLanding
+            onStart={handleStart}
+            onSelectFeature={handleSelectFeature}
+            onStartRiskRadar={handleStartRiskRadar}
+          />
         )}
 
         {/* ---- Deployment Planning Steps ---- */}
-        {currentStep === 'context' && (
+        {!isFeatureView && currentStep === 'context' && (
           <ContextStep
             data={data.context}
             isGenerating={isGenerating}
@@ -588,58 +709,72 @@ export default function Home() {
             requestParams={getRequestParams('context')}
           />
         )}
-        {currentStep === 'search' && (
+        {!isFeatureView && currentStep === 'search' && (
           <SearchStep results={data.search?.results ?? null} isGenerating={isGenerating} requestParams={getRequestParams('search')} />
         )}
-        {currentStep === 'health' && (
+        {!isFeatureView && currentStep === 'health' && (
           <HealthStep data={data.health} isGenerating={isGenerating} requestParams={getRequestParams('health')} />
         )}
-        {currentStep === 'architecture' && (
+        {!isFeatureView && currentStep === 'architecture' && (
           <ArchitectureStep data={data.architecture} isGenerating={isGenerating} requestParams={getRequestParams('architecture')} />
         )}
-        {currentStep === 'compliance' && (
+        {!isFeatureView && currentStep === 'compliance' && (
           <ComplianceStep data={data.compliance} isGenerating={isGenerating} requestParams={getRequestParams('compliance')} />
         )}
-        {currentStep === 'plan' && (
+        {!isFeatureView && currentStep === 'plan' && (
           <PlanStep data={data.plan} isGenerating={isGenerating} requestParams={getRequestParams('plan')} />
         )}
-        {currentStep === 'actions' && (
+        {!isFeatureView && currentStep === 'actions' && (
           <ActionsStep data={data.actions} isGenerating={isGenerating} requestParams={getRequestParams('actions')} onExecuteActions={handleExecuteActions} />
         )}
 
         {/* ---- Knowledge Audit Steps ---- */}
-        {currentStep === 'space-discovery' && (
+        {!isFeatureView && currentStep === 'space-discovery' && (
           <SpaceDiscoveryStep data={data['space-discovery']} isGenerating={isGenerating} requestParams={getRequestParams('space-discovery')} />
         )}
-        {currentStep === 'page-tree' && (
+        {!isFeatureView && currentStep === 'page-tree' && (
           <PageTreeStep data={data['page-tree']} isGenerating={isGenerating} requestParams={getRequestParams('page-tree')} />
         )}
-        {currentStep === 'comment-audit' && (
+        {!isFeatureView && currentStep === 'comment-audit' && (
           <CommentAuditStep data={data['comment-audit']} isGenerating={isGenerating} requestParams={getRequestParams('comment-audit')} />
         )}
-        {currentStep === 'health-scoring' && (
+        {!isFeatureView && currentStep === 'health-scoring' && (
           <HealthScoringStep data={data['health-scoring']} isGenerating={isGenerating} requestParams={getRequestParams('health-scoring')} />
         )}
-        {currentStep === 'knowledge-actions' && (
+        {!isFeatureView && currentStep === 'knowledge-actions' && (
           <KnowledgeActionsStep data={data['knowledge-actions']} isGenerating={isGenerating} requestParams={getRequestParams('knowledge-actions')} onExecuteActions={handleExecuteKnowledgeActions} />
         )}
 
         {/* ---- Sprint Operations Steps ---- */}
-        {currentStep === 'sprint-context' && (
+        {!isFeatureView && currentStep === 'sprint-context' && (
           <SprintContextStep data={data['sprint-context']} isGenerating={isGenerating} requestParams={getRequestParams('sprint-context')} />
         )}
-        {currentStep === 'issue-deep-dive' && (
+        {!isFeatureView && currentStep === 'issue-deep-dive' && (
           <IssueDeepDiveStep data={data['issue-deep-dive']} isGenerating={isGenerating} requestParams={getRequestParams('issue-deep-dive')} />
         )}
-        {currentStep === 'team-lookup' && (
+        {!isFeatureView && currentStep === 'team-lookup' && (
           <TeamLookupStep data={data['team-lookup']} isGenerating={isGenerating} requestParams={getRequestParams('team-lookup')} />
         )}
-        {currentStep === 'sprint-actions' && (
+        {!isFeatureView && currentStep === 'sprint-actions' && (
           <SprintActionsStep data={data['sprint-actions']} isGenerating={isGenerating} requestParams={getRequestParams('sprint-actions')} onExecuteActions={handleExecuteSprintActions} />
         )}
 
+        {/* ---- Risk Radar Steps ---- */}
+        {!isFeatureView && currentStep === 'portfolio-discovery' && (
+          <PortfolioDiscoveryStep data={data['portfolio-discovery']} isGenerating={isGenerating} requestParams={getRequestParams('portfolio-discovery')} />
+        )}
+        {!isFeatureView && currentStep === 'compliance-scan' && (
+          <ComplianceScanStep data={data['compliance-scan']} isGenerating={isGenerating} requestParams={getRequestParams('compliance-scan')} />
+        )}
+        {!isFeatureView && currentStep === 'risk-heatmap' && (
+          <RiskHeatmapStep data={data['risk-heatmap']} isGenerating={isGenerating} requestParams={getRequestParams('risk-heatmap')} />
+        )}
+        {!isFeatureView && currentStep === 'policy-recommendations' && (
+          <PolicyRecommendationStep data={data['policy-recommendations']} isGenerating={isGenerating} requestParams={getRequestParams('policy-recommendations')} />
+        )}
+
         {/* Complete */}
-        {currentStep === 'complete' && (
+        {!isFeatureView && currentStep === 'complete' && (
           <CompleteStep data={data} workflowId={selectedWorkflow!} onStartOver={handleStartOver} />
         )}
 

@@ -1,14 +1,171 @@
 // TypeScript interfaces for all API responses
 
 // ---- Workflow system ----
-export type WorkflowId = 'deployment-planning' | 'knowledge-audit' | 'sprint-operations';
+export type WorkflowId = 'deployment-planning' | 'knowledge-audit' | 'sprint-operations' | 'risk-radar';
+
+// ---- Feature system (non-step-based interactive views) ----
+export type FeatureId = 'threat-simulator' | 'governance';
+
+// ---- Security Threat Simulator types ----
+export interface ThreatIndicator {
+  strategy: string;
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
+  description: string;
+  fieldPath: string;
+  matchedContent?: string;
+}
+
+export interface ThreatScanResult {
+  clean: boolean;
+  indicators: ThreatIndicator[];
+  highestSeverity: ThreatIndicator['severity'] | null;
+  scanDurationMs: number;
+}
+
+export interface PiiMatch {
+  type: string;
+  fieldPath: string;
+  start: number;
+  end: number;
+}
+
+export interface PiiScanResult {
+  detected: boolean;
+  matches: PiiMatch[];
+}
+
+export interface ScanApiResult {
+  threats: ThreatScanResult;
+  pii: PiiScanResult;
+  shouldBlock: boolean;
+  redactedText?: string;
+}
+
+// ---- Governance Control Room types ----
+export interface PolicyTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: 'access' | 'security' | 'compliance';
+  rules: PolicyRule[];
+}
+
+export interface PolicyRule {
+  name: string;
+  description: string;
+  priority: number;
+  conditions: {
+    servers?: string[];
+    tools?: string[];
+    users?: string[];
+  };
+  action: 'allow' | 'deny' | 'require_approval' | 'log_only';
+  modifiers?: {
+    redactPII?: boolean;
+    maxCallsPerMinute?: number;
+  };
+}
+
+export type PolicyDecision = 'allow' | 'deny' | 'require_approval' | 'log_only';
+
+export interface ToolCallSimulation {
+  toolName: string;
+  displayName: string;
+  type: 'read' | 'write';
+  exampleParams: Record<string, unknown>;
+  decision: PolicyDecision;
+  matchedRule?: string;
+  matchedTemplate?: string;
+}
+
+// ---- Risk Radar types ----
+export type RiskRadarStep = 'portfolio-discovery' | 'compliance-scan' | 'risk-heatmap' | 'policy-recommendations';
+
+export interface PortfolioProject {
+  key: string;
+  name: string;
+  description?: string;
+  lead?: string;
+  issueCount: number;
+  lastActivity?: string;
+}
+
+export interface PortfolioSpace {
+  key: string;
+  name: string;
+  description?: string;
+  pageCount: number;
+  lastActivity?: string;
+}
+
+export interface PortfolioUser {
+  accountId: string;
+  displayName: string;
+  emailAddress?: string;
+  active: boolean;
+}
+
+export interface PortfolioDiscoveryData {
+  projects: PortfolioProject[];
+  spaces: PortfolioSpace[];
+  user: PortfolioUser;
+  source: 'gateway' | 'mock';
+}
+
+export interface ComplianceHit {
+  keyword: string;
+  source: 'jira' | 'confluence';
+  projectOrSpace: string;
+  title: string;
+  key?: string;
+  excerpt?: string;
+}
+
+export interface ComplianceScanData {
+  hits: ComplianceHit[];
+  scansByProject: Record<string, number>;
+  scansByKeyword: Record<string, number>;
+  source: 'gateway' | 'mock';
+}
+
+export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
+
+export interface RiskDimension {
+  dimension: string;
+  score: number;
+  level: RiskLevel;
+  details: string;
+}
+
+export interface ProjectRiskScore {
+  key: string;
+  name: string;
+  type: 'project' | 'space';
+  overallScore: number;
+  overallLevel: RiskLevel;
+  dimensions: RiskDimension[];
+}
+
+export interface RiskScoringData {
+  scores: ProjectRiskScore[];
+  recommendations: PolicyRecommendation[];
+}
+
+export interface PolicyRecommendation {
+  projectKey: string;
+  projectName: string;
+  templateId: string;
+  templateName: string;
+  reason: string;
+  severity: 'high' | 'medium' | 'low';
+}
 
 // ---- Steps per workflow ----
 export type DeploymentStep = 'context' | 'search' | 'health' | 'architecture' | 'compliance' | 'plan' | 'actions';
 export type KnowledgeAuditStep = 'space-discovery' | 'page-tree' | 'comment-audit' | 'health-scoring' | 'knowledge-actions';
 export type SprintOpsStep = 'sprint-context' | 'issue-deep-dive' | 'team-lookup' | 'sprint-actions';
 
-export type WorkflowStep = DeploymentStep | KnowledgeAuditStep | SprintOpsStep;
+export type WorkflowStep = DeploymentStep | KnowledgeAuditStep | SprintOpsStep | RiskRadarStep;
 export type Step = 'select' | WorkflowStep | 'complete';
 
 export type Industry = 'healthcare' | 'financial';
@@ -419,6 +576,11 @@ export interface DemoData {
   'issue-deep-dive': IssueDeepDiveData | null;
   'team-lookup': TeamLookupData | null;
   'sprint-actions': SprintActionsData | null;
+  // Risk radar
+  'portfolio-discovery': PortfolioDiscoveryData | null;
+  'compliance-scan': ComplianceScanData | null;
+  'risk-heatmap': RiskScoringData | null;
+  'policy-recommendations': RiskScoringData | null;
 }
 
 export interface DemoState {
