@@ -428,7 +428,6 @@ export interface CommentAuditData {
   pagesWithComments: number;
   pagesWithoutComments: number;
   source: 'gateway' | 'mock';
-  _debug?: Array<Record<string, unknown>>;
 }
 
 export interface PageHealthScore {

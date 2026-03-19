@@ -12,157 +12,108 @@ const PageRefSchema = z.object({
 
 const InputSchema = z.object({
   pageIds: z.array(PageRefSchema).max(50),
+  upstreamSource: z.enum(['gateway', 'mock']).optional(),
 }).strict();
 
 /**
- * Parse a raw comment object from Confluence API into CommentInfo.
+ * Parse a CQL search result into CommentInfo.
+ * CQL results have: id, title, type, excerpt, lastModified, url, space, etc.
+ * The comment "container" is the parent page.
  */
-function parseComment(
+function parseSearchResult(
   raw: Record<string, unknown>,
   pageId: string,
   pageTitle: string,
-  type: 'footer' | 'inline'
 ): CommentInfo {
-  const body = (raw.body as Record<string, unknown>) ?? {};
-  const bodyText = (body.storage as Record<string, unknown>)?.value ??
-    (body.view as Record<string, unknown>)?.value ??
-    (body.atlas_doc_format as Record<string, unknown>)?.value ??
-    (raw.body as string) ?? '';
+  // CQL search returns excerpt (plain text) and content metadata
+  const excerpt = (raw.excerpt as string) ?? (raw.title as string) ?? '';
+  // Strip HTML tags from excerpt
+  const cleanBody = excerpt.replace(/<[^>]*>/g, '').trim();
 
+  // Try to get author from various possible fields
+  const lastModifiedBy = raw.lastModifiedBy as Record<string, unknown> | undefined;
+  const author = (lastModifiedBy?.displayName as string) ??
+    (lastModifiedBy?.publicName as string) ??
+    ((raw.history as Record<string, unknown>)?.createdBy as Record<string, unknown>)?.displayName as string ??
+    'Unknown';
+
+  const created = (raw.lastModified as string) ??
+    ((raw.history as Record<string, unknown>)?.createdDate as string) ?? '';
+
+  // Confluence search results don't distinguish footer/inline in CQL results
+  // Treat all as footer comments (the most common type)
   return {
     id: String(raw.id ?? ''),
     pageId,
     pageTitle,
-    author: ((raw.author as Record<string, unknown>)?.displayName as string) ??
-      ((raw.author as Record<string, unknown>)?.publicName as string) ?? 'Unknown',
-    body: typeof bodyText === 'string' ? bodyText.slice(0, 500) : JSON.stringify(bodyText).slice(0, 500),
-    created: (raw.createdAt as string) ?? (raw.created as string) ?? '',
-    type,
-    resolved: type === 'inline' ? (raw.resolutionStatus === 'resolved') : undefined,
+    author,
+    body: cleanBody.slice(0, 500) || '(comment body not available in search results)',
+    created,
+    type: 'footer',
     replyCount: 0,
   };
 }
 
+/**
+ * Use searchConfluenceUsingCql to find comments on pages.
+ * The Rovo MCP doesn't expose getConfluencePageFooterComments/InlineComments,
+ * but searchConfluenceUsingCql IS available and can find comments via CQL.
+ */
 async function fetchViaGateway(
   pageIds: Array<{ id: string; title: string }>
 ): Promise<CommentAuditData> {
   const footerComments: CommentInfo[] = [];
   const inlineComments: CommentInfo[] = [];
   const pagesWithComments = new Set<string>();
-  const _debug: Array<Record<string, unknown>> = [];
 
-  for (const { id: pageId, title: pageTitle } of pageIds) {
-    // Fetch footer comments
-    try {
-      const footerResult = await callTool(rovo('getConfluencePageFooterComments'), {
-        cloudId: ATLASSIAN_CLOUD_ID,
-        pageId,
-      });
+  // Build a title lookup map
+  const titleMap = new Map(pageIds.map((p) => [p.id, p.title]));
 
-      if (footerResult.isError) {
-        const errText = extractText(footerResult);
-        console.warn(`[comment-audit] Footer comments tool error for page ${pageId}:`, errText);
-        _debug.push({ type: 'footer_error', pageId, pageTitle, error: errText });
-      } else {
-        const footerText = extractText(footerResult);
-        _debug.push({ type: 'footer_ok', pageId, pageTitle, rawTextLength: footerText.length, rawTextPreview: footerText.slice(0, 500) });
-        if (footerText) {
-          const footerData = JSON.parse(footerText);
-          const rawComments = footerData?.results ?? (Array.isArray(footerData) ? footerData : []);
+  // Search for comments across all pages in a single CQL query
+  // CQL: type = comment AND container IN (id1, id2, ...)
+  const pageIdList = pageIds.map((p) => p.id).join(',');
+  const cql = `type = comment AND container IN (${pageIdList})`;
 
-          for (const raw of Array.isArray(rawComments) ? rawComments : []) {
-            const comment = parseComment(raw as Record<string, unknown>, pageId, pageTitle, 'footer');
-            footerComments.push(comment);
-            pagesWithComments.add(pageId);
+  try {
+    const searchResult = await callTool(rovo('searchConfluenceUsingCql'), {
+      cloudId: ATLASSIAN_CLOUD_ID,
+      cql,
+      limit: 50,
+    });
 
-            // Fetch replies for this footer comment
-            try {
-              const repliesResult = await callTool(rovo('getConfluenceCommentChildren'), {
-                cloudId: ATLASSIAN_CLOUD_ID,
-                commentId: comment.id,
-                commentType: 'footer',
-              });
-
-              if (!repliesResult.isError) {
-                const repliesText = extractText(repliesResult);
-                if (repliesText) {
-                  const repliesData = JSON.parse(repliesText);
-                  const rawReplies = repliesData?.results ?? repliesData ?? [];
-                  const replies: CommentInfo[] = [];
-
-                  for (const rawReply of Array.isArray(rawReplies) ? rawReplies : []) {
-                    replies.push(parseComment(rawReply as Record<string, unknown>, pageId, pageTitle, 'footer'));
-                  }
-
-                  comment.replyCount = replies.length;
-                  comment.replies = replies.length > 0 ? replies : undefined;
-                }
-              }
-            } catch {
-              // Skip reply fetching silently
-            }
-          }
-        }
-      }
-    } catch (err) {
-      console.warn(`[comment-audit] Failed to fetch footer comments for ${pageId}:`, err instanceof Error ? err.message : err);
+    if (searchResult.isError) {
+      const errText = extractText(searchResult);
+      console.warn('[comment-audit] CQL search error:', errText);
+      // Fall back to per-page search if batch fails
+      return await fetchPerPage(pageIds, titleMap);
     }
 
-    // Fetch inline comments
-    try {
-      const inlineResult = await callTool(rovo('getConfluencePageInlineComments'), {
-        cloudId: ATLASSIAN_CLOUD_ID,
-        pageId,
-      });
+    const searchText = extractText(searchResult);
+    if (searchText) {
+      const searchData = JSON.parse(searchText);
+      const results = searchData?.results ?? (Array.isArray(searchData) ? searchData : []);
 
-      if (inlineResult.isError) {
-        const errText = extractText(inlineResult);
-        console.warn(`[comment-audit] Inline comments tool error for page ${pageId}:`, errText);
-        _debug.push({ type: 'inline_error', pageId, pageTitle, error: errText });
-      } else {
-        const inlineText = extractText(inlineResult);
-        _debug.push({ type: 'inline_ok', pageId, pageTitle, rawTextLength: inlineText.length, rawTextPreview: inlineText.slice(0, 500) });
-        if (inlineText) {
-          const inlineData = JSON.parse(inlineText);
-          const rawComments = inlineData?.results ?? (Array.isArray(inlineData) ? inlineData : []);
+      for (const raw of Array.isArray(results) ? results : []) {
+        // Determine which page this comment belongs to
+        const container = raw.container as Record<string, unknown> | undefined;
+        const containerId = container ? String(container.id ?? '') : '';
+        const containerTitle = container
+          ? (container.title as string) ?? titleMap.get(containerId) ?? 'Unknown Page'
+          : 'Unknown Page';
 
-          for (const raw of Array.isArray(rawComments) ? rawComments : []) {
-            const comment = parseComment(raw as Record<string, unknown>, pageId, pageTitle, 'inline');
-            inlineComments.push(comment);
-            pagesWithComments.add(pageId);
+        // Use the container ID if available, otherwise try to match
+        const pageId = containerId || pageIds[0]?.id || '';
+        const pageTitle = containerTitle;
 
-            // Fetch replies for inline comments too
-            try {
-              const repliesResult = await callTool(rovo('getConfluenceCommentChildren'), {
-                cloudId: ATLASSIAN_CLOUD_ID,
-                commentId: comment.id,
-                commentType: 'inline',
-              });
-
-              if (!repliesResult.isError) {
-                const repliesText = extractText(repliesResult);
-                if (repliesText) {
-                  const repliesData = JSON.parse(repliesText);
-                  const rawReplies = repliesData?.results ?? repliesData ?? [];
-                  const replies: CommentInfo[] = [];
-
-                  for (const rawReply of Array.isArray(rawReplies) ? rawReplies : []) {
-                    replies.push(parseComment(rawReply as Record<string, unknown>, pageId, pageTitle, 'inline'));
-                  }
-
-                  comment.replyCount = replies.length;
-                  comment.replies = replies.length > 0 ? replies : undefined;
-                }
-              }
-            } catch {
-              // Skip reply fetching silently
-            }
-          }
-        }
+        const comment = parseSearchResult(raw as Record<string, unknown>, pageId, pageTitle);
+        footerComments.push(comment);
+        if (pageId) pagesWithComments.add(pageId);
       }
-    } catch (err) {
-      console.warn(`[comment-audit] Failed to fetch inline comments for ${pageId}:`, err instanceof Error ? err.message : err);
     }
+  } catch (err) {
+    console.warn('[comment-audit] CQL search failed:', err instanceof Error ? err.message : err);
+    // Fall back to per-page search
+    return await fetchPerPage(pageIds, titleMap);
   }
 
   const totalComments = footerComments.length + inlineComments.length;
@@ -176,7 +127,53 @@ async function fetchViaGateway(
     pagesWithComments: pagesWithComments.size,
     pagesWithoutComments: pageIds.length - pagesWithComments.size,
     source: 'gateway',
-    _debug,
+  };
+}
+
+/**
+ * Fallback: search for comments one page at a time if batch CQL fails.
+ */
+async function fetchPerPage(
+  pageIds: Array<{ id: string; title: string }>,
+  titleMap: Map<string, string>,
+): Promise<CommentAuditData> {
+  const footerComments: CommentInfo[] = [];
+  const pagesWithComments = new Set<string>();
+
+  for (const { id: pageId, title: pageTitle } of pageIds) {
+    try {
+      const cql = `type = comment AND container = ${pageId}`;
+      const result = await callTool(rovo('searchConfluenceUsingCql'), {
+        cloudId: ATLASSIAN_CLOUD_ID,
+        cql,
+        limit: 25,
+      });
+
+      if (!result.isError) {
+        const text = extractText(result);
+        if (text) {
+          const data = JSON.parse(text);
+          const results = data?.results ?? (Array.isArray(data) ? data : []);
+          for (const raw of Array.isArray(results) ? results : []) {
+            const comment = parseSearchResult(raw as Record<string, unknown>, pageId, pageTitle);
+            footerComments.push(comment);
+            pagesWithComments.add(pageId);
+          }
+        }
+      }
+    } catch {
+      // Skip this page silently
+    }
+  }
+
+  return {
+    footerComments,
+    inlineComments: [],
+    totalComments: footerComments.length,
+    unresolvedInline: 0,
+    pagesWithComments: pagesWithComments.size,
+    pagesWithoutComments: pageIds.length - pagesWithComments.size,
+    source: 'gateway',
   };
 }
 
@@ -317,11 +314,16 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    const { pageIds } = parsed.data;
+    const { pageIds, upstreamSource } = parsed.data;
 
     let data: CommentAuditData;
 
-    if (isConfigured()) {
+    // If upstream data was mock (e.g. space-discovery fell back), use mock here too
+    // Mock page IDs like "page-001" won't work with the real Confluence API
+    const hasMockIds = pageIds.some((p) => p.id.startsWith('page-'));
+    const shouldUseMock = upstreamSource === 'mock' || hasMockIds;
+
+    if (isConfigured() && !shouldUseMock) {
       try {
         data = await fetchViaGateway(pageIds);
       } catch (err) {

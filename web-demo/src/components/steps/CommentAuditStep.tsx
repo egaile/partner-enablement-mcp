@@ -27,7 +27,7 @@ export function CommentAuditStep({ data, isGenerating, requestParams }: CommentA
     return (
       <div className="space-y-5 animate-fade-in">
         <SecurityPipeline
-          toolName="getConfluencePageComments"
+          toolName="searchConfluenceUsingCql"
           narrativeKey="comment_activity_audit"
           parameters={requestParams}
           isGenerating={isGenerating}
@@ -42,7 +42,7 @@ export function CommentAuditStep({ data, isGenerating, requestParams }: CommentA
   return (
     <div className="space-y-5 animate-fade-in">
       <SecurityPipeline
-        toolName="getConfluencePageComments"
+        toolName="searchConfluenceUsingCql"
         narrativeKey="comment_activity_audit"
         parameters={requestParams}
         isGenerating={isGenerating}
@@ -122,22 +122,13 @@ export function CommentAuditStep({ data, isGenerating, requestParams }: CommentA
             {data.source === 'gateway' ? 'Live Data' : 'Mock Data'}
           </Badge>
           <span>
-            Comments fetched via{' '}
-            <code className="font-mono text-purple-600">getConfluencePageFooterComments</code> and{' '}
-            <code className="font-mono text-purple-600">getConfluencePageInlineComments</code>
+            Comments discovered via{' '}
+            <code className="font-mono text-purple-600">searchConfluenceUsingCql</code>
+            {data.source === 'gateway' ? ' (type = comment)' : ''}
           </span>
         </div>
       </Card>
 
-      {/* Temporary debug output */}
-      {data._debug && data._debug.length > 0 && (
-        <details className="mt-4">
-          <summary className="text-xs font-mono text-gray-400 cursor-pointer">Debug: raw Rovo responses ({data._debug.length} entries)</summary>
-          <pre className="mt-2 text-[10px] leading-tight font-mono bg-gray-50 border border-gray-200 rounded-lg p-3 overflow-x-auto max-h-96 overflow-y-auto whitespace-pre-wrap break-all text-gray-600">
-            {JSON.stringify(data._debug, null, 2)}
-          </pre>
-        </details>
-      )}
     </div>
   );
 }

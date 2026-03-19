@@ -333,10 +333,11 @@ export default function Home() {
           const ptData: PageTreeData = await res.json();
           setState((prev) => ({ ...prev, data: { ...prev.data, 'page-tree': ptData } }));
         } else if (step === 'comment-audit') {
-          const pages = data['space-discovery']?.pages ?? [];
+          const sd = data['space-discovery'];
+          const pages = sd?.pages ?? [];
           const res = await fetch('/api/tools/comment-audit', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pageIds: pages.map((p) => ({ id: p.id, title: p.title })) }),
+            body: JSON.stringify({ pageIds: pages.map((p) => ({ id: p.id, title: p.title })), upstreamSource: sd?.source }),
           });
           if (!res.ok) throw new Error(`API error: ${res.status}`);
           const caData: CommentAuditData = await res.json();
