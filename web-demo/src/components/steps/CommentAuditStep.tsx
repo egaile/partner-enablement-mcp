@@ -128,6 +128,16 @@ export function CommentAuditStep({ data, isGenerating, requestParams }: CommentA
           </span>
         </div>
       </Card>
+
+      {/* Temporary debug output */}
+      {data._debug && data._debug.length > 0 && (
+        <details className="mt-4">
+          <summary className="text-xs font-mono text-gray-400 cursor-pointer">Debug: raw Rovo responses ({data._debug.length} entries)</summary>
+          <pre className="mt-2 text-[10px] leading-tight font-mono bg-gray-50 border border-gray-200 rounded-lg p-3 overflow-x-auto max-h-96 overflow-y-auto whitespace-pre-wrap break-all text-gray-600">
+            {JSON.stringify(data._debug, null, 2)}
+          </pre>
+        </details>
+      )}
     </div>
   );
 }
