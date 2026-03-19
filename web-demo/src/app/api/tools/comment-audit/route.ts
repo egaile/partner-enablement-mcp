@@ -49,6 +49,7 @@ async function fetchViaGateway(
   const footerComments: CommentInfo[] = [];
   const inlineComments: CommentInfo[] = [];
   const pagesWithComments = new Set<string>();
+  const _debug: Array<Record<string, unknown>> = [];
 
   for (const { id: pageId, title: pageTitle } of pageIds) {
     // Fetch footer comments
@@ -59,9 +60,12 @@ async function fetchViaGateway(
       });
 
       if (footerResult.isError) {
-        console.warn(`[comment-audit] Footer comments tool error for page ${pageId}:`, extractText(footerResult));
+        const errText = extractText(footerResult);
+        console.warn(`[comment-audit] Footer comments tool error for page ${pageId}:`, errText);
+        _debug.push({ type: 'footer_error', pageId, pageTitle, error: errText });
       } else {
         const footerText = extractText(footerResult);
+        _debug.push({ type: 'footer_ok', pageId, pageTitle, rawTextLength: footerText.length, rawTextPreview: footerText.slice(0, 500) });
         if (footerText) {
           const footerData = JSON.parse(footerText);
           const rawComments = footerData?.results ?? (Array.isArray(footerData) ? footerData : []);
@@ -112,9 +116,12 @@ async function fetchViaGateway(
       });
 
       if (inlineResult.isError) {
-        console.warn(`[comment-audit] Inline comments tool error for page ${pageId}:`, extractText(inlineResult));
+        const errText = extractText(inlineResult);
+        console.warn(`[comment-audit] Inline comments tool error for page ${pageId}:`, errText);
+        _debug.push({ type: 'inline_error', pageId, pageTitle, error: errText });
       } else {
         const inlineText = extractText(inlineResult);
+        _debug.push({ type: 'inline_ok', pageId, pageTitle, rawTextLength: inlineText.length, rawTextPreview: inlineText.slice(0, 500) });
         if (inlineText) {
           const inlineData = JSON.parse(inlineText);
           const rawComments = inlineData?.results ?? (Array.isArray(inlineData) ? inlineData : []);
@@ -169,6 +176,7 @@ async function fetchViaGateway(
     pagesWithComments: pagesWithComments.size,
     pagesWithoutComments: pageIds.length - pagesWithComments.size,
     source: 'gateway',
+    _debug,
   };
 }
 
