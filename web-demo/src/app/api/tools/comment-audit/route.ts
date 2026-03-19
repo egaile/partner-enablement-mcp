@@ -56,43 +56,47 @@ async function fetchViaGateway(
       const footerResult = await callTool(rovo('getConfluencePageFooterComments'), {
         cloudId: ATLASSIAN_CLOUD_ID,
         pageId,
-        limit: 25,
       });
 
-      if (!footerResult.isError) {
+      if (footerResult.isError) {
+        console.warn(`[comment-audit] Footer comments tool error for page ${pageId}:`, extractText(footerResult));
+      } else {
         const footerText = extractText(footerResult);
-        const footerData = JSON.parse(footerText);
-        const rawComments = footerData?.results ?? footerData ?? [];
+        if (footerText) {
+          const footerData = JSON.parse(footerText);
+          const rawComments = footerData?.results ?? (Array.isArray(footerData) ? footerData : []);
 
-        for (const raw of Array.isArray(rawComments) ? rawComments : []) {
-          const comment = parseComment(raw as Record<string, unknown>, pageId, pageTitle, 'footer');
-          footerComments.push(comment);
-          pagesWithComments.add(pageId);
+          for (const raw of Array.isArray(rawComments) ? rawComments : []) {
+            const comment = parseComment(raw as Record<string, unknown>, pageId, pageTitle, 'footer');
+            footerComments.push(comment);
+            pagesWithComments.add(pageId);
 
-          // Fetch replies for this footer comment
-          try {
-            const repliesResult = await callTool(rovo('getConfluenceCommentChildren'), {
-              cloudId: ATLASSIAN_CLOUD_ID,
-              commentId: comment.id,
-              commentType: 'footer',
-              limit: 10,
-            });
+            // Fetch replies for this footer comment
+            try {
+              const repliesResult = await callTool(rovo('getConfluenceCommentChildren'), {
+                cloudId: ATLASSIAN_CLOUD_ID,
+                commentId: comment.id,
+                commentType: 'footer',
+              });
 
-            if (!repliesResult.isError) {
-              const repliesText = extractText(repliesResult);
-              const repliesData = JSON.parse(repliesText);
-              const rawReplies = repliesData?.results ?? repliesData ?? [];
-              const replies: CommentInfo[] = [];
+              if (!repliesResult.isError) {
+                const repliesText = extractText(repliesResult);
+                if (repliesText) {
+                  const repliesData = JSON.parse(repliesText);
+                  const rawReplies = repliesData?.results ?? repliesData ?? [];
+                  const replies: CommentInfo[] = [];
 
-              for (const rawReply of Array.isArray(rawReplies) ? rawReplies : []) {
-                replies.push(parseComment(rawReply as Record<string, unknown>, pageId, pageTitle, 'footer'));
+                  for (const rawReply of Array.isArray(rawReplies) ? rawReplies : []) {
+                    replies.push(parseComment(rawReply as Record<string, unknown>, pageId, pageTitle, 'footer'));
+                  }
+
+                  comment.replyCount = replies.length;
+                  comment.replies = replies.length > 0 ? replies : undefined;
+                }
               }
-
-              comment.replyCount = replies.length;
-              comment.replies = replies.length > 0 ? replies : undefined;
+            } catch {
+              // Skip reply fetching silently
             }
-          } catch {
-            // Skip reply fetching silently
           }
         }
       }
@@ -105,43 +109,47 @@ async function fetchViaGateway(
       const inlineResult = await callTool(rovo('getConfluencePageInlineComments'), {
         cloudId: ATLASSIAN_CLOUD_ID,
         pageId,
-        limit: 25,
       });
 
-      if (!inlineResult.isError) {
+      if (inlineResult.isError) {
+        console.warn(`[comment-audit] Inline comments tool error for page ${pageId}:`, extractText(inlineResult));
+      } else {
         const inlineText = extractText(inlineResult);
-        const inlineData = JSON.parse(inlineText);
-        const rawComments = inlineData?.results ?? inlineData ?? [];
+        if (inlineText) {
+          const inlineData = JSON.parse(inlineText);
+          const rawComments = inlineData?.results ?? (Array.isArray(inlineData) ? inlineData : []);
 
-        for (const raw of Array.isArray(rawComments) ? rawComments : []) {
-          const comment = parseComment(raw as Record<string, unknown>, pageId, pageTitle, 'inline');
-          inlineComments.push(comment);
-          pagesWithComments.add(pageId);
+          for (const raw of Array.isArray(rawComments) ? rawComments : []) {
+            const comment = parseComment(raw as Record<string, unknown>, pageId, pageTitle, 'inline');
+            inlineComments.push(comment);
+            pagesWithComments.add(pageId);
 
-          // Fetch replies for inline comments too
-          try {
-            const repliesResult = await callTool(rovo('getConfluenceCommentChildren'), {
-              cloudId: ATLASSIAN_CLOUD_ID,
-              commentId: comment.id,
-              commentType: 'inline',
-              limit: 10,
-            });
+            // Fetch replies for inline comments too
+            try {
+              const repliesResult = await callTool(rovo('getConfluenceCommentChildren'), {
+                cloudId: ATLASSIAN_CLOUD_ID,
+                commentId: comment.id,
+                commentType: 'inline',
+              });
 
-            if (!repliesResult.isError) {
-              const repliesText = extractText(repliesResult);
-              const repliesData = JSON.parse(repliesText);
-              const rawReplies = repliesData?.results ?? repliesData ?? [];
-              const replies: CommentInfo[] = [];
+              if (!repliesResult.isError) {
+                const repliesText = extractText(repliesResult);
+                if (repliesText) {
+                  const repliesData = JSON.parse(repliesText);
+                  const rawReplies = repliesData?.results ?? repliesData ?? [];
+                  const replies: CommentInfo[] = [];
 
-              for (const rawReply of Array.isArray(rawReplies) ? rawReplies : []) {
-                replies.push(parseComment(rawReply as Record<string, unknown>, pageId, pageTitle, 'inline'));
+                  for (const rawReply of Array.isArray(rawReplies) ? rawReplies : []) {
+                    replies.push(parseComment(rawReply as Record<string, unknown>, pageId, pageTitle, 'inline'));
+                  }
+
+                  comment.replyCount = replies.length;
+                  comment.replies = replies.length > 0 ? replies : undefined;
+                }
               }
-
-              comment.replyCount = replies.length;
-              comment.replies = replies.length > 0 ? replies : undefined;
+            } catch {
+              // Skip reply fetching silently
             }
-          } catch {
-            // Skip reply fetching silently
           }
         }
       }
