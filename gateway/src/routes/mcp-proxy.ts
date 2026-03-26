@@ -46,8 +46,10 @@ export function createMcpProxyRouter(state: GatewayState): Router {
           state.mcpTransports.set(sid, transport);
           state.transportLastActivity.set(sid, Date.now());
         }
-      } else {
+      } else if (req.method === "GET" || req.method === "DELETE") {
         res.status(400).json({ error: "Bad request: no valid session" });
+      } else {
+        res.status(405).json({ error: "Method not allowed" });
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Unknown error";

@@ -416,8 +416,8 @@ export default function Home() {
           const rsData: RiskScoringData = await res.json();
           setState((prev) => ({ ...prev, data: { ...prev.data, 'risk-heatmap': rsData, 'policy-recommendations': rsData } }));
         } else if (step === 'policy-recommendations') {
-          // Data already loaded in risk-heatmap step
-          // Just set current step, data is shared
+          // Data is populated by the risk-heatmap step — skip if not yet available
+          if (!dataRef.current['risk-heatmap']) return;
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Unknown error';

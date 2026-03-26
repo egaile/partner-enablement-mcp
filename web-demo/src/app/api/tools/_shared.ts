@@ -27,6 +27,11 @@ export function extractText(result: { content: Array<{ type: string; text?: stri
   return result.content.find((c) => c.type === 'text')?.text ?? '';
 }
 
+/** Safe JSON.parse wrapper — returns null instead of throwing on invalid JSON */
+export function safeJsonParse(text: string): unknown | null {
+  try { return JSON.parse(text); } catch { return null; }
+}
+
 /** Shared Zod schemas for API route input validation */
 export const ProjectKeySchema = z.string().regex(/^[A-Z][A-Z0-9_]{0,9}$/).default('HEALTH');
 

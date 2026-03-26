@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
-import { ATLASSIAN_CLOUD_ID, rovo, extractText } from '../_shared';
+import { callTool, isConfigured } from '@/lib/gateway-client';
+import { ATLASSIAN_CLOUD_ID, rovo, extractText, safeJsonParse } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 import type { PortfolioDiscoveryData, PortfolioProject, PortfolioSpace, PortfolioUser } from '@/types/api';
 
@@ -23,19 +23,18 @@ function getMockData(): PortfolioDiscoveryData {
 }
 
 async function fetchViaGateway(): Promise<PortfolioDiscoveryData> {
-  resetSession();
-
   // Step 1: Get user info (atlassianUserInfo — 30th tool)
   let user: PortfolioUser = { accountId: 'unknown', displayName: 'Unknown', active: true };
   try {
     const userResult = await callTool(rovo('atlassianUserInfo'), { cloudId: ATLASSIAN_CLOUD_ID });
     if (!userResult.isError) {
-      const userData = JSON.parse(extractText(userResult));
+      const userData = safeJsonParse(extractText(userResult)) as Record<string, unknown> | null;
+      if (!userData) throw new Error('Failed to parse user info response');
       user = {
-        accountId: userData.accountId ?? 'unknown',
-        displayName: userData.displayName ?? 'Unknown',
-        emailAddress: userData.emailAddress,
-        active: userData.active ?? true,
+        accountId: (userData.accountId as string) ?? 'unknown',
+        displayName: (userData.displayName as string) ?? 'Unknown',
+        emailAddress: userData.emailAddress as string | undefined,
+        active: (userData.active as boolean) ?? true,
       };
     }
   } catch {
@@ -45,7 +44,8 @@ async function fetchViaGateway(): Promise<PortfolioDiscoveryData> {
   // Step 2: Get all visible Jira projects
   const projectsResult = await callTool(rovo('getVisibleJiraProjects'), { cloudId: ATLASSIAN_CLOUD_ID });
   if (projectsResult.isError) throw new Error(`Tool error: ${extractText(projectsResult)}`);
-  const projectsData = JSON.parse(extractText(projectsResult));
+  const projectsData = safeJsonParse(extractText(projectsResult)) as Record<string, unknown> | null;
+  if (!projectsData) throw new Error('Failed to parse projects response');
   const rawProjects = projectsData?.values ?? projectsData ?? [];
 
   const projects: PortfolioProject[] = (Array.isArray(rawProjects) ? rawProjects : []).map(
@@ -62,7 +62,8 @@ async function fetchViaGateway(): Promise<PortfolioDiscoveryData> {
   // Step 3: Get all Confluence spaces
   const spacesResult = await callTool(rovo('getConfluenceSpaces'), { cloudId: ATLASSIAN_CLOUD_ID });
   if (spacesResult.isError) throw new Error(`Tool error: ${extractText(spacesResult)}`);
-  const spacesData = JSON.parse(extractText(spacesResult));
+  const spacesData = safeJsonParse(extractText(spacesResult)) as Record<string, unknown> | null;
+  if (!spacesData) throw new Error('Failed to parse spaces response');
   const rawSpaces = spacesData?.results ?? spacesData ?? [];
 
   const spaces: PortfolioSpace[] = (Array.isArray(rawSpaces) ? rawSpaces : []).map(

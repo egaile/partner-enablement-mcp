@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
-import { ROVO_SERVER_NAME, ProjectKeySchema } from '../_shared';
+import { callTool, isConfigured } from '@/lib/gateway-client';
+import { ROVO_SERVER_NAME, ProjectKeySchema, safeJsonParse } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 
 function rovo(toolName: string): string {
@@ -156,8 +156,9 @@ async function fetchViaGateway(projectKey: string): Promise<SearchResult[]> {
   // Step 1: Get cloudId via Rovo
   const resourcesResult = await callTool(rovo('getAccessibleAtlassianResources'), {});
   if (resourcesResult.isError) throw new Error(`Tool error: ${extractText(resourcesResult)}`);
-  const resources = JSON.parse(extractText(resourcesResult));
-  const cloudId: string = Array.isArray(resources) ? resources[0]?.id : resources?.id;
+  const resources = safeJsonParse(extractText(resourcesResult)) as Record<string, unknown> | unknown[] | null;
+  if (!resources) throw new Error('Failed to parse Atlassian resources response');
+  const cloudId: string = Array.isArray(resources) ? (resources[0] as Record<string, unknown>)?.id as string : (resources as Record<string, unknown>)?.id as string;
   if (!cloudId) throw new Error('No Atlassian cloud resources found');
 
   // Step 2: Try Rovo cross-product search (returns Jira + Confluence)
@@ -187,19 +188,20 @@ async function fetchViaGateway(projectKey: string): Promise<SearchResult[]> {
 
     if (!jqlResult.isError) {
       const text = extractText(jqlResult);
-      const data = JSON.parse(text);
-      const issues = Array.isArray(data?.issues) ? data.issues : [];
+      const data = safeJsonParse(text);
+      if (!data) throw new Error('Failed to parse JQL response');
+      const issues = Array.isArray((data as Record<string, unknown>)?.issues) ? (data as Record<string, unknown>).issues as Array<Record<string, unknown>> : [];
       for (const issue of issues) {
-        const fields = issue.fields ?? {};
+        const fields = (issue.fields ?? {}) as Record<string, unknown>;
         jiraResults.push({
           type: 'jira',
-          key: issue.key ?? '',
-          title: fields.summary ?? '',
+          key: (issue.key as string) ?? '',
+          title: (fields.summary as string) ?? '',
           excerpt: typeof fields.description === 'string'
             ? fields.description.slice(0, 200)
             : '',
-          issueType: fields.issuetype?.name ?? 'Task',
-          status: fields.status?.name ?? 'Unknown',
+          issueType: (fields.issuetype as Record<string, unknown>)?.name as string ?? 'Task',
+          status: (fields.status as Record<string, unknown>)?.name as string ?? 'Unknown',
         });
       }
     }
@@ -239,7 +241,6 @@ export async function POST(request: Request) {
         source = 'gateway';
       } catch (err) {
         console.warn('[cross-product-search] Gateway failed, using mock:', err instanceof Error ? err.message : err);
-        resetSession();
         results = MOCK_RESULTS[projectKey] ?? MOCK_RESULTS['HEALTH'];
         source = 'mock';
       }

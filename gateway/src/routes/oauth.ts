@@ -119,17 +119,14 @@ export function createOAuthRouter(state: GatewayState): Router {
           .limit(1)
           .single();
 
-        console.log(`[oauth] Callback: serverId=${serverId}, stateParam=${stateParam.slice(0, 16)}..., dbNonce=${serverRow?.oauth_state_nonce?.slice(0, 16) ?? 'null'}..., match=${serverRow?.oauth_state_nonce === stateParam}, lookupErr=${lookupErr?.message ?? 'none'}`);
-
         if (lookupErr || !serverRow || serverRow.oauth_state_nonce !== stateParam) {
           res.status(403).send("Invalid or expired state parameter. Please re-initiate the OAuth flow.");
           return;
         }
 
-        const tenantId = serverRow.tenant_id as string;
+        console.log(`[oauth] Callback: state nonce matched for server ${serverId}`);
 
-        // Clear the state nonce — single use
-        await updateServerStateNonce(serverId, tenantId, null);
+        const tenantId = serverRow.tenant_id as string;
 
         // Load full server record for the OAuth provider
         const server = await getServerById(serverId, tenantId);
@@ -198,6 +195,9 @@ export function createOAuthRouter(state: GatewayState): Router {
           expires_in: tokenData.expires_in,
           refresh_token: tokenData.refresh_token,
         });
+
+        // Clear the state nonce only after tokens are successfully saved — single use
+        await updateServerStateNonce(serverId, tenantId, null);
 
         ServerOAuthProvider.codeVerifiers.delete(serverId);
 

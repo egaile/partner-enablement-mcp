@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { AssessComplianceInputSchema } from 'partner-enablement-mcp-server/schemas';
 import { knowledgeBase, ROVO_SERVER_NAME } from '../_shared';
-import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
+import { callTool, isConfigured } from '@/lib/gateway-client';
 import { rateLimit } from '../_rateLimit';
 
 interface ComplianceDocCoverage {
@@ -259,7 +259,6 @@ export async function POST(request: Request) {
         }
       } catch (err) {
         console.warn('[assess-compliance] Confluence search failed, using mock:', err instanceof Error ? err.message : err);
-        resetSession();
         documentCoverage = getMockComplianceDocs(applicableFrameworks, projectContext.projectKey);
       }
     } else {

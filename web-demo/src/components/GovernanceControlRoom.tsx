@@ -429,7 +429,6 @@ export function GovernanceControlRoom({ onBack }: GovernanceControlRoomProps) {
                       /MRN:\s*\d+/g,                   // MRN
                     ];
 
-                    let highlighted = line;
                     let hasMatch = false;
                     for (const pattern of piiPatterns) {
                       if (pattern.test(line)) {
@@ -440,7 +439,6 @@ export function GovernanceControlRoom({ onBack }: GovernanceControlRoomProps) {
 
                     if (hasMatch) {
                       // Reset patterns (regex with /g flag keeps lastIndex state)
-                      let result = line;
                       const allMatches: Array<{ start: number; end: number }> = [];
                       for (const pattern of piiPatterns) {
                         const regex = new RegExp(pattern.source, 'g');
@@ -463,7 +461,7 @@ export function GovernanceControlRoom({ onBack }: GovernanceControlRoomProps) {
                       }
                     }
 
-                    return <span key={i} className="block">{highlighted}{'\n'}</span>;
+                    return <span key={i} className="block">{line}{'\n'}</span>;
                   })}
                 </pre>
               </Card>

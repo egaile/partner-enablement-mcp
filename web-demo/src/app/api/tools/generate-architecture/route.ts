@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { GenerateArchitectureInputSchema } from 'partner-enablement-mcp-server/schemas';
 import { knowledgeBase, ROVO_SERVER_NAME } from '../_shared';
-import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
+import { callTool, isConfigured } from '@/lib/gateway-client';
 import { rateLimit } from '../_rateLimit';
 
 interface ConfluenceContextPage {
@@ -217,7 +217,6 @@ export async function POST(request: Request) {
         }
       } catch (err) {
         console.warn('[generate-architecture] Confluence context failed, using mock:', err instanceof Error ? err.message : err);
-        resetSession();
         confluenceContext = getMockConfluenceContext(projectContext.projectKey);
       }
     } else {

@@ -5,21 +5,21 @@ import type { RiskScoringData, ProjectRiskScore, RiskDimension, RiskLevel, Polic
 
 const InputSchema = z.object({
   projects: z.array(z.object({
-    key: z.string(),
-    name: z.string(),
+    key: z.string().max(20),
+    name: z.string().max(200),
     issueCount: z.number().optional(),
-  })),
+  })).max(50),
   spaces: z.array(z.object({
-    key: z.string(),
-    name: z.string(),
+    key: z.string().max(20),
+    name: z.string().max(200),
     pageCount: z.number().optional(),
-  })),
+  })).max(50),
   hits: z.array(z.object({
-    keyword: z.string(),
-    source: z.string(),
-    projectOrSpace: z.string(),
-    title: z.string(),
-  })),
+    keyword: z.string().max(100),
+    source: z.string().max(50),
+    projectOrSpace: z.string().max(50),
+    title: z.string().max(500),
+  })).max(500),
 }).strict();
 
 const COMPLIANCE_FRAMEWORKS: Record<string, string[]> = {
@@ -171,7 +171,14 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const input = InputSchema.parse(body);
+    const parsed = InputSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid input', details: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      );
+    }
+    const input = parsed.data;
 
     const scores: ProjectRiskScore[] = [];
 

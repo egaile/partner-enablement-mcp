@@ -126,11 +126,16 @@ export function createGatewaySession(): GatewaySession {
   return { callTool, listTools, resetSession };
 }
 
-// Backward-compatible default session for single-user contexts (e.g. web-demo)
-const defaultSession = createGatewaySession();
-
-export const callTool = defaultSession.callTool;
-export const listTools = defaultSession.listTools;
-export const resetSession = defaultSession.resetSession;
+/**
+ * Per-call wrapper: creates a fresh MCP session for each tool invocation,
+ * preventing shared session state across concurrent requests.
+ */
+export async function callTool(
+  name: string,
+  args: Record<string, unknown>
+): Promise<{ content: Array<{ type: string; text?: string }>; isError?: boolean }> {
+  const session = createGatewaySession();
+  return session.callTool(name, args);
+}
 
 export { isConfigured };

@@ -38,7 +38,7 @@ async function autoProvisionUser(
  * and use the "dev_user" tenant mapping seeded in the database.
  */
 function isDevMode(): boolean {
-  return process.env.NODE_ENV !== "production" && process.env.CLERK_SECRET_KEY === "dev";
+  return process.env.NODE_ENV === "development" && process.env.CLERK_SECRET_KEY === "dev";
 }
 
 export async function requireAuth(

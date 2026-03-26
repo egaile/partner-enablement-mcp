@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
+import { callTool, isConfigured } from '@/lib/gateway-client';
 import { ProjectKeySchema, ATLASSIAN_CLOUD_ID, rovo, extractText } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 import type { ProjectMeta, SprintContextData } from '@/types/api';
@@ -187,7 +187,6 @@ export async function POST(request: Request) {
           '[sprint-context] Gateway failed, using mock:',
           err instanceof Error ? err.message : err
         );
-        resetSession();
         data = getMockData(projectKey);
       }
     } else {

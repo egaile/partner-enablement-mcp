@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
+import { callTool, isConfigured } from '@/lib/gateway-client';
 import { ROVO_SERVER_NAME } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 
@@ -121,7 +121,6 @@ export async function POST(request: Request) {
         response = await createViaGateway(title, content);
       } catch (err) {
         console.warn('[create-confluence-doc] Gateway failed, using mock:', err instanceof Error ? err.message : err);
-        resetSession();
         response = {
           success: true,
           pageUrl: `https://your-domain.atlassian.net/wiki/spaces/ARCH/pages/mock-${Date.now()}`,

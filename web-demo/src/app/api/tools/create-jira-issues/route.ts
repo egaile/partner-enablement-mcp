@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
+import { callTool, isConfigured } from '@/lib/gateway-client';
 import { ROVO_SERVER_NAME, CreateIssuesInputSchema } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 
@@ -120,7 +120,6 @@ export async function POST(request: Request) {
         response = await createViaGateway(projectKey, tickets);
       } catch (err) {
         console.warn('[create-jira-issues] Gateway failed, using mock:', err instanceof Error ? err.message : err);
-        resetSession();
         response = mockCreate(projectKey, tickets);
       }
     } else {

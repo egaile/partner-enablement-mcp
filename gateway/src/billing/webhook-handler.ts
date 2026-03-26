@@ -177,6 +177,16 @@ export class StripeWebhookHandler {
     if (session.metadata?.planId) {
       return session.metadata.planId as PlanId;
     }
+
+    // Fallback: resolve from line items price ID
+    const lineItems = (session as unknown as Record<string, unknown>).line_items as
+      | { data?: Array<{ price?: { id?: string } }> }
+      | undefined;
+    const priceId = lineItems?.data?.[0]?.price?.id;
+    if (priceId) {
+      return this.resolvePlanFromPriceId(priceId);
+    }
+
     return null;
   }
 

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
+import { callTool, isConfigured } from '@/lib/gateway-client';
 import { ProjectKeySchema, rovo, extractText } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 import type { SprintActionResult, SprintActionsData } from '@/types/api';
@@ -69,7 +69,6 @@ export async function POST(request: Request) {
       if (!cloudId) throw new Error('No Atlassian cloud resources found');
     } catch (err) {
       console.warn('[sprint-actions] Cannot get cloudId, using mock:', err instanceof Error ? err.message : err);
-      resetSession();
       return NextResponse.json({
         actions: getMockActions(enabledActions, projectKey, key),
       } satisfies SprintActionsData);

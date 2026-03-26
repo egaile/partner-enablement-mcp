@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
+import { callTool, isConfigured } from '@/lib/gateway-client';
 import { ROVO_SERVER_NAME, IssueDetailInputSchema } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 
@@ -214,7 +214,6 @@ export async function POST(request: Request) {
           `[issue-detail] Gateway failed for ${issueKey}, falling back to mock:`,
           err instanceof Error ? err.message : err
         );
-        resetSession();
         detail = getMockIssueDetail(issueKey);
       }
     } else {

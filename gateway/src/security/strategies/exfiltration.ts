@@ -91,11 +91,11 @@ export class ExfiltrationStrategy implements ScanStrategy {
       pattern.lastIndex = 0;
       const match = input.match(pattern);
       if (match) {
-        // Skip URL matches that point to exempt Atlassian domains
+        // Skip URL matches only if ALL matches point to exempt Atlassian domains
         const matchedContent = match[0].substring(0, 100);
         if (
           description.includes("URL") &&
-          isExemptUrl(match[0])
+          match.every((m) => isExemptUrl(m))
         ) {
           continue;
         }

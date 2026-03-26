@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
-import { ATLASSIAN_CLOUD_ID, rovo, extractText } from '../_shared';
+import { callTool, isConfigured } from '@/lib/gateway-client';
+import { ATLASSIAN_CLOUD_ID, rovo, extractText, safeJsonParse } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 import type { CommentInfo, CommentAuditData } from '@/types/api';
 
@@ -106,8 +106,9 @@ async function fetchViaGateway(
 
     const searchText = extractText(searchResult);
     if (searchText) {
-      const searchData = JSON.parse(searchText);
-      const results = searchData?.results ?? (Array.isArray(searchData) ? searchData : []);
+      const searchData = safeJsonParse(searchText);
+      if (!searchData) throw new Error('Failed to parse CQL search response');
+      const results = (searchData as Record<string, unknown>)?.results ?? (Array.isArray(searchData) ? searchData : []);
 
       for (const raw of Array.isArray(results) ? results : []) {
         const comment = parseSearchResult(raw as Record<string, unknown>, titleMap);
@@ -162,8 +163,9 @@ async function fetchPerPage(
       if (!result.isError) {
         const text = extractText(result);
         if (text) {
-          const data = JSON.parse(text);
-          const results = data?.results ?? (Array.isArray(data) ? data : []);
+          const data = safeJsonParse(text);
+          if (!data) throw new Error('Failed to parse per-page CQL response');
+          const results = (data as Record<string, unknown>)?.results ?? (Array.isArray(data) ? data : []);
           for (const raw of Array.isArray(results) ? results : []) {
             const comment = parseSearchResult(raw as Record<string, unknown>, titleMap);
             if (comment.type === 'inline') {
@@ -348,7 +350,6 @@ export async function POST(request: Request) {
           '[comment-audit] Gateway failed, using mock:',
           err instanceof Error ? err.message : err
         );
-        resetSession();
         data = getMockData(pageIds);
       }
     } else {

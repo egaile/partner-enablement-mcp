@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
-import { ATLASSIAN_CLOUD_ID, rovo, extractText } from '../_shared';
+import { callTool, isConfigured } from '@/lib/gateway-client';
+import { ATLASSIAN_CLOUD_ID, rovo, extractText, safeJsonParse } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 import type { ComplianceScanData, ComplianceHit } from '@/types/api';
 
@@ -41,7 +41,6 @@ function getMockData(): ComplianceScanData {
 }
 
 async function fetchViaGateway(projectKeys: string[], spaceKeys: string[]): Promise<ComplianceScanData> {
-  resetSession();
   const hits: ComplianceHit[] = [];
 
   // Search Jira projects for compliance keywords
@@ -55,16 +54,19 @@ async function fetchViaGateway(projectKeys: string[], spaceKeys: string[]): Prom
           maxResults: 5,
         });
         if (!result.isError) {
-          const data = JSON.parse(extractText(result));
-          const issues = data?.issues ?? data ?? [];
-          for (const issue of (Array.isArray(issues) ? issues : []).slice(0, 3)) {
+          const data = safeJsonParse(extractText(result));
+          if (!data) throw new Error('Failed to parse Jira search response');
+          const issues = (data as Record<string, unknown>)?.issues ?? data ?? [];
+          for (const raw of (Array.isArray(issues) ? issues : []).slice(0, 3)) {
+            const issue = raw as Record<string, unknown>;
+            const fields = (issue.fields ?? {}) as Record<string, unknown>;
             hits.push({
               keyword,
               source: 'jira',
               projectOrSpace: projectKey,
-              title: (issue.fields?.summary ?? issue.summary ?? '') as string,
-              key: (issue.key ?? '') as string,
-              excerpt: ((issue.fields?.description ?? '') as string).slice(0, 150),
+              title: ((fields.summary ?? issue.summary ?? '') as string),
+              key: ((issue.key ?? '') as string),
+              excerpt: ((fields.description ?? '') as string).slice(0, 150),
             });
           }
         }
@@ -85,14 +87,16 @@ async function fetchViaGateway(projectKeys: string[], spaceKeys: string[]): Prom
           limit: 3,
         });
         if (!result.isError) {
-          const data = JSON.parse(extractText(result));
-          const pages = data?.results ?? data ?? [];
-          for (const page of (Array.isArray(pages) ? pages : []).slice(0, 3)) {
+          const data = safeJsonParse(extractText(result));
+          if (!data) throw new Error('Failed to parse Confluence search response');
+          const pages = (data as Record<string, unknown>)?.results ?? data ?? [];
+          for (const raw of (Array.isArray(pages) ? pages : []).slice(0, 3)) {
+            const page = raw as Record<string, unknown>;
             hits.push({
               keyword,
               source: 'confluence',
               projectOrSpace: spaceKey,
-              title: (page.title ?? '') as string,
+              title: ((page.title ?? '') as string),
               excerpt: ((page.excerpt ?? '') as string).slice(0, 150),
             });
           }

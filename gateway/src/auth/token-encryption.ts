@@ -10,7 +10,9 @@ import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 12;
 const TAG_LENGTH = 16;
-const SALT = "mcp-gateway-token-salt"; // static salt is fine — key is already high entropy
+// Known limitation for demo: static salt. In production, set TOKEN_ENCRYPTION_SALT
+// env var to a unique, high-entropy value per deployment.
+const SALT = process.env.TOKEN_ENCRYPTION_SALT ?? "mcp-gateway-token-salt";
 
 // Cache the derived key at module scope — scryptSync is intentionally slow
 // (~50-200ms) and the result is deterministic for a given env var + salt.

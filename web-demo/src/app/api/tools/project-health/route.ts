@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { MockJiraClient } from 'partner-enablement-mcp-server/services/jiraClient';
-import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
+import { callTool, isConfigured } from '@/lib/gateway-client';
 import { ROVO_SERVER_NAME, ProjectKeySchema } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 
@@ -177,7 +177,6 @@ export async function POST(request: Request) {
         healthData = await fetchViaGateway(projectKey);
       } catch (err) {
         console.warn('[project-health] Gateway failed, using mock:', err instanceof Error ? err.message : err);
-        resetSession();
         healthData = await fetchViaMock(projectKey);
       }
     } else {

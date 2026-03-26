@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { rateLimit } from '../_rateLimit';
 
 // ---- Inline scanner implementation (pure TS, no external deps) ----
 // Re-implements gateway scanner logic to avoid cross-package .js extension issues
@@ -275,12 +276,19 @@ function shouldBlock(result: ThreatScanResult): boolean {
 
 // ---- API Route ----
 export async function POST(req: Request) {
+  const rateLimited = rateLimit(req);
+  if (rateLimited) return rateLimited;
+
   try {
     const body = await req.json();
     const { payload, mode } = body as { payload: string; mode?: 'scan' | 'pii' | 'redact' };
 
     if (!payload || typeof payload !== 'string') {
       return NextResponse.json({ error: 'payload is required' }, { status: 400 });
+    }
+
+    if (payload.length > 50_000) {
+      return NextResponse.json({ error: 'Payload too large. Maximum 50,000 characters.' }, { status: 400 });
     }
 
     if (mode === 'redact') {

@@ -74,10 +74,10 @@ export function scanForPii(params: Record<string, unknown>): PiiScanResult {
 
   for (const { value, path } of strings) {
     for (const { type, pattern } of PII_PATTERNS) {
-      // Reset regex state
-      pattern.lastIndex = 0;
+      // Create a fresh RegExp to avoid shared lastIndex under concurrency
+      const freshPattern = new RegExp(pattern.source, pattern.flags);
       let match: RegExpExecArray | null;
-      while ((match = pattern.exec(value)) !== null) {
+      while ((match = freshPattern.exec(value)) !== null) {
         // Extra validation for credit cards
         if (type === "credit_card" && !luhnCheck(match[0])) continue;
         matches.push({
@@ -98,9 +98,14 @@ export function scanForPii(params: Record<string, unknown>): PiiScanResult {
 
 export function redactPii(text: string): string {
   let result = text;
-  for (const { pattern } of PII_PATTERNS) {
-    pattern.lastIndex = 0;
-    result = result.replace(pattern, "[REDACTED]");
+  for (const { type, pattern } of PII_PATTERNS) {
+    // Create a fresh RegExp to avoid shared lastIndex under concurrency
+    const freshPattern = new RegExp(pattern.source, pattern.flags);
+    result = result.replace(freshPattern, (matched) => {
+      // Apply Luhn validation for credit card patterns to avoid false positives
+      if (type === "credit_card" && !luhnCheck(matched)) return matched;
+      return "[REDACTED]";
+    });
   }
   return result;
 }

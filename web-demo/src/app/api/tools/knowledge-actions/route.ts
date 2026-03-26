@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
+import { callTool, isConfigured } from '@/lib/gateway-client';
 import { ATLASSIAN_CLOUD_ID, rovo, extractText } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 import type { KnowledgeActionResult, KnowledgeActionsData } from '@/types/api';
@@ -259,7 +259,6 @@ export async function POST(request: Request) {
           '[knowledge-actions] Gateway failed, using mock:',
           err instanceof Error ? err.message : err
         );
-        resetSession();
         data = getMockData(actions);
       }
     } else {

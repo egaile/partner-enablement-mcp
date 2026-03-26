@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
+import { callTool, isConfigured } from '@/lib/gateway-client';
 import { ATLASSIAN_CLOUD_ID, rovo, extractText } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 import type { SpaceInfo, PageInfo, SpaceDiscoveryData } from '@/types/api';
@@ -204,7 +204,6 @@ export async function POST(request: Request) {
           '[space-discovery] Gateway failed, using mock:',
           err instanceof Error ? err.message : err
         );
-        resetSession();
         data = getMockData(spaceId);
       }
     } else {

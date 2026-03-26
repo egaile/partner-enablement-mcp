@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
+import { callTool, isConfigured } from '@/lib/gateway-client';
 import { ROVO_SERVER_NAME, AgentActionsInputSchema } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 
@@ -62,7 +62,6 @@ export async function POST(request: Request) {
       if (!cloudId) throw new Error('No Atlassian cloud resources found');
     } catch (err) {
       console.warn('[agent-actions] Cannot get cloudId, using mock:', err instanceof Error ? err.message : err);
-      resetSession();
       return NextResponse.json({
         actions: getMockActions(enabledActions, projectKey, issueKey),
       });

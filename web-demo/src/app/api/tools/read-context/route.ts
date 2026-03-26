@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { ReadProjectContextInputSchema } from 'partner-enablement-mcp-server/schemas';
 import { MockJiraClient } from 'partner-enablement-mcp-server/services/jiraClient';
-import { callTool, isConfigured, resetSession } from '@/lib/gateway-client';
-import { ROVO_SERVER_NAME } from '../_shared';
+import { callTool, isConfigured } from '@/lib/gateway-client';
+import { ROVO_SERVER_NAME, safeJsonParse } from '../_shared';
 import { rateLimit } from '../_rateLimit';
 
 const mockFallback = new MockJiraClient();
@@ -30,9 +30,10 @@ async function fetchViaGateway(projectKey: string, includeIssues: boolean, issue
   }
   const resourcesText = extractText(resourcesResult);
   // Response is JSON — may be an array or wrapped object
-  const resources = JSON.parse(resourcesText);
+  const resources = safeJsonParse(resourcesText) as Record<string, unknown> | unknown[] | null;
+  if (!resources) throw new Error('Failed to parse Atlassian resources response');
   // Rovo returns: array of { id, url, name, ... } where id is the cloudId
-  const cloudId: string = Array.isArray(resources) ? resources[0]?.id : resources?.id;
+  const cloudId: string = Array.isArray(resources) ? (resources[0] as Record<string, unknown>)?.id as string : (resources as Record<string, unknown>)?.id as string;
   if (!cloudId) {
     throw new Error('No Atlassian cloud resources found');
   }
@@ -47,7 +48,8 @@ async function fetchViaGateway(projectKey: string, includeIssues: boolean, issue
     throw new Error(`Tool error: ${extractText(projectsResult)}`);
   }
   const projectsText = extractText(projectsResult);
-  const projectsData = JSON.parse(projectsText);
+  const projectsData = safeJsonParse(projectsText) as Record<string, unknown> | null;
+  if (!projectsData) throw new Error('Failed to parse projects response');
   // projectsData.values is the array of projects
   const projects = projectsData?.values ?? projectsData ?? [];
   const projectInfo = Array.isArray(projects)
@@ -84,7 +86,8 @@ async function fetchViaGateway(projectKey: string, includeIssues: boolean, issue
       throw new Error(`Tool error: ${extractText(searchResult)}`);
     }
     const searchText = extractText(searchResult);
-    const searchData = JSON.parse(searchText);
+    const searchData = safeJsonParse(searchText) as Record<string, unknown> | null;
+    if (!searchData) throw new Error('Failed to parse search response');
     const rawIssues = searchData?.issues ?? searchData ?? [];
 
     issues = (Array.isArray(rawIssues) ? rawIssues : []).map(
@@ -192,7 +195,6 @@ export async function POST(request: Request) {
           `[read-context] Gateway/Rovo failed for ${projectKey}, falling back to mock:`,
           err instanceof Error ? err.message : err
         );
-        resetSession(); // clear stale session for next attempt
         const result = await fetchViaMock(projectKey, includeIssues ?? true, issueLimit ?? 20);
         project = result.project;
         issues = result.issues;
