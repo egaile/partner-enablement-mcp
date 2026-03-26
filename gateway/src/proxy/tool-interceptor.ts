@@ -5,6 +5,7 @@ import { getScanner } from "../security/scanner.js";
 import { scanForPii, redactPii } from "../security/pii-scanner.js";
 import { RateLimiter } from "../security/rate-limiter.js";
 import { checkToolDrift } from "../monitor/tool-snapshot.js";
+import { upsertSnapshot } from "../db/queries/snapshots.js";
 import { AlertEngine } from "../alerts/engine.js";
 import type { PlanCache } from "../billing/plan-cache.js";
 import { isWithinSoftLimit } from "../billing/plans.js";
@@ -301,7 +302,8 @@ export class ToolInterceptor {
               isError: true,
             },
           };
-        } else if (drift.drifted) {
+        } else if (drift.drifted && drift.severity === "functional") {
+          // Functional drift (params removed, schema changed) — alert but allow
           this.alertEngine
             .fireDriftAlert(tenant.tenantId, drift, {
               serverId: connection.serverId,
@@ -310,6 +312,17 @@ export class ToolInterceptor {
             .catch((err) =>
               console.error("[alert] Failed to fire drift alert:", err)
             );
+        } else if (drift.drifted && drift.severity === "cosmetic") {
+          // Cosmetic drift (description-only) — auto-approve, no alert
+          upsertSnapshot(
+            tenant.tenantId,
+            connection.serverId,
+            drift.toolName,
+            drift.currentHash,
+            toolDef
+          ).catch((err) =>
+            console.warn("[drift] Auto-approve cosmetic drift failed:", err)
+          );
         }
       }
 
