@@ -103,32 +103,40 @@ export function createOAuthRouter(state: GatewayState): Router {
           return;
         }
 
-        // Validate the state parameter against the DB-persisted nonce
+        // Validate the state parameter against the DB-persisted nonce.
+        // Look up the server by ID (from the URL path) and compare the stored nonce.
         if (!stateParam || typeof stateParam !== "string") {
           res.status(400).send("Missing state parameter");
           return;
         }
-        let server;
-        try {
-          server = await getServerByStateNonce(stateParam);
-          console.log(`[oauth] Callback: serverId=${serverId}, stateParam=${stateParam.slice(0, 16)}..., serverFound=${!!server}, foundId=${server?.id}, match=${server?.id === serverId}`);
-        } catch (lookupErr) {
-          console.error(`[oauth] Callback: getServerByStateNonce threw:`, lookupErr instanceof Error ? lookupErr.message : lookupErr);
-          // Clear the nonce since the lookup failed
-          await updateServerStateNonce(serverId, "00000000-0000-0000-0000-000000000001", null);
+
+        // Find all tenants that own this server (no tenant context in callback)
+        const { getSupabaseClient } = await import("../db/client.js");
+        const { data: serverRow, error: lookupErr } = await getSupabaseClient()
+          .from("mcp_servers")
+          .select("tenant_id, oauth_state_nonce")
+          .eq("id", serverId)
+          .limit(1)
+          .single();
+
+        console.log(`[oauth] Callback: serverId=${serverId}, stateParam=${stateParam.slice(0, 16)}..., dbNonce=${serverRow?.oauth_state_nonce?.slice(0, 16) ?? 'null'}..., match=${serverRow?.oauth_state_nonce === stateParam}, lookupErr=${lookupErr?.message ?? 'none'}`);
+
+        if (lookupErr || !serverRow || serverRow.oauth_state_nonce !== stateParam) {
           res.status(403).send("Invalid or expired state parameter. Please re-initiate the OAuth flow.");
           return;
         }
-        if (!server || server.id !== serverId) {
-          console.log(`[oauth] Callback: state validation FAILED. server=${JSON.stringify(server ? { id: server.id, name: server.name } : null)}, serverId=${serverId}`);
-          res.status(403).send("Invalid or expired state parameter. Please re-initiate the OAuth flow.");
-          return;
-        }
+
+        const tenantId = serverRow.tenant_id as string;
 
         // Clear the state nonce — single use
-        await updateServerStateNonce(server.id, server.tenantId, null);
+        await updateServerStateNonce(serverId, tenantId, null);
 
-        const tenantId = server.tenantId;
+        // Load full server record for the OAuth provider
+        const server = await getServerById(serverId, tenantId);
+        if (!server) {
+          res.status(404).send("Server not found");
+          return;
+        }
 
         const engine = state.engines.get(tenantId);
         let provider: ServerOAuthProvider;
