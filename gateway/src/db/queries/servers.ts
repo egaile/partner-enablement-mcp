@@ -25,6 +25,7 @@ export interface McpServerRecord {
   oauthAuthorizeUrl: string | null;
   oauthScopes: string[] | null;
   oauthCodeVerifier: string | null;
+  oauthStateNonce: string | null;
 }
 
 /**
@@ -67,6 +68,7 @@ function toRecord(row: Record<string, unknown>): McpServerRecord {
     oauthAuthorizeUrl: (row.oauth_authorize_url as string) ?? null,
     oauthScopes: (row.oauth_scopes as string[]) ?? null,
     oauthCodeVerifier: safeDecrypt(row.oauth_code_verifier, id, "oauthCodeVerifier"),
+    oauthStateNonce: (row.oauth_state_nonce as string) ?? null,
   };
 }
 
@@ -286,6 +288,44 @@ export async function updateServerCodeVerifier(
     .eq("tenant_id", tenantId);
 
   if (error) throw error;
+}
+
+/**
+ * Persist OAuth state nonce for CSRF protection. Survives container restarts.
+ */
+export async function updateServerStateNonce(
+  id: string,
+  tenantId: string,
+  stateNonce: string | null
+): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .from("mcp_servers")
+    .update({
+      oauth_state_nonce: stateNonce,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("tenant_id", tenantId);
+
+  if (error) throw error;
+}
+
+/**
+ * Look up a server by its OAuth state nonce (used in the callback route
+ * where we don't have tenant context from auth middleware).
+ */
+export async function getServerByStateNonce(
+  stateNonce: string
+): Promise<McpServerRecord | null> {
+  const { data, error } = await getSupabaseClient()
+    .from("mcp_servers")
+    .select("*")
+    .eq("oauth_state_nonce", stateNonce)
+    .limit(1)
+    .single();
+
+  if (error || !data) return null;
+  return toRecord(data as Record<string, unknown>);
 }
 
 export async function deleteServer(

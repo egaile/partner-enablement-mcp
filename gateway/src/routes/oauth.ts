@@ -3,7 +3,11 @@ import { randomBytes } from "node:crypto";
 import { auth as mcpAuth } from "@modelcontextprotocol/sdk/client/auth.js";
 import { requireAuth } from "../auth/middleware.js";
 import type { AuthenticatedRequest } from "../auth/types.js";
-import { getServerById } from "../db/queries/servers.js";
+import {
+  getServerById,
+  getServerByStateNonce,
+  updateServerStateNonce,
+} from "../db/queries/servers.js";
 import { ServerOAuthProvider } from "../auth/server-oauth-provider.js";
 import type { GatewayState } from "./types.js";
 
@@ -29,11 +33,9 @@ export function createOAuthRouter(state: GatewayState): Router {
           return;
         }
 
-        state.oauthTenantMap.set(server.id, req.tenant!.tenantId);
-
-        // Generate a random state nonce for CSRF protection
+        // Generate a random state nonce for CSRF protection and persist to DB
         const stateNonce = randomBytes(32).toString("hex");
-        state.oauthStateMap.set(stateNonce, server.id);
+        await updateServerStateNonce(server.id, req.tenant!.tenantId, stateNonce);
 
         const engine = state.engines.get(req.tenant!.tenantId);
         let provider: ServerOAuthProvider;
@@ -49,18 +51,23 @@ export function createOAuthRouter(state: GatewayState): Router {
           provider = new ServerOAuthProvider(server);
         }
 
-        let authUrl = ServerOAuthProvider.pendingAuthUrls.get(server.id);
-        if (!authUrl) {
-          const result = await mcpAuth(provider, {
-            serverUrl: server.url,
-            scope: server.oauthScopes?.join(' '),
-          });
-          if (result === "AUTHORIZED") {
-            res.json({ status: "already_authorized", message: "Server already has valid tokens" });
-            return;
-          }
-          authUrl = ServerOAuthProvider.pendingAuthUrls.get(server.id);
+        // Always clear stale pending auth URLs and code verifiers so we generate
+        // a fresh PKCE challenge pair. Reusing a stale URL causes "invalid_request"
+        // because the code_challenge no longer matches the stored code_verifier.
+        ServerOAuthProvider.pendingAuthUrls.delete(server.id);
+        ServerOAuthProvider.codeVerifiers.delete(server.id);
+
+        const result = await mcpAuth(provider, {
+          serverUrl: server.url,
+          scope: server.oauthScopes?.join(' '),
+        });
+        if (result === "AUTHORIZED") {
+          // Clear the state nonce since we don't need the flow
+          await updateServerStateNonce(server.id, req.tenant!.tenantId, null);
+          res.json({ status: "already_authorized", message: "Server already has valid tokens" });
+          return;
         }
+        const authUrl = ServerOAuthProvider.pendingAuthUrls.get(server.id);
 
         if (!authUrl) {
           res.status(500).json({ error: "Failed to obtain authorization URL from OAuth discovery" });
@@ -95,29 +102,21 @@ export function createOAuthRouter(state: GatewayState): Router {
           return;
         }
 
-        // Validate the state parameter against our stored nonces (CSRF protection)
+        // Validate the state parameter against the DB-persisted nonce
         if (!stateParam || typeof stateParam !== "string") {
           res.status(400).send("Missing state parameter");
           return;
         }
-        const expectedServerId = state.oauthStateMap.get(stateParam);
-        if (!expectedServerId || expectedServerId !== serverId) {
+        const server = await getServerByStateNonce(stateParam);
+        if (!server || server.id !== serverId) {
           res.status(403).send("Invalid or expired state parameter. Please re-initiate the OAuth flow.");
           return;
         }
-        state.oauthStateMap.delete(stateParam);
 
-        const tenantId = state.oauthTenantMap.get(serverId);
-        if (!tenantId) {
-          res.status(403).send("Unknown server or session expired. Please re-initiate the OAuth flow.");
-          return;
-        }
+        // Clear the state nonce — single use
+        await updateServerStateNonce(server.id, server.tenantId, null);
 
-        const server = await getServerById(serverId, tenantId);
-        if (!server) {
-          res.status(404).send("Server not found");
-          return;
-        }
+        const tenantId = server.tenantId;
 
         const engine = state.engines.get(tenantId);
         let provider: ServerOAuthProvider;
@@ -180,7 +179,6 @@ export function createOAuthRouter(state: GatewayState): Router {
           refresh_token: tokenData.refresh_token,
         });
 
-        state.oauthTenantMap.delete(serverId);
         ServerOAuthProvider.codeVerifiers.delete(serverId);
 
         if (engine) {

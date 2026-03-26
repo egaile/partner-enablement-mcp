@@ -64,9 +64,6 @@ async function main(): Promise<void> {
   const engines = new Map<string, GatewayProxyEngine>();
   const mcpTransports = new Map<string, StreamableHTTPServerTransport>();
   const transportLastActivity = new Map<string, number>();
-  const oauthTenantMap = new Map<string, string>();
-  const oauthStateMap = new Map<string, string>();
-
   // Rec 4: Engine idle timeout — evict engines with no activity for 60 minutes
   const ENGINE_IDLE_TTL_MS = 60 * 60 * 1000;
   const engineLastActivity = new Map<string, number>();
@@ -157,8 +154,6 @@ async function main(): Promise<void> {
     engines,
     mcpTransports,
     transportLastActivity,
-    oauthTenantMap,
-    oauthStateMap,
     allowedOrigins,
     getOrCreateEngine,
     safeErrorMessage,
