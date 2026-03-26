@@ -163,7 +163,7 @@ async function fetchViaGateway(projectKey: string): Promise<SearchResult[]> {
   // Step 2: Try Rovo cross-product search (returns Jira + Confluence)
   let rovoResults: SearchResult[] = [];
   try {
-    const searchResult = await callTool(rovo('search'), {
+    const searchResult = await callTool(rovo('searchAtlassian'), {
       query: `${projectKey} AI deployment architecture compliance`,
     });
 
