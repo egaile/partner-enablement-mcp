@@ -160,7 +160,7 @@ export const TOOL_NARRATIVES: Record<string, string> = {
 export const HERO_COPY = {
   headline: 'See MCP in Action: Multiple Rovo Tools, One Security Gateway',
   subheadline:
-    'Four enterprise workflows exercise 30 of 33 Atlassian Rovo MCP tools \u2014 reading Jira backlogs, auditing Confluence docs, managing sprints, and scanning compliance risks \u2014 all through an MCP Security Gateway. Plus interactive security and governance features you can explore hands-on.',
+    'Four enterprise workflows exercise 30 of 35 Atlassian Rovo MCP tools \u2014 reading Jira backlogs, auditing Confluence docs, managing sprints, and scanning compliance risks \u2014 all through an MCP Security Gateway. Plus interactive security and governance features you can explore hands-on.',
 };
 
 export const EXPLAINER_CARDS = [
@@ -170,7 +170,7 @@ export const EXPLAINER_CARDS = [
   },
   {
     title: 'What This Demo Does',
-    body: 'Four workflows exercise 30 Rovo MCP tools across Jira and Confluence \u2014 from deployment planning to compliance risk radar. Interactive security and governance features showcase the gateway\'s 5-scanner pipeline, 6 policy templates, and HITL approval engine.',
+    body: 'Four workflows exercise 30 of 35 Rovo MCP tools across Jira and Confluence \u2014 from deployment planning to compliance risk radar. Interactive security and governance features showcase the gateway\'s 5-scanner pipeline, 6 policy templates, and HITL approval engine.',
   },
   {
     title: 'Why It Matters',

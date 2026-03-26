@@ -15,9 +15,10 @@ export const ROVO_TOOLS: RovoTool[] = [
   { name: 'atlassianUserInfo', category: 'Platform', risk: 'read', description: 'Get authenticated user details', usedInWorkflows: ['risk-radar'], available: true },
 
   // Search
-  { name: 'search', category: 'Search', risk: 'read', description: 'Rovo cross-product search across Jira and Confluence', usedInWorkflows: ['deployment-planning'], available: true },
+  { name: 'searchAtlassian', category: 'Search', risk: 'read', description: 'Rovo cross-product search across Jira and Confluence', usedInWorkflows: ['deployment-planning'], available: true },
   { name: 'searchJiraIssuesUsingJql', category: 'Search', risk: 'read', description: 'Search Jira issues using JQL queries', usedInWorkflows: ['deployment-planning', 'sprint-operations', 'risk-radar'], available: true },
   { name: 'searchConfluenceUsingCql', category: 'Search', risk: 'read', description: 'Search Confluence content using CQL queries', usedInWorkflows: ['deployment-planning', 'knowledge-audit', 'risk-radar'], available: true },
+  { name: 'fetchAtlassian', category: 'Search', risk: 'read', description: 'Fetch any Atlassian REST API resource', usedInWorkflows: [], available: true },
 
   // Jira Read
   { name: 'getVisibleJiraProjects', category: 'Jira Read', risk: 'read', description: 'List visible Jira projects', usedInWorkflows: ['deployment-planning', 'sprint-operations', 'risk-radar'], available: true },
@@ -40,9 +41,9 @@ export const ROVO_TOOLS: RovoTool[] = [
   { name: 'getConfluencePage', category: 'Confluence Read', risk: 'read', description: 'Read a Confluence page by ID', usedInWorkflows: ['deployment-planning', 'knowledge-audit'], available: true },
   { name: 'getPagesInConfluenceSpace', category: 'Confluence Read', risk: 'read', description: 'List pages in a space', usedInWorkflows: ['knowledge-audit'], available: true },
   { name: 'getConfluencePageDescendants', category: 'Confluence Read', risk: 'read', description: 'Get child pages of a page', usedInWorkflows: ['knowledge-audit'], available: true },
-  { name: 'getConfluencePageFooterComments', category: 'Confluence Read', risk: 'read', description: 'Get footer comments on a page', usedInWorkflows: [], available: false },
-  { name: 'getConfluencePageInlineComments', category: 'Confluence Read', risk: 'read', description: 'Get inline comments on a page', usedInWorkflows: [], available: false },
-  { name: 'getConfluenceCommentChildren', category: 'Confluence Read', risk: 'read', description: 'Get reply comments', usedInWorkflows: [], available: false },
+  { name: 'getConfluencePageFooterComments', category: 'Confluence Read', risk: 'read', description: 'Get footer comments on a page', usedInWorkflows: ['knowledge-audit'], available: true },
+  { name: 'getConfluencePageInlineComments', category: 'Confluence Read', risk: 'read', description: 'Get inline comments on a page', usedInWorkflows: ['knowledge-audit'], available: true },
+  { name: 'getConfluenceCommentChildren', category: 'Confluence Read', risk: 'read', description: 'Get reply comments', usedInWorkflows: ['knowledge-audit'], available: true },
 
   // Confluence Write
   { name: 'createConfluencePage', category: 'Confluence Write', risk: 'write', description: 'Create a new Confluence page', usedInWorkflows: ['deployment-planning'], available: true },
@@ -57,8 +58,8 @@ export const ROVO_TOOLS: RovoTool[] = [
   { name: 'createCompassComponentRelationship', category: 'Platform', risk: 'write', description: 'Create component relationship', usedInWorkflows: [], available: false },
 
   // Jira links
-  { name: 'jiraRead (getIssueLinkTypes)', category: 'Jira Read', risk: 'read', description: 'Get available issue link types', usedInWorkflows: ['sprint-operations'], available: true },
-  { name: 'jiraWrite (createIssueLink)', category: 'Jira Write', risk: 'write', description: 'Create a link between issues', usedInWorkflows: ['sprint-operations'], available: true },
+  { name: 'getIssueLinkTypes', category: 'Jira Read', risk: 'read', description: 'Get available issue link types', usedInWorkflows: ['sprint-operations'], available: true },
+  { name: 'createIssueLink', category: 'Jira Write', risk: 'write', description: 'Create a link between issues', usedInWorkflows: ['sprint-operations'], available: true },
 ];
 
 export const TOOL_CATEGORIES = [
