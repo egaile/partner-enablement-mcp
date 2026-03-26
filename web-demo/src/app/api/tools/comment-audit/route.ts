@@ -17,39 +17,55 @@ const InputSchema = z.object({
 
 /**
  * Parse a CQL search result into CommentInfo.
- * CQL results have: id, title, type, excerpt, lastModified, url, space, etc.
- * The comment "container" is the parent page.
+ *
+ * Rovo CQL results nest Confluence data under `content`:
+ *   content.history.createdBy.displayName  → author
+ *   content._expandable.container          → "/rest/api/content/<pageId>"
+ *   content.extensions.location            → "footer" | "inline"
+ *   content.history.createdDate            → ISO timestamp
+ * Top-level fields: title, excerpt, lastModified, resultGlobalContainer, etc.
  */
 function parseSearchResult(
   raw: Record<string, unknown>,
-  pageId: string,
-  pageTitle: string,
+  titleMap: Map<string, string>,
 ): CommentInfo {
-  // CQL search returns excerpt (plain text) and content metadata
-  const excerpt = (raw.excerpt as string) ?? (raw.title as string) ?? '';
-  // Strip HTML tags from excerpt
+  const content = raw.content as Record<string, unknown> | undefined;
+  const history = content?.history as Record<string, unknown> | undefined;
+  const createdBy = history?.createdBy as Record<string, unknown> | undefined;
+  const extensions = content?.extensions as Record<string, unknown> | undefined;
+  const expandable = content?._expandable as Record<string, unknown> | undefined;
+
+  // Author from content.history.createdBy
+  const author = (createdBy?.displayName as string) ??
+    (createdBy?.publicName as string) ?? 'Unknown';
+
+  // Page ID from container path: "/rest/api/content/1605633" → "1605633"
+  const containerPath = (expandable?.container as string) ?? '';
+  const pageId = containerPath.split('/').pop() ?? '';
+
+  // Page title: look up from titleMap, or strip "Re: " from comment title
+  const commentTitle = (raw.title as string) ?? (content?.title as string) ?? '';
+  const derivedTitle = commentTitle.startsWith('Re: ') ? commentTitle.slice(4) : commentTitle;
+  const pageTitle = titleMap.get(pageId) ?? (derivedTitle || 'Unknown Page');
+
+  // Excerpt with HTML tags stripped
+  const excerpt = (raw.excerpt as string) ?? '';
   const cleanBody = excerpt.replace(/<[^>]*>/g, '').trim();
 
-  // Try to get author from various possible fields
-  const lastModifiedBy = raw.lastModifiedBy as Record<string, unknown> | undefined;
-  const author = (lastModifiedBy?.displayName as string) ??
-    (lastModifiedBy?.publicName as string) ??
-    ((raw.history as Record<string, unknown>)?.createdBy as Record<string, unknown>)?.displayName as string ??
-    'Unknown';
+  // Comment type from extensions.location
+  const location = (extensions?.location as string) ?? 'footer';
 
-  const created = (raw.lastModified as string) ??
-    ((raw.history as Record<string, unknown>)?.createdDate as string) ?? '';
+  const created = (history?.createdDate as string) ??
+    (raw.lastModified as string) ?? '';
 
-  // Confluence search results don't distinguish footer/inline in CQL results
-  // Treat all as footer comments (the most common type)
   return {
-    id: String(raw.id ?? ''),
+    id: String(content?.id ?? raw.id ?? ''),
     pageId,
     pageTitle,
     author,
     body: cleanBody.slice(0, 500) || '(comment body not available in search results)',
     created,
-    type: 'footer',
+    type: location === 'inline' ? 'inline' : 'footer',
     replyCount: 0,
   };
 }
@@ -94,20 +110,13 @@ async function fetchViaGateway(
       const results = searchData?.results ?? (Array.isArray(searchData) ? searchData : []);
 
       for (const raw of Array.isArray(results) ? results : []) {
-        // Determine which page this comment belongs to
-        const container = raw.container as Record<string, unknown> | undefined;
-        const containerId = container ? String(container.id ?? '') : '';
-        const containerTitle = container
-          ? (container.title as string) ?? titleMap.get(containerId) ?? 'Unknown Page'
-          : 'Unknown Page';
-
-        // Use the container ID if available, otherwise try to match
-        const pageId = containerId || pageIds[0]?.id || '';
-        const pageTitle = containerTitle;
-
-        const comment = parseSearchResult(raw as Record<string, unknown>, pageId, pageTitle);
-        footerComments.push(comment);
-        if (pageId) pagesWithComments.add(pageId);
+        const comment = parseSearchResult(raw as Record<string, unknown>, titleMap);
+        if (comment.type === 'inline') {
+          inlineComments.push(comment);
+        } else {
+          footerComments.push(comment);
+        }
+        if (comment.pageId) pagesWithComments.add(comment.pageId);
       }
     }
   } catch (err) {
@@ -138,9 +147,10 @@ async function fetchPerPage(
   titleMap: Map<string, string>,
 ): Promise<CommentAuditData> {
   const footerComments: CommentInfo[] = [];
+  const inlineComments: CommentInfo[] = [];
   const pagesWithComments = new Set<string>();
 
-  for (const { id: pageId, title: pageTitle } of pageIds) {
+  for (const { id: pageId } of pageIds) {
     try {
       const cql = `type = comment AND container = ${pageId}`;
       const result = await callTool(rovo('searchConfluenceUsingCql'), {
@@ -155,9 +165,13 @@ async function fetchPerPage(
           const data = JSON.parse(text);
           const results = data?.results ?? (Array.isArray(data) ? data : []);
           for (const raw of Array.isArray(results) ? results : []) {
-            const comment = parseSearchResult(raw as Record<string, unknown>, pageId, pageTitle);
-            footerComments.push(comment);
-            pagesWithComments.add(pageId);
+            const comment = parseSearchResult(raw as Record<string, unknown>, titleMap);
+            if (comment.type === 'inline') {
+              inlineComments.push(comment);
+            } else {
+              footerComments.push(comment);
+            }
+            if (comment.pageId) pagesWithComments.add(comment.pageId);
           }
         }
       }
@@ -166,11 +180,14 @@ async function fetchPerPage(
     }
   }
 
+  const totalComments = footerComments.length + inlineComments.length;
+  const unresolvedInline = inlineComments.filter((c) => c.resolved === false).length;
+
   return {
     footerComments,
-    inlineComments: [],
-    totalComments: footerComments.length,
-    unresolvedInline: 0,
+    inlineComments,
+    totalComments,
+    unresolvedInline,
     pagesWithComments: pagesWithComments.size,
     pagesWithoutComments: pageIds.length - pagesWithComments.size,
     source: 'gateway',
