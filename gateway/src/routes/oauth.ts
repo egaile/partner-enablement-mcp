@@ -108,6 +108,7 @@ export function createOAuthRouter(state: GatewayState): Router {
           return;
         }
         const server = await getServerByStateNonce(stateParam);
+        console.log(`[oauth] Callback: serverId=${serverId}, stateParam=${stateParam.slice(0, 16)}..., serverFound=${!!server}, serverIdMatch=${server?.id === serverId}, foundId=${server?.id}`);
         if (!server || server.id !== serverId) {
           res.status(403).send("Invalid or expired state parameter. Please re-initiate the OAuth flow.");
           return;
