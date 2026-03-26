@@ -36,6 +36,7 @@ export function createOAuthRouter(state: GatewayState): Router {
         // Generate a random state nonce for CSRF protection and persist to DB
         const stateNonce = randomBytes(32).toString("hex");
         await updateServerStateNonce(server.id, req.tenant!.tenantId, stateNonce);
+        console.log(`[oauth] Authorize: wrote state nonce ${stateNonce.slice(0, 16)}... for server ${server.id}`);
 
         const engine = state.engines.get(req.tenant!.tenantId);
         let provider: ServerOAuthProvider;
@@ -107,9 +108,19 @@ export function createOAuthRouter(state: GatewayState): Router {
           res.status(400).send("Missing state parameter");
           return;
         }
-        const server = await getServerByStateNonce(stateParam);
-        console.log(`[oauth] Callback: serverId=${serverId}, stateParam=${stateParam.slice(0, 16)}..., serverFound=${!!server}, serverIdMatch=${server?.id === serverId}, foundId=${server?.id}`);
+        let server;
+        try {
+          server = await getServerByStateNonce(stateParam);
+          console.log(`[oauth] Callback: serverId=${serverId}, stateParam=${stateParam.slice(0, 16)}..., serverFound=${!!server}, foundId=${server?.id}, match=${server?.id === serverId}`);
+        } catch (lookupErr) {
+          console.error(`[oauth] Callback: getServerByStateNonce threw:`, lookupErr instanceof Error ? lookupErr.message : lookupErr);
+          // Clear the nonce since the lookup failed
+          await updateServerStateNonce(serverId, "00000000-0000-0000-0000-000000000001", null);
+          res.status(403).send("Invalid or expired state parameter. Please re-initiate the OAuth flow.");
+          return;
+        }
         if (!server || server.id !== serverId) {
+          console.log(`[oauth] Callback: state validation FAILED. server=${JSON.stringify(server ? { id: server.id, name: server.name } : null)}, serverId=${serverId}`);
           res.status(403).send("Invalid or expired state parameter. Please re-initiate the OAuth flow.");
           return;
         }
