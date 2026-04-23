@@ -18,6 +18,33 @@ function safeErrorMessage(error: unknown): string {
   return msg;
 }
 
+function formatRejectionReason(reason: unknown): string {
+  if (reason instanceof Error) {
+    return reason.stack ?? `${reason.name}: ${reason.message}`;
+  }
+  if (typeof reason === "object" && reason !== null) {
+    try {
+      return JSON.stringify(reason, Object.getOwnPropertyNames(reason));
+    } catch {
+      return Object.prototype.toString.call(reason);
+    }
+  }
+  return String(reason);
+}
+
+// Keep the worker alive when a background promise rejects without a .catch().
+// Node 20's default is to crash; on a long-lived gateway we'd rather log and continue.
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[gateway] Unhandled promise rejection:", formatRejectionReason(reason));
+  if (process.env.LOG_LEVEL === "debug") {
+    console.error("[gateway] Rejected promise:", promise);
+  }
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("[gateway] Uncaught exception:", error.stack ?? error.message);
+});
+
 async function main(): Promise<void> {
   const config = loadConfig();
   const app = express();
