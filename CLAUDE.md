@@ -119,6 +119,14 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
 CLERK_SECRET_KEY=
 GATEWAY_API_URL=http://localhost:4000
+
+# Web Demo — Dashboard Hub Pro REST integration
+# Required by GET /api/dashboard-hub/knowledge-health — the endpoint consumed by
+# the Dashboard Hub Pro "Custom Reports" gadget and the "Knowledge Health Auditor"
+# Rovo agent. 32-byte random hex. Configured in the widget + Rovo action as
+# `Authorization: Bearer <token>`. Rovo agent blueprint:
+# docs/rovo-agents/knowledge-health-auditor.md
+DASHBOARD_HUB_API_TOKEN=
 ```
 
 ## Tool Usage
