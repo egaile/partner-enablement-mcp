@@ -11,6 +11,10 @@ export const maxDuration = 300;
 const MAX_PAGES = 12;
 const PAGE_DETAIL_CONCURRENCY = 3;
 const TOKEN = process.env.DASHBOARD_HUB_API_TOKEN ?? '';
+// Set DASHBOARD_HUB_PUBLIC=true on Vercel to bypass Bearer auth — useful when
+// connecting Dashboard Hub Pro for the first time. Always restore once the
+// integration is working.
+const PUBLIC_MODE = process.env.DASHBOARD_HUB_PUBLIC === 'true';
 
 type HealthStatus = 'healthy' | 'needs-attention' | 'stale' | 'critical';
 
@@ -290,7 +294,7 @@ function getMockPayload(spaceKey: string): DashboardHealthPayload {
 }
 
 export async function GET(request: Request) {
-  if (!authorized(request)) return unauthorized();
+  if (!PUBLIC_MODE && !authorized(request)) return unauthorized();
 
   const { searchParams } = new URL(request.url);
   const rawKey = searchParams.get('spaceKey') ?? 'HA';
