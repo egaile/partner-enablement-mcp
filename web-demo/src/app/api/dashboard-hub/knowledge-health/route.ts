@@ -75,14 +75,22 @@ async function fetchViaGateway(spaceKey: string): Promise<DashboardHealthPayload
   // Use the per-call session wrapper. Reusing one session across many calls
   // races on init under concurrency and the gateway returns "Server not
   // initialized". Per-call sessions match the working pattern in /api/tools/*.
-  const call = (name: string, args: Record<string, unknown>) => callTool(name, args);
+  const call = async (name: string, args: Record<string, unknown>) => {
+    try {
+      return await callTool(name, args);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`[step:${name}] ${msg}`);
+    }
+  };
 
   // 1) Find space
+  console.log(`[dashboard-hub] Step 1: getConfluenceSpaces (spaceKey=${spaceKey})`);
   const spacesResult = await call(rovo('getConfluenceSpaces'), {
     cloudId: ATLASSIAN_CLOUD_ID,
   });
   if (spacesResult.isError) {
-    throw new Error(`getConfluenceSpaces: ${extractText(spacesResult)}`);
+    throw new Error(`getConfluenceSpaces returned isError: ${extractText(spacesResult)}`);
   }
   const spacesData = safeJsonParse(extractText(spacesResult)) as Record<string, unknown> | null;
   const spaces = (spacesData?.results ?? spacesData ?? []) as Array<Record<string, unknown>>;
