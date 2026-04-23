@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
-import { createGatewaySession, isConfigured } from '@/lib/gateway-client';
+import { callTool, isConfigured } from '@/lib/gateway-client';
 import { ATLASSIAN_CLOUD_ID, rovo, extractText, safeJsonParse } from '@/app/api/tools/_shared';
 import type { PageInfo, CommentInfo } from '@/types/api';
 import { buildChildrenIndex, computeScores } from '@/lib/health-scoring';
@@ -8,24 +8,9 @@ import { buildChildrenIndex, computeScores } from '@/lib/health-scoring';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
-const MAX_PAGES = 15;
-const PER_CALL_TIMEOUT_MS = 20_000;
-const PAGE_DETAIL_CONCURRENCY = 4;
+const MAX_PAGES = 12;
+const PAGE_DETAIL_CONCURRENCY = 3;
 const TOKEN = process.env.DASHBOARD_HUB_API_TOKEN ?? '';
-
-type Session = ReturnType<typeof createGatewaySession>;
-
-async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
-  });
-  try {
-    return await Promise.race([p, timeout]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
 
 type HealthStatus = 'healthy' | 'needs-attention' | 'stale' | 'critical';
 
@@ -87,10 +72,10 @@ function countWords(body: unknown): number {
 }
 
 async function fetchViaGateway(spaceKey: string): Promise<DashboardHealthPayload> {
-  // Single MCP session reused across all calls — initialize cost is paid once.
-  const session: Session = createGatewaySession();
-  const call = (name: string, args: Record<string, unknown>) =>
-    withTimeout(session.callTool(name, args), PER_CALL_TIMEOUT_MS, `${name}`);
+  // Use the per-call session wrapper. Reusing one session across many calls
+  // races on init under concurrency and the gateway returns "Server not
+  // initialized". Per-call sessions match the working pattern in /api/tools/*.
+  const call = (name: string, args: Record<string, unknown>) => callTool(name, args);
 
   // 1) Find space
   const spacesResult = await call(rovo('getConfluenceSpaces'), {
