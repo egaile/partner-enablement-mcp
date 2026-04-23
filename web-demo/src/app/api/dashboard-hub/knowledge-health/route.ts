@@ -1,15 +1,31 @@
 import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
-import { callTool, isConfigured } from '@/lib/gateway-client';
+import { createGatewaySession, isConfigured } from '@/lib/gateway-client';
 import { ATLASSIAN_CLOUD_ID, rovo, extractText, safeJsonParse } from '@/app/api/tools/_shared';
 import type { PageInfo, CommentInfo } from '@/types/api';
 import { buildChildrenIndex, computeScores } from '@/lib/health-scoring';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 120;
+export const maxDuration = 300;
 
-const MAX_PAGES = 25;
+const MAX_PAGES = 15;
+const PER_CALL_TIMEOUT_MS = 20_000;
+const PAGE_DETAIL_CONCURRENCY = 4;
 const TOKEN = process.env.DASHBOARD_HUB_API_TOKEN ?? '';
+
+type Session = ReturnType<typeof createGatewaySession>;
+
+async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+  });
+  try {
+    return await Promise.race([p, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 type HealthStatus = 'healthy' | 'needs-attention' | 'stale' | 'critical';
 
@@ -71,8 +87,13 @@ function countWords(body: unknown): number {
 }
 
 async function fetchViaGateway(spaceKey: string): Promise<DashboardHealthPayload> {
+  // Single MCP session reused across all calls — initialize cost is paid once.
+  const session: Session = createGatewaySession();
+  const call = (name: string, args: Record<string, unknown>) =>
+    withTimeout(session.callTool(name, args), PER_CALL_TIMEOUT_MS, `${name}`);
+
   // 1) Find space
-  const spacesResult = await callTool(rovo('getConfluenceSpaces'), {
+  const spacesResult = await call(rovo('getConfluenceSpaces'), {
     cloudId: ATLASSIAN_CLOUD_ID,
   });
   if (spacesResult.isError) {
@@ -88,7 +109,7 @@ async function fetchViaGateway(spaceKey: string): Promise<DashboardHealthPayload
   const spaceName = (space.name as string) ?? spaceKey;
 
   // 2) List pages
-  const pagesResult = await callTool(rovo('getPagesInConfluenceSpace'), {
+  const pagesResult = await call(rovo('getPagesInConfluenceSpace'), {
     cloudId: ATLASSIAN_CLOUD_ID,
     spaceId,
     limit: MAX_PAGES,
@@ -118,10 +139,11 @@ async function fetchViaGateway(spaceKey: string): Promise<DashboardHealthPayload
   }
 
   // 3) Hydrate body/word-count + refresh lastModified per page
+  // Bounded concurrency — full Promise.all of 25 fanouts overwhelmed the gateway.
   const pageDetails: Record<string, { wordCount: number; lastModified?: string }> = {};
-  await Promise.all(pages.map(async (page) => {
+  const hydrate = async (page: PageInfo) => {
     try {
-      const pageResult = await callTool(rovo('getConfluencePage'), {
+      const pageResult = await call(rovo('getConfluencePage'), {
         cloudId: ATLASSIAN_CLOUD_ID,
         pageId: page.id,
         contentFormat: 'markdown',
@@ -143,7 +165,11 @@ async function fetchViaGateway(spaceKey: string): Promise<DashboardHealthPayload
     } catch {
       pageDetails[page.id] = { wordCount: 0, lastModified: page.lastModified };
     }
-  }));
+  };
+
+  for (let i = 0; i < pages.length; i += PAGE_DETAIL_CONCURRENCY) {
+    await Promise.all(pages.slice(i, i + PAGE_DETAIL_CONCURRENCY).map(hydrate));
+  }
 
   // 4) Comments via CQL
   const footerComments: CommentInfo[] = [];
@@ -151,7 +177,7 @@ async function fetchViaGateway(spaceKey: string): Promise<DashboardHealthPayload
   const idList = pages.map((p) => p.id).join(',');
   if (idList) {
     try {
-      const commentsResult = await callTool(rovo('searchConfluenceUsingCql'), {
+      const commentsResult = await call(rovo('searchConfluenceUsingCql'), {
         cloudId: ATLASSIAN_CLOUD_ID,
         cql: `type = comment AND container IN (${idList})`,
         limit: 200,
