@@ -59,6 +59,10 @@ export function createGatewaySession(): GatewaySession {
       method: "POST",
       headers,
       body: JSON.stringify(body),
+      // Opt out of Next.js fetch caching. GET route handlers default to
+      // caching fetches, which breaks MCP session init (the second POST
+      // returns a cached response tied to the initialize request).
+      cache: "no-store",
     });
 
     // Capture session ID from response headers
