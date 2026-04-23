@@ -52,7 +52,7 @@ function escapeXml(s: string): string {
 }
 
 function renderPie(slices: Slice[], totalLabel: string, spaceName: string): string {
-  const width = 420;
+  const width = 500;
   const height = 320;
   const cx = 160;
   const cy = 160;
@@ -87,17 +87,19 @@ function renderPie(slices: Slice[], totalLabel: string, spaceName: string): stri
   const centerText = `<text x="${cx}" y="${cy - 6}" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" font-weight="bold" fill="#111827">${total}</text>
                       <text x="${cx}" y="${cy + 18}" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#6B7280">${escapeXml(totalLabel)}</text>`;
 
-  // Legend on the right
-  const legendX = 310;
-  const legendItemHeight = 26;
-  const legendStartY = cy - (slices.length * legendItemHeight) / 2 + 10;
+  // Legend on the right — explicit columns: swatch | name | count
+  const swatchX = 310;
+  const nameX = 330;
+  const countX = width - 16;
+  const legendItemHeight = 28;
+  const legendStartY = cy - (slices.length * legendItemHeight) / 2 + 12;
 
   let legend = '';
   slices.forEach((s, i) => {
     const y = legendStartY + i * legendItemHeight;
-    legend += `<rect x="${legendX}" y="${y - 9}" width="12" height="12" rx="2" fill="${s.color}" />`;
-    legend += `<text x="${legendX + 18}" y="${y + 1}" font-family="Arial, sans-serif" font-size="12" fill="#374151">${escapeXml(s.name)}</text>`;
-    legend += `<text x="${width - 8}" y="${y + 1}" text-anchor="end" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#111827">${s.value}</text>`;
+    legend += `<rect x="${swatchX}" y="${y - 9}" width="12" height="12" rx="2" fill="${s.color}" />`;
+    legend += `<text x="${nameX}" y="${y + 1}" font-family="Arial, sans-serif" font-size="12" fill="#374151">${escapeXml(s.name)}</text>`;
+    legend += `<text x="${countX}" y="${y + 1}" text-anchor="end" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#111827">${s.value}</text>`;
   });
 
   // Title at top
