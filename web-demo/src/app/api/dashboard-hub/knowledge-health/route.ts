@@ -30,9 +30,19 @@ interface FlatPage {
   topRecommendation: string | null;
 }
 
+interface SliceEntry {
+  name: string;
+  value: number;
+  color: string;
+}
+
 interface DashboardHealthPayload {
   generatedAt: string;
   space: { key: string; name: string };
+  // Pre-shaped arrays for chart consumption — Dashboard Hub Pro's piechart
+  // node treats `data[]` as static config and won't evaluate templates inside,
+  // so we have to land the data in array form already.
+  statusBreakdown: SliceEntry[];
   summary: {
     averageScore: number;
     totalPages: number;
@@ -217,6 +227,7 @@ async function fetchViaGateway(spaceKey: string): Promise<DashboardHealthPayload
   return {
     generatedAt: new Date().toISOString(),
     space: { key: spaceKey, name: spaceName },
+    statusBreakdown: buildStatusBreakdown(scored),
     summary: {
       averageScore: scored.averageScore,
       totalPages: scored.pageScores.length,
@@ -238,6 +249,15 @@ async function fetchViaGateway(spaceKey: string): Promise<DashboardHealthPayload
     })),
     source: 'gateway',
   };
+}
+
+function buildStatusBreakdown(scored: { healthyCount: number; needsAttentionCount: number; staleCount: number; criticalCount: number }): SliceEntry[] {
+  return [
+    { name: 'Healthy',         value: scored.healthyCount,         color: '#22C55E' },
+    { name: 'Needs Attention', value: scored.needsAttentionCount, color: '#F59E0B' },
+    { name: 'Stale',           value: scored.staleCount,          color: '#F97316' },
+    { name: 'Critical',        value: scored.criticalCount,       color: '#EF4444' },
+  ];
 }
 
 function getMockPayload(spaceKey: string): DashboardHealthPayload {
@@ -270,6 +290,7 @@ function getMockPayload(spaceKey: string): DashboardHealthPayload {
   return {
     generatedAt: new Date().toISOString(),
     space: { key: spaceKey, name: spaceName },
+    statusBreakdown: buildStatusBreakdown(scored),
     summary: {
       averageScore: scored.averageScore,
       totalPages: scored.pageScores.length,
