@@ -155,7 +155,7 @@ export async function GET(request: Request) {
     status: 200,
     headers: {
       'Content-Type': 'image/svg+xml',
-      'Cache-Control': 'public, max-age=300',
+      'Cache-Control': 'public, max-age=60',
     },
   });
 }
