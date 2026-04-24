@@ -23,12 +23,20 @@ interface FlatPage {
   title: string;
   score: number;
   status: HealthStatus;
+  statusColor: string;
   staleness: number;
   depth: number;
   commentActivity: number;
   wordCount: number;
   topRecommendation: string | null;
 }
+
+const STATUS_COLOR_MAP: Record<HealthStatus, string> = {
+  healthy: '#22C55E',
+  'needs-attention': '#F59E0B',
+  stale: '#F97316',
+  critical: '#EF4444',
+};
 
 interface SliceEntry {
   name: string;
@@ -241,6 +249,7 @@ async function fetchViaGateway(spaceKey: string): Promise<DashboardHealthPayload
       title: p.title,
       score: p.score,
       status: p.status,
+      statusColor: STATUS_COLOR_MAP[p.status as HealthStatus] ?? '#9CA3AF',
       staleness: p.factors.staleness,
       depth: p.factors.depth,
       commentActivity: p.factors.commentActivity,
@@ -304,6 +313,7 @@ function getMockPayload(spaceKey: string): DashboardHealthPayload {
       title: p.title,
       score: p.score,
       status: p.status,
+      statusColor: STATUS_COLOR_MAP[p.status as HealthStatus] ?? '#9CA3AF',
       staleness: p.factors.staleness,
       depth: p.factors.depth,
       commentActivity: p.factors.commentActivity,
