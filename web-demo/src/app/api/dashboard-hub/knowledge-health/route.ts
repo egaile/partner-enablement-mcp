@@ -24,6 +24,7 @@ interface FlatPage {
   score: number;
   status: HealthStatus;
   statusColor: string;
+  statusEmoji: string;
   staleness: number;
   depth: number;
   commentActivity: number;
@@ -36,6 +37,13 @@ const STATUS_COLOR_MAP: Record<HealthStatus, string> = {
   'needs-attention': '#F59E0B',
   stale: '#F97316',
   critical: '#EF4444',
+};
+
+const STATUS_EMOJI_MAP: Record<HealthStatus, string> = {
+  healthy: '🟢',
+  'needs-attention': '🟡',
+  stale: '🟠',
+  critical: '🔴',
 };
 
 interface SliceEntry {
@@ -250,6 +258,7 @@ async function fetchViaGateway(spaceKey: string): Promise<DashboardHealthPayload
       score: p.score,
       status: p.status,
       statusColor: STATUS_COLOR_MAP[p.status as HealthStatus] ?? '#9CA3AF',
+      statusEmoji: STATUS_EMOJI_MAP[p.status as HealthStatus] ?? '⚪',
       staleness: p.factors.staleness,
       depth: p.factors.depth,
       commentActivity: p.factors.commentActivity,
@@ -314,6 +323,7 @@ function getMockPayload(spaceKey: string): DashboardHealthPayload {
       score: p.score,
       status: p.status,
       statusColor: STATUS_COLOR_MAP[p.status as HealthStatus] ?? '#9CA3AF',
+      statusEmoji: STATUS_EMOJI_MAP[p.status as HealthStatus] ?? '⚪',
       staleness: p.factors.staleness,
       depth: p.factors.depth,
       commentActivity: p.factors.commentActivity,
