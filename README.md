@@ -1,360 +1,182 @@
-# Partner Enablement MCP
+# MCPShield
 
-A comprehensive demonstration of how Global System Integrators can operationalize AI agent deployments using Model Context Protocol (MCP) with enterprise-grade security. Features a live integration with Atlassian Rovo MCP Server (14 Jira + Confluence tools), an MCP Security Gateway with injection scanning, policy enforcement, PII detection, and audit logging, plus an admin dashboard for governance.
+Open-core security and governance gateway for the Model Context Protocol.
 
-## Components
+MCPShield sits transparently between AI agents and downstream MCP servers, intercepting every `tools/list` and `tools/call`. It runs a layered security pipeline — prompt-injection scanning, PII detection, policy enforcement, drift detection, rate limiting, human-in-the-loop approval, and tamper-evident audit logging — before forwarding the request, then scans and (optionally) redacts the response on the way back.
 
-| Package | Description | Stack |
-|---------|-------------|-------|
-| [`mcp-server/`](#mcp-server) | MCP server connecting Claude to Jira workflows and knowledge base | TypeScript, MCP SDK |
-| [`web-demo/`](#web-demo) | Interactive demo exercising 14 Rovo MCP tools through the gateway | Next.js 14, Tailwind |
-| [`gateway/`](#mcp-security-gateway) | Transparent MCP proxy with security pipeline | Express, MCP SDK |
-| [`dashboard/`](#admin-dashboard) | Admin dashboard for gateway governance | Next.js 14, Clerk, shadcn/ui |
+The data plane is MIT-licensed and runs on your laptop in 60 seconds. The cloud control plane (multi-tenancy, hosted dashboard, billing, SSO) is the commercial layer.
+
+```
++----------------------+      +------------------+      +---------------------+
+|   AI client          | ---> |    MCPShield     | ---> |  Downstream MCP     |
+|  (Claude, Cursor,    | <--- |  scan / policy / | <--- |  (Atlassian, Linear |
+|   VS Code, custom)   |      |  audit / approve |      |   Postgres, Slack…) |
++----------------------+      +------------------+      +---------------------+
+```
+
+---
+
+## 60-second self-host
+
+```bash
+npm install -g @mcpshield/cli         # or: npx @mcpshield/cli ...
+mcpshield init                        # writes mcpshield.yaml
+mcpshield start                       # boots gateway on http://127.0.0.1:4000
+```
+
+Then point any MCP client at `http://127.0.0.1:4000/mcp`. The gateway exposes `/health` for liveness and `/mcp` for the Streamable HTTP transport.
+
+Useful follow-ups:
+
+```bash
+mcpshield key create                  # mint an API key for /mcp auth
+mcpshield policy lint                 # validate mcpshield.yaml
+mcpshield audit tail --follow         # live audit feed
+mcpshield alerts list                 # only flagged events (denials, threats, errors)
+mcpshield webhooks add --url ... --events injection_detected,server_error
+```
+
+---
+
+## Open-core split
+
+The repo is a single npm workspaces monorepo. Everything under `packages/` is MIT and publishable to npm; everything under `gateway/` and `dashboard/` is commercial.
+
+### Open (MIT) — `packages/`
+
+| Package | Purpose |
+|---|---|
+| **`@mcpshield/gateway-core`** | Proxy engine, scanner pipeline, PII registry, policy engine, drift detector, audit logger, rate limiter, webhook dispatcher, approval queue, OAuth 2.1 client. `StorageBackend` abstraction with a SQLite reference impl. |
+| **`@mcpshield/cli`** | `init` / `start` / `policy lint` / `key create` / `audit tail` / `alerts list` / `webhooks add\|list\|remove`. Boots the gateway against a local SQLite DB. |
+| **`@mcpshield/sdk`** | `definePack()` — author your own industry packs (PII patterns, policy templates, compliance frameworks). |
+| **`@mcpshield/pack-saas`** | Reference SaaS/SOC2 pack. The template for new packs. |
+
+### Commercial — `gateway/`, `dashboard/`
+
+| Component | Purpose |
+|---|---|
+| **`gateway/`** | Cloud control plane: multi-tenancy, Clerk SSO, Stripe billing, Atlassian-aware audit enrichment + injection scanner, hosted alerts, OAuth state persistence, REST API for the dashboard. |
+| **`dashboard/`** | Next.js 14 admin UI — server registry, policy builder, audit explorer, alert feed, approval queue, team management, billing. |
+
+### Cloud ports — how the two halves connect
+
+The core defines four small interfaces in `packages/gateway-core/src/proxy/ports.ts` that the cloud implements:
+
+- **`AlertSink`** — fire-and-forget alert dispatch. Cloud: persists to Supabase + delivers webhooks.
+- **`BillingGuard`** — per-tenant usage limit check. Cloud: PlanCache + Stripe.
+- **`OAuthProviderFactory`** — builds MCP SDK OAuth providers per downstream server.
+- **`AuditRecorder`** — persists audit entries with optional enrichment.
+
+Self-host configurations omit these and get safe no-op defaults.
+
+See [`/Users/edgaile/.claude/plans/so-we-started-down-buzzing-hippo.md`](.claude/plans/so-we-started-down-buzzing-hippo.md) for the productization strategy that shaped this split.
+
+---
 
 ## Architecture
 
 ```
 +---------------------------------------------------------------+
-|                        AI CLIENTS                              |
-|  Claude Desktop / Claude Code / Cursor / VS Code / Web Demo   |
+|                        AI CLIENT                              |
+|     Claude Desktop / Cursor / VS Code / your custom agent     |
 +---------------------------------------------------------------+
                             |
-                    MCP JSON-RPC
+                    MCP JSON-RPC (Streamable HTTP)
                             |
 +---------------------------------------------------------------+
-|                  MCP SECURITY GATEWAY                          |
-|                                                                |
-|  Auth (Clerk/API Key) --> Usage Limits --> Policy Engine       |
-|       --> Rate Limiter --> Injection Scanner (5 strategies)    |
-|       --> PII Detector --> Drift Check --> Forward to Server   |
-|       --> Response Scan --> PII Redact --> Audit Log           |
-|                                                                |
-|  + HITL Approval Engine    + Webhook Dispatcher                |
-|  + Atlassian Audit Enricher  + Health Checker                  |
+|                 GatewayProxyEngine (gateway-core)             |
+|                                                               |
+|  Auth --> Usage limits --> Policy --> Rate limit --> Scanner  |
+|       --> PII --> Drift --> Approval gate --> Forward         |
+|       --> Response scan --> PII redact --> Audit              |
+|                                                               |
+|  + WebhookDispatcher (auto-fired by AlertSink)                |
+|  + HealthChecker     + ApprovalEngine                         |
 +---------------------------------------------------------------+
                             |
-                    MCP JSON-RPC
+              MCP JSON-RPC (stdio | Streamable HTTP)
                             |
 +---------------------------------------------------------------+
-|              ATLASSIAN ROVO MCP SERVER                         |
-|                                                                |
-|  40+ tools across Jira, Confluence, and Compass                |
-|  Auth: API Token (Basic) or OAuth 2.1 (PKCE)                  |
-+---------------------------------------------------------------+
-                            |
-                   REST API
-                            |
-+---------------------------------------------------------------+
-|           ATLASSIAN CLOUD                                      |
-|  Jira Cloud  |  Confluence Cloud  |  Compass                  |
+|                DOWNSTREAM MCP SERVERS                         |
+|   any combination — Atlassian Rovo, Linear, Postgres, Slack,  |
+|   your own internal tools …                                   |
 +---------------------------------------------------------------+
 ```
 
-## Quick Start
+### Storage
 
-### Prerequisites
+The core only depends on a `StorageBackend` interface. Two reference implementations:
 
-- Node.js >= 18
-- npm
+- **`SqliteStorageBackend`** (in core) — WAL-mode SQLite via `better-sqlite3`. Bootstraps schema on `init()`. Used by the CLI.
+- **`SupabaseStorageBackend`** (in `gateway/`) — multi-tenant Postgres with RLS. Used by the cloud.
 
-### Install
+Want a different store (Postgres direct, DynamoDB, etc.)? Implement `StorageBackend` from `@mcpshield/gateway-core/storage`. The proxy hot path is unchanged.
 
-```bash
-npm install          # installs all workspaces from root
+### Policy actions
+
+Policies are evaluated in priority order; first match wins. Four actions:
+
+- **`allow`** — proceed (default when no rule matches).
+- **`deny`** — block with the rule's name in the response.
+- **`require_approval`** — block, create a pending request in the queue, return its id. The caller re-runs the tool with `arguments.__approvalId = <id>` once an admin approves; the interceptor verifies the id matches the same tenant/user/server/tool, strips the marker, and proceeds.
+- **`log_only`** — proceed, but flag in the audit log. Useful for collecting SOC2 evidence without blocking traffic.
+
+Modifiers: `redactPII`, `redactSecrets`, `maxCallsPerMinute`, `requireMFA`.
+
+---
+
+## Repo layout
+
+```
+.
+├── packages/
+│   ├── gateway-core/        # MIT — the OSS gateway
+│   ├── cli/                 # MIT — @mcpshield/cli
+│   ├── sdk/                 # MIT — industry-pack SDK
+│   └── pack-saas/           # MIT — reference pack
+├── gateway/                 # Commercial — cloud control plane
+├── dashboard/               # Commercial — admin UI
+├── mcp-server/              # Portfolio demo (separate product)
+├── web-demo/                # Portfolio demo (separate product)
+├── LICENSE                  # MIT (applies to packages/)
+└── LICENSE-COMMERCIAL       # Commercial license (gateway/ + dashboard/)
 ```
 
-### Run the Web Demo
+### Build / test
 
 ```bash
-cd web-demo
-npm run dev          # Next.js dev server on :3000
-```
+npm install                                       # all workspaces
 
-### Run the Gateway
+npm run --workspace @mcpshield/gateway-core build # tsc
+npm run --workspace @mcpshield/gateway-core test  # vitest
 
-```bash
-cd gateway
-npm run dev          # Express server on :4000
-```
+npm run --workspace @mcpshield/cli build
+npm run --workspace mcp-security-gateway build
+npm run --workspace mcp-security-gateway test
 
-### Run the Dashboard
-
-```bash
-cd dashboard
-npm run dev          # Next.js dev server on :3001
+npm run --workspaces --if-present build           # everything
 ```
 
 ---
 
-## MCP Server
+## Bundled portfolio demo
 
-The MCP server (`mcp-server/`) registers 4 tools via `McpServer.registerTool()` from `@modelcontextprotocol/sdk`. It connects to Jira Cloud for live project data and uses a local knowledge base for architecture patterns, compliance frameworks, and industry templates.
+This repo also contains a Partner Solutions Architect portfolio demo that exercises the cloud build of MCPShield against live Atlassian Rovo MCP tools:
 
-### Tools
+- **`mcp-server/`** — a standalone MCP server with 4 partner-enablement tools (project context, reference architectures, compliance assessment, implementation plans). TypeScript + `@modelcontextprotocol/sdk`. Independent of the gateway.
+- **`web-demo/`** — Next.js app that drives 30+ Rovo tools through the cloud gateway, with 4 enterprise workflows (Deployment Planning, Knowledge Base Audit, Sprint Operations, Risk Radar) plus two standalone features (Security Threat Simulator, Governance Control Room).
 
-| Tool | Description |
-|------|-------------|
-| `partner_read_project_context` | Reads Jira project backlog, detects compliance signals, integration targets, and data types |
-| `partner_generate_reference_architecture` | Generates compliant reference architectures with pattern selection and service mappings |
-| `partner_assess_compliance` | Analyzes project context for regulatory frameworks (HIPAA, SOC2, PCI-DSS, etc.) |
-| `partner_create_implementation_plan` | Creates phased delivery plans with sprint structures, milestones, and Jira ticket templates |
-
-### Running
-
-```bash
-cd mcp-server
-npm run build
-npm start                  # stdio mode (default)
-TRANSPORT=http npm start   # HTTP mode on PORT (default 3000)
-npm run inspect            # MCP Inspector for debugging
-```
-
-### Claude Desktop Configuration
-
-```json
-{
-  "mcpServers": {
-    "partner-enablement": {
-      "command": "node",
-      "args": ["/path/to/partner-enablement-mcp/mcp-server/dist/index.js"],
-      "env": {
-        "JIRA_HOST": "your-domain.atlassian.net",
-        "JIRA_EMAIL": "your-email@example.com",
-        "JIRA_API_TOKEN": "your-api-token"
-      }
-    }
-  }
-}
-```
+These are demos, not part of the open-core or commercial product line.
 
 ---
-
-## Web Demo
-
-The web demo (`web-demo/`) is a Next.js 14 application that exercises 14 Atlassian Rovo MCP tools through the MCP Security Gateway. It demonstrates the full lifecycle of an AI agent analyzing enterprise data with security guardrails.
-
-### Demo Flow (7 Steps)
-
-1. **Project Context** -- Reads Jira backlog via `getVisibleJiraProjects` + `searchJiraIssuesUsingJql`, with expandable issue details via `getJiraIssue`
-2. **Cross-Product Search** -- Searches across Jira and Confluence using Rovo Search (`search`), supplemented by JQL for Jira coverage. Confluence results are filtered by project space (HEALTH→`health`, FINSERV→`SD`)
-3. **Project Health** -- Runs 4 parallel JQL queries to assess readiness (overdue, blocked, critical issues)
-4. **Architecture** -- Searches Confluence for existing architecture docs via CQL (`searchConfluenceUsingCql`), reads top matches (`getConfluencePage`), recommends patterns
-5. **Compliance** -- Searches Confluence per applicable compliance framework, identifies doc coverage gaps
-6. **Implementation Plan** -- Generates phased plan with sprint timelines and Jira ticket templates
-7. **Agent Actions** -- Executes write operations: label issues (`editJiraIssue`), add comments (`addCommentToJiraIssue`), transition statuses (`transitionJiraIssue`), create Confluence pages, create Jira tickets
-
-### Rovo Tools Used
-
-| Tool | Steps | Type |
-|------|-------|------|
-| `getAccessibleAtlassianResources` | 1-7 | Read |
-| `getVisibleJiraProjects` | 1 | Read |
-| `searchJiraIssuesUsingJql` | 1, 3 | Read |
-| `getJiraIssue` | 1 | Read |
-| `search` (Rovo) | 2 | Read |
-| `searchConfluenceUsingCql` | 4, 5 | Read |
-| `getConfluencePage` | 4 | Read |
-| `editJiraIssue` | 7 | Write |
-| `addCommentToJiraIssue` | 7 | Write |
-| `transitionJiraIssue` | 7 | Write |
-| `createConfluencePage` | 7 | Write |
-| `createJiraIssue` | 7 | Write |
-| `getConfluenceSpaces` | 7 | Read |
-| `getJiraProjectIssueTypesMetadata` | 7 | Read |
-
-### Features
-
-- **Security Pipeline Visualization** -- Animated 7-stage pipeline showing auth, policy, injection scan, PII detect, forward, response scan, and audit log
-- **Live Audit Trail** -- Slide-out panel showing real-time gateway audit entries with Atlassian-specific metadata
-- **Tool Reference Panel** -- Catalog of 40+ Rovo tools grouped by category with risk level badges
-- **Architecture Diagram** -- Visual flow diagram on the landing page explaining the MCP + Gateway architecture
-- **Security Callouts** -- Contextual educational notes (PII detection, Confluence CQL, write policy blocks)
-- **Mock Fallback** -- All steps work with realistic mock data when the gateway is unavailable
-
-### Scenarios
-
-| Industry | Project Key | Compliance | Integrations |
-|----------|-------------|------------|--------------|
-| Healthcare | HEALTH | HIPAA | Epic EHR, FHIR |
-| Financial Services | FINSERV | SOC2, PCI-DSS | Loan processing |
-
----
-
-## MCP Security Gateway
-
-The gateway (`gateway/`) is a transparent MCP proxy that sits between AI clients and downstream MCP servers. It intercepts every `tools/list` and `tools/call` JSON-RPC message and applies a multi-stage security pipeline.
-
-### Security Pipeline
-
-```
-Auth --> Usage Limit --> Policy --> Rate Limit --> Injection Scan
-  --> PII Detect --> Drift Check --> Forward --> Response Scan
-  --> PII Redact --> Audit Log
-```
-
-### Key Features
-
-- **5 Injection Scanner Strategies** -- Pattern matching, Unicode analysis, structural analysis, exfiltration detection, and 20 Atlassian-specific patterns
-- **PII Detection** -- Luhn-validated credit cards, SSN, email, phone, IP, DOB, MRN
-- **Policy Engine** -- Allow, deny, require_approval, log_only actions with glob matching
-- **HITL Approval Engine** -- Pending approval requests with expiration
-- **Tool Drift Detection** -- SHA-256 hash comparison alerts on tool definition changes
-- **Rate Limiting** -- Sliding window per tenant:user:server:tool
-- **Health Checking** -- Periodic `listTools` ping with alert after 3 consecutive failures
-- **Webhook Dispatcher** -- HMAC-SHA256 signed delivery for alerts and events
-- **Atlassian Audit Enricher** -- Extracts Jira project keys, Confluence space keys, operation types
-- **Billing & Usage Metering** -- 4 tiers (Starter/Pro/Business/Enterprise) with Stripe integration
-- **OAuth 2.1** -- MCP SDK-based OAuth with PKCE, auto-refresh, dynamic client registration
-- **6 Atlassian Policy Templates** -- Read-Only Jira, Protected Projects, Approval for Writes, Confluence View-Only, Audit Everything, PII Shield
-
-### Running
-
-```bash
-cd gateway
-npm run build
-npm start              # Express on PORT (default 4000)
-npm test               # 121 tests across 7 test files
-```
-
-### API Reference
-
-See [`gateway/docs/api/README.md`](gateway/docs/api/README.md) for the full REST API reference covering servers, policies, audit, alerts, approvals, webhooks, OAuth, billing, and API keys.
-
-### Connecting Atlassian Rovo
-
-See [`gateway/docs/guides/connecting-atlassian-rovo.md`](gateway/docs/guides/connecting-atlassian-rovo.md) for step-by-step setup with API tokens or OAuth 2.1.
-
----
-
-## Admin Dashboard
-
-The dashboard (`dashboard/`) is a Next.js 14 application providing a management UI for the gateway. Built with Clerk for authentication and shadcn/ui for components.
-
-### Pages
-
-| Page | Description |
-|------|-------------|
-| Dashboard | Metrics overview (total calls, blocked, threats, latency) |
-| Servers | List/add/detail MCP servers with tool inventory |
-| Policies | Create rules with glob matching and action selection |
-| Policy Simulator | Test policy evaluation without making real tool calls |
-| Tools | Browse all discovered tools across connected servers |
-| Approvals | Review and approve/reject pending HITL requests |
-| Audit Log | Paginated, filterable audit trail |
-| Alerts | Feed with acknowledge and bulk actions |
-| Settings | Account, Team, API Keys, Billing, Gateway, General |
-| Onboarding | 4-step Atlassian-first wizard |
-
-### Running
-
-```bash
-cd dashboard
-npm run dev          # Next.js on :3001
-```
-
----
-
-## Environment Variables
-
-```bash
-# MCP Server
-JIRA_HOST=your-domain.atlassian.net
-JIRA_EMAIL=your-email@example.com
-JIRA_API_TOKEN=your-api-token
-PORT=3000
-TRANSPORT=stdio              # "stdio" or "http"
-
-# Gateway
-SUPABASE_URL=
-SUPABASE_SERVICE_ROLE_KEY=
-CLERK_SECRET_KEY=
-STRIPE_SECRET_KEY=
-STRIPE_WEBHOOK_SECRET=
-PORT=4000
-LOG_LEVEL=info
-ALLOWED_ORIGINS=             # CORS origins
-
-# Dashboard
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
-CLERK_SECRET_KEY=
-GATEWAY_API_URL=http://localhost:4000
-
-# Web Demo
-NEXT_PUBLIC_GATEWAY_URL=     # Gateway URL for live mode
-GATEWAY_API_KEY=             # mgw_ prefixed API key
-NEXT_PUBLIC_DEMO_PROJECT_KEY_HEALTH=HEALTH
-NEXT_PUBLIC_DEMO_PROJECT_KEY_FINSERV=FINSERV
-```
-
-## Deployment
-
-| Component | Platform | URL |
-|-----------|----------|-----|
-| Web Demo | Vercel | [partner-enablement-mcp.vercel.app](https://partner-enablement-mcp.vercel.app) |
-| Gateway | Railway | gateway-production-b077.up.railway.app |
-| Dashboard | Vercel | Linked from repo root |
-| Database | Supabase | PostgreSQL with RLS |
-
-## Project Structure
-
-```
-partner-enablement-mcp/
-+-- package.json                 # npm workspaces root
-+-- CLAUDE.md                    # Claude Code project instructions
-+-- mcp-server/
-|   +-- src/
-|   |   +-- index.ts             # MCP server (4 tools inline)
-|   |   +-- services/            # JiraClient, KnowledgeBase
-|   |   +-- schemas/             # Zod input/output schemas
-|   |   +-- knowledge/           # JSON knowledge base files
-|   +-- package.json
-+-- web-demo/
-|   +-- src/
-|   |   +-- app/
-|   |   |   +-- page.tsx         # Main demo page (client component)
-|   |   |   +-- api/tools/       # 8 API routes (gateway proxies)
-|   |   +-- components/
-|   |   |   +-- steps/           # 7 step components + CompleteStep
-|   |   |   +-- SecurityPipeline.tsx
-|   |   |   +-- AuditTrailPanel.tsx
-|   |   |   +-- ToolReferencePanel.tsx
-|   |   |   +-- ArchitectureDiagram.tsx
-|   |   +-- lib/
-|   |   |   +-- gateway-client.ts  # MCP JSON-RPC client
-|   |   |   +-- rovo-tools.ts      # 40+ tool catalog
-|   |   +-- types/api.ts          # Shared TypeScript types
-|   +-- package.json
-+-- gateway/
-|   +-- src/
-|   |   +-- index.ts             # Express server + routes
-|   |   +-- proxy/               # GatewayProxyEngine, ConnectionManager
-|   |   +-- security/            # InjectionScanner, PiiScanner
-|   |   +-- policy/              # PolicyEngine
-|   |   +-- audit/               # AuditLogger, AtlassianEnricher
-|   |   +-- auth/                # Clerk, API key, OAuth, role guard
-|   |   +-- billing/             # UsageMeter, PlanCache, Stripe
-|   |   +-- alerts/              # AlertEngine
-|   |   +-- monitor/             # ToolSnapshot, HealthChecker
-|   |   +-- db/queries/          # Supabase query modules
-|   +-- supabase/migrations/     # 7 migration files
-|   +-- docs/                    # 14 documentation files
-|   +-- package.json
-+-- dashboard/
-|   +-- src/
-|   |   +-- app/                 # 16 routes (App Router)
-|   |   +-- components/          # Layout, servers, policies, audit, alerts
-|   |   +-- lib/                 # API client, utilities
-|   +-- package.json
-```
-
-## Author
-
-Ed Gaile -- Principal Solutions Architect
-- LinkedIn: [linkedin.com/in/edgaile](https://linkedin.com/in/edgaile)
-- GitHub: [github.com/egaile](https://github.com/egaile)
 
 ## License
 
-MIT
+- **`packages/`** — MIT (see [`LICENSE`](LICENSE)). Use it, fork it, sell it, no strings.
+- **`gateway/`**, **`dashboard/`**, **`packages/pack-saas/`** — commercial (see [`LICENSE-COMMERCIAL`](LICENSE-COMMERCIAL)). Evaluation-only reading; modification or redistribution requires a written license.
+
+---
+
+## Author
+
+Ed Gaile · [linkedin.com/in/edgaile](https://linkedin.com/in/edgaile) · [github.com/egaile](https://github.com/egaile)
