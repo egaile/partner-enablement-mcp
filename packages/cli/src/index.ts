@@ -12,6 +12,11 @@ import { runPolicyLint } from "./commands/policy-lint.js";
 import { runKeyCreate } from "./commands/key.js";
 import { runAuditTail } from "./commands/audit.js";
 import { runAlertsList } from "./commands/alerts.js";
+import {
+  runWebhookAdd,
+  runWebhookList,
+  runWebhookRemove,
+} from "./commands/webhooks.js";
 
 const VERSION = "0.1.0";
 
@@ -56,15 +61,21 @@ Usage:
   mcpshield key create [--config <path>] [--name <name>]
   mcpshield audit tail [--limit N] [--follow] [--flagged]
   mcpshield alerts list [--limit N]
+  mcpshield webhooks add --url <url> --events <a,b,c> [--secret <s>]
+  mcpshield webhooks list
+  mcpshield webhooks remove <id>
   mcpshield --version | --help
 
 Commands:
-  init           Scaffold mcpshield.yaml in the current directory.
-  start          Load config, open SQLite storage, boot the gateway.
-  policy lint    Validate the config against the schema.
-  key create     Mint a new API key for the default tenant.
-  audit tail     Print recent audit log entries from local SQLite.
-  alerts list    Show recent flagged audit entries (denials, threats, errors).
+  init             Scaffold mcpshield.yaml in the current directory.
+  start            Load config, open SQLite storage, boot the gateway.
+  policy lint      Validate the config against the schema.
+  key create       Mint a new API key for the default tenant.
+  audit tail       Print recent audit log entries from local SQLite.
+  alerts list      Show recent flagged audit entries (denials, threats, errors).
+  webhooks add     Register a new webhook subscriber.
+  webhooks list    Show registered webhooks.
+  webhooks remove  Delete a webhook by id.
 
 Common flags:
   --config <path>   Path to mcpshield.yaml (default: ./mcpshield.yaml)
@@ -161,6 +172,32 @@ async function main(): Promise<void> {
       }
       console.error(`Unknown subcommand: alerts ${sub ?? ""}`);
       console.error("Try: mcpshield alerts list");
+      process.exit(1);
+      return;
+
+    case "webhooks":
+      if (sub === "add") {
+        await runWebhookAdd({
+          configPath,
+          url: args.flags.url as string | undefined,
+          events: args.flags.events as string | undefined,
+          secret: args.flags.secret as string | undefined,
+        });
+        return;
+      }
+      if (sub === "list") {
+        await runWebhookList({ configPath });
+        return;
+      }
+      if (sub === "remove") {
+        await runWebhookRemove({
+          configPath,
+          id: args.positional[2],
+        });
+        return;
+      }
+      console.error(`Unknown subcommand: webhooks ${sub ?? ""}`);
+      console.error("Try: mcpshield webhooks add|list|remove");
       process.exit(1);
       return;
 
