@@ -1,0 +1,32 @@
+{
+  "name": "@mcpshield/sdk",
+  "version": "0.1.0",
+  "description": "Plugin SDK for building MCPShield industry packs (PII patterns, policy templates, compliance metadata).",
+  "license": "MIT",
+  "author": "Ed Gaile",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsx": "^4.6.2",
+    "typescript": "^5.3.2",
+    "vitest": "^2.1.9"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

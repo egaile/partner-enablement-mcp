@@ -1,0 +1,50 @@
+MCPShield Commercial License
+
+Copyright (c) 2026 Ed Gaile. All rights reserved.
+
+This Commercial License (the "License") governs use of the source code and
+binary artifacts within directories explicitly marked as commercial in this
+repository, including but not limited to:
+
+  - apps/cloud-control-plane/
+  - apps/cloud-dashboard/
+  - apps/marketing/  (where it contains commercial product code)
+  - packs-private/
+
+(collectively, the "Commercial Software"). The Commercial Software is NOT
+covered by the MIT License that applies to the rest of this repository.
+
+1. RESERVED RIGHTS
+
+   The Commercial Software is the proprietary and confidential property of
+   the copyright holder. All rights are reserved.
+
+2. PERMITTED USE
+
+   You may view and read the source code of the Commercial Software for the
+   sole purpose of evaluating it. You may not use, copy, modify, merge,
+   publish, distribute, sublicense, or sell the Commercial Software, or any
+   portion thereof, without a separate written commercial license from the
+   copyright holder.
+
+3. CONTRIBUTIONS
+
+   Pull requests to the Commercial Software directories are welcome but, by
+   submitting a pull request, you grant the copyright holder a perpetual,
+   irrevocable, worldwide, royalty-free, non-exclusive license to use,
+   modify, distribute, and sublicense your contribution as part of the
+   Commercial Software, including under closed-source terms.
+
+4. NO WARRANTY
+
+   THE COMMERCIAL SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+   KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+5. RELATIONSHIP TO THE OPEN SOURCE CORE
+
+   The packages under packages/ are licensed separately under the MIT
+   License (see ./LICENSE). Nothing in this Commercial License restricts
+   your rights under that MIT License with respect to those packages.
+
+To purchase a commercial license, contact: egaile@gmail.com
