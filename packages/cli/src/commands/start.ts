@@ -20,6 +20,8 @@ import {
   GatewayProxyEngine,
   PolicyEngine,
   SqliteStorageBackend,
+  WebhookAlertSink,
+  WebhookDispatcher,
   getScanner,
   loadConfig,
 } from "@mcpshield/gateway-core";
@@ -74,12 +76,18 @@ export async function runStart(options: StartOptions = {}): Promise<void> {
   const policyEngine = new PolicyEngine({ policies: storage.policies });
   const driftDetector = new DriftDetector({ snapshots: storage.snapshots });
 
+  const webhookDispatcher = new WebhookDispatcher({
+    webhooks: storage.webhooks,
+  });
+  const alertSink = new WebhookAlertSink(webhookDispatcher);
+
   const engine = new GatewayProxyEngine({
     storage,
     policyEngine,
     driftDetector,
     scanner: getScanner(),
     auditRecorder: auditLogger,
+    alertSink,
   });
 
   engine.setTenantContext({

@@ -15,6 +15,22 @@ export const PolicyAction = z.enum([
 ]);
 export type PolicyAction = z.infer<typeof PolicyAction>;
 
+/**
+ * Canonical alert event names. The proxy fires these via `AlertSink`;
+ * the webhook dispatcher forwards them verbatim as the `event` field in
+ * each delivery payload, and webhook subscriptions filter on them.
+ */
+export const ALERT_EVENTS = {
+  injectionDetected: "injection_detected",
+  policyViolation: "policy_violation",
+  toolDrift: "tool_drift",
+  rateLimitExceeded: "rate_limit_exceeded",
+  authFailure: "auth_failure",
+  serverError: "server_error",
+} as const;
+
+export type AlertEventName = (typeof ALERT_EVENTS)[keyof typeof ALERT_EVENTS];
+
 export const AuditEntrySchema = z.object({
   correlationId: z.string().uuid(),
   tenantId: z.string().uuid(),

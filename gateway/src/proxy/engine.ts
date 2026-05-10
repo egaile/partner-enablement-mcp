@@ -13,6 +13,7 @@
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   GatewayProxyEngine as CoreEngine,
+  chainAlertSinks,
   type ConnectionManager,
   type HealthChecker,
   type TenantContext,
@@ -22,6 +23,10 @@ import {
   PolicyEngine,
   type McpServerRecord,
 } from "@mcpshield/gateway-core";
+import {
+  WebhookAlertSink,
+  WebhookDispatcher,
+} from "@mcpshield/gateway-core/webhooks";
 import { AuditLogger } from "../audit/logger.js";
 import { AlertEngine } from "../alerts/engine.js";
 import { UsageMeter } from "../billing/usage-meter.js";
@@ -63,13 +68,21 @@ export class GatewayProxyEngine {
 
     this.auditLogger.setUsageMeter(this.usageMeter);
 
+    const webhookDispatcher = new WebhookDispatcher({
+      webhooks: this.storage.webhooks,
+    });
+    const alertSink = chainAlertSinks(
+      new CloudAlertSink(this.alertEngine),
+      new WebhookAlertSink(webhookDispatcher)
+    );
+
     this.core = new CoreEngine({
       storage: this.storage,
       policyEngine: this.policyEngine,
       driftDetector,
       scanner: getScanner(),
       auditRecorder: this.auditLogger,
-      alertSink: new CloudAlertSink(this.alertEngine),
+      alertSink,
       billingGuard: new CloudBillingGuard(this.planCache),
       oauthFactory: new CloudOAuthProviderFactory(),
     });

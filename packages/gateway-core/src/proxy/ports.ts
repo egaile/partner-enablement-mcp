@@ -85,6 +85,43 @@ export const noopAlertSink: AlertSink = {
 };
 
 /**
+ * Compose multiple AlertSinks into one. Each method fans out to every
+ * underlying sink in parallel; individual failures are caught and logged
+ * so one slow / broken sink can't drop alerts for the others.
+ *
+ * Useful pattern: `chainAlertSinks(cloudAlertSink, webhookAlertSink)` —
+ * persist the alert AND deliver webhooks on the same event.
+ */
+export function chainAlertSinks(...sinks: AlertSink[]): AlertSink {
+  const fanOut = async (
+    name: string,
+    invoke: (sink: AlertSink) => Promise<void>
+  ): Promise<void> => {
+    const results = await Promise.allSettled(sinks.map(invoke));
+    for (const r of results) {
+      if (r.status === "rejected") {
+        console.error(`[alert] ${name} sink failed:`, r.reason);
+      }
+    }
+  };
+
+  return {
+    fireInjection: (t, s, c) =>
+      fanOut("fireInjection", (sink) => sink.fireInjection(t, s, c)),
+    fireDrift: (t, d, c) =>
+      fanOut("fireDrift", (sink) => sink.fireDrift(t, d, c)),
+    firePolicyViolation: (t, c) =>
+      fanOut("firePolicyViolation", (sink) =>
+        sink.firePolicyViolation(t, c)
+      ),
+    fireRateLimit: (t, c) =>
+      fanOut("fireRateLimit", (sink) => sink.fireRateLimit(t, c)),
+    fireServerError: (t, c) =>
+      fanOut("fireServerError", (sink) => sink.fireServerError(t, c)),
+  };
+}
+
+/**
  * Pre-flight billing check (cloud usage limit enforcement).
  *
  * Returning `allowed: false` causes the interceptor to deny the call with

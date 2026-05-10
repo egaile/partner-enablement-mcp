@@ -27,4 +27,5 @@ export {
   type OAuthProviderFactory,
   noopAlertSink,
   noopBillingGuard,
+  chainAlertSinks,
 } from "./ports.js";
