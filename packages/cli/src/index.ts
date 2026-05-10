@@ -10,6 +10,8 @@ import { runInit } from "./commands/init.js";
 import { runStart } from "./commands/start.js";
 import { runPolicyLint } from "./commands/policy-lint.js";
 import { runKeyCreate } from "./commands/key.js";
+import { runAuditTail } from "./commands/audit.js";
+import { runAlertsList } from "./commands/alerts.js";
 
 const VERSION = "0.1.0";
 
@@ -52,6 +54,8 @@ Usage:
   mcpshield start [--config <path>] [--host <host>] [--port <n>] [--auth]
   mcpshield policy lint [--config <path>]
   mcpshield key create [--config <path>] [--name <name>]
+  mcpshield audit tail [--limit N] [--follow] [--flagged]
+  mcpshield alerts list [--limit N]
   mcpshield --version | --help
 
 Commands:
@@ -59,6 +63,8 @@ Commands:
   start          Load config, open SQLite storage, boot the gateway.
   policy lint    Validate the config against the schema.
   key create     Mint a new API key for the default tenant.
+  audit tail     Print recent audit log entries from local SQLite.
+  alerts list    Show recent flagged audit entries (denials, threats, errors).
 
 Common flags:
   --config <path>   Path to mcpshield.yaml (default: ./mcpshield.yaml)
@@ -123,6 +129,38 @@ async function main(): Promise<void> {
       }
       console.error(`Unknown subcommand: key ${sub ?? ""}`);
       console.error("Try: mcpshield key create");
+      process.exit(1);
+      return;
+
+    case "audit":
+      if (sub === "tail") {
+        await runAuditTail({
+          configPath,
+          limit: args.flags.limit
+            ? Number(args.flags.limit)
+            : undefined,
+          follow: Boolean(args.flags.follow),
+          onlyFlagged: Boolean(args.flags.flagged),
+        });
+        return;
+      }
+      console.error(`Unknown subcommand: audit ${sub ?? ""}`);
+      console.error("Try: mcpshield audit tail");
+      process.exit(1);
+      return;
+
+    case "alerts":
+      if (sub === "list") {
+        await runAlertsList({
+          configPath,
+          limit: args.flags.limit
+            ? Number(args.flags.limit)
+            : undefined,
+        });
+        return;
+      }
+      console.error(`Unknown subcommand: alerts ${sub ?? ""}`);
+      console.error("Try: mcpshield alerts list");
       process.exit(1);
       return;
 

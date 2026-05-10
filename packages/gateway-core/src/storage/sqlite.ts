@@ -18,6 +18,8 @@ import {
   StorageError,
   type ApiKeyCreateInput,
   type ApiKeyRecord,
+  type AuditListOptions,
+  type AuditLogRecord,
   type McpServerRecord,
   type PolicyRuleRecord,
   type PolicyRuleUpsertInput,
@@ -369,6 +371,52 @@ interface WebhookRow {
   created_at: string;
 }
 
+interface AuditLogRow {
+  id: string;
+  correlation_id: string;
+  tenant_id: string;
+  user_id: string | null;
+  server_id: string;
+  server_name: string;
+  tool_name: string;
+  policy_decision: AuditEntry["policyDecision"];
+  policy_rule_id: string | null;
+  threats_detected: number;
+  threat_details: string | null;
+  drift_detected: number;
+  latency_ms: number;
+  request_pii_detected: number;
+  response_pii_detected: number;
+  success: number;
+  error_message: string | null;
+  data_classification: AuditEntry["dataClassification"] | null;
+  created_at: string;
+}
+
+function mapAuditLog(row: AuditLogRow): AuditLogRecord {
+  return {
+    id: row.id,
+    correlationId: row.correlation_id,
+    tenantId: row.tenant_id,
+    userId: row.user_id ?? undefined,
+    serverId: row.server_id,
+    serverName: row.server_name,
+    toolName: row.tool_name,
+    policyDecision: row.policy_decision,
+    policyRuleId: row.policy_rule_id ?? undefined,
+    threatsDetected: row.threats_detected,
+    threatDetails: jsonOrNull(row.threat_details) ?? undefined,
+    driftDetected: row.drift_detected === 1,
+    latencyMs: row.latency_ms,
+    requestPiiDetected: row.request_pii_detected === 1,
+    responsePiiDetected: row.response_pii_detected === 1,
+    success: row.success === 1,
+    errorMessage: row.error_message ?? undefined,
+    dataClassification: row.data_classification ?? undefined,
+    createdAt: row.created_at,
+  };
+}
+
 function mapWebhook(row: WebhookRow): WebhookRecord {
   return {
     id: row.id,
@@ -673,6 +721,38 @@ export class SqliteStorageBackend implements StorageBackend {
       } catch (err) {
         throw new StorageError("Audit append failed", err);
       }
+    },
+
+    list: async (
+      tenantId: string,
+      options?: AuditListOptions
+    ): Promise<AuditLogRecord[]> => {
+      const limit = Math.min(options?.limit ?? 50, 1000);
+      const offset = options?.offset ?? 0;
+
+      const filters: string[] = ["tenant_id = ?"];
+      const params: Array<string | number> = [tenantId];
+
+      if (options?.onlyFlagged) {
+        filters.push(
+          "(threats_detected > 0 OR policy_decision = 'deny' OR success = 0)"
+        );
+      }
+      if (options?.afterCreatedAt) {
+        filters.push("created_at > ?");
+        params.push(options.afterCreatedAt);
+      }
+
+      const sql = `SELECT * FROM audit_logs
+                   WHERE ${filters.join(" AND ")}
+                   ORDER BY created_at DESC
+                   LIMIT ? OFFSET ?`;
+      params.push(limit, offset);
+
+      const rows = this.requireDb()
+        .prepare<typeof params, AuditLogRow>(sql)
+        .all(...params);
+      return rows.map(mapAuditLog);
     },
   };
 

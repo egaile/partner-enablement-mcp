@@ -11,6 +11,8 @@ export type {
   ApiKeyCreateInput,
   WebhookRecord,
   WebhookCreateInput,
+  AuditLogRecord,
+  AuditListOptions,
 } from "./types.js";
 
 export { StorageError } from "./types.js";

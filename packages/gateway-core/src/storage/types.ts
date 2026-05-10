@@ -112,6 +112,31 @@ export interface WebhookCreateInput {
   enabled?: boolean;
 }
 
+/**
+ * Persisted shape of an audit log row.
+ *
+ * Mirrors `AuditEntry` but adds the storage-assigned `id` and `createdAt`
+ * so listing endpoints can paginate / sort.
+ */
+export interface AuditLogRecord extends AuditEntry {
+  id: string;
+  createdAt: string;
+}
+
+export interface AuditListOptions {
+  /** Max rows to return. Defaults to 50, hard-cap 1000. */
+  limit?: number;
+  /** Skip this many rows (for pagination). */
+  offset?: number;
+  /**
+   * If true, only return rows that look like security events:
+   * threatsDetected > 0, policyDecision = "deny", or success = false.
+   */
+  onlyFlagged?: boolean;
+  /** ISO 8601 timestamp. Returns rows created strictly after this. */
+  afterCreatedAt?: string;
+}
+
 export interface TenantRecord {
   id: string;
   name: string;
@@ -201,6 +226,17 @@ export interface StorageBackend {
   audit: {
     /** Hot path: batch insert. Throws on failure; caller may retry. */
     append(entries: AuditEntry[]): Promise<void>;
+    /**
+     * Read recent audit entries. Used by the CLI (`audit tail`, `alerts
+     * list`) and by self-host introspection.
+     *
+     * Cloud deployments may throw — the dashboard uses dedicated query
+     * routes with richer pagination + filtering.
+     */
+    list(
+      tenantId: string,
+      options?: AuditListOptions
+    ): Promise<AuditLogRecord[]>;
   };
 
   snapshots: {

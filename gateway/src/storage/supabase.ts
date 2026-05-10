@@ -108,6 +108,10 @@ export class SupabaseStorageBackend implements StorageBackend {
       if (entries.length === 0) return;
       await insertAuditEntries(entries);
     },
+
+    list: async (): Promise<never> => {
+      return notSupported("audit.list");
+    },
   };
 
   snapshots = {
