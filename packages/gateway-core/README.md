@@ -4,16 +4,23 @@ The open-source core of [MCPShield](../../README.md) — a security and governan
 
 ## What's in here
 
-- **Proxy engine** — transparent MCP proxy that intercepts every `tools/list` and `tools/call` request
+- **Proxy engine** — `GatewayProxyEngine`, transparent MCP proxy that intercepts every `tools/list` and `tools/call` request
+- **Connection manager** — opens stdio + HTTP transports to downstream MCP servers; pluggable OAuth 2.1 via the SDK
 - **Scanner pipeline** — prompt injection, unicode obfuscation, structural injection, exfiltration, secrets
 - **Policy engine** — glob-matched rules (allow / deny / require_approval / log_only) with priority + time windows
 - **PII scanner** — registry-backed; industry packs contribute additional patterns
-- **Drift detection** — SHA-256 tool snapshots; alerts on schema changes
-- **Audit logger** — pluggable storage (SQLite default)
-- **Rate limiter** — in-memory sliding window
-- **Webhook dispatcher** — HMAC-signed delivery
-- **OAuth 2.1 client** — for downstream MCP servers (via `@modelcontextprotocol/sdk`)
+- **Drift detector** — SHA-256 tool snapshots; flags critical / functional / cosmetic changes
+- **Audit logger** — buffered batch writer over a pluggable `StorageBackend` (SQLite default)
+- **Rate limiter** — in-memory sliding window keyed by tenant/user/server/tool
+- **Health checker** — periodic `tools/list` ping with alert escalation
 - **Config-as-code** — define servers, policies, and packs in `mcpshield.yaml`
+
+## Cloud ports
+
+Cloud-only concerns (alerts, billing, OAuth state persistence, multi-tenancy)
+plug in via the small interfaces in `proxy/ports.ts` — `AlertSink`,
+`BillingGuard`, `OAuthProviderFactory`, `AuditRecorder`. Self-host deployments
+leave them undefined and run on safe defaults.
 
 ## License
 

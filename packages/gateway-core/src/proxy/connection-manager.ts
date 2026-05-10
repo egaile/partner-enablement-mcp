@@ -1,48 +1,65 @@
+/**
+ * ConnectionManager — owns the live MCP client connections to every downstream
+ * server registered for a tenant.
+ *
+ * Responsibilities:
+ *   - Open a stdio or HTTP transport per server record
+ *   - Wire optional OAuth providers via `OAuthProviderFactory`
+ *   - Discover the downstream `tools/list` at connect time
+ *   - Resolve `serverName__toolName` lookups back to the originating connection
+ *
+ * Server records are read-only here — persistence of OAuth tokens belongs to
+ * whichever provider the OAuthProviderFactory returns.
+ */
+
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import type { McpServerRecord } from "../db/queries/servers.js";
-import { ServerOAuthProvider } from "../auth/server-oauth-provider.js";
+import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
+import type { McpServerRecord } from "../storage/types.js";
+import type { OAuthProviderFactory } from "./ports.js";
+import type { DownstreamConnection } from "./types.js";
 
-export interface DownstreamConnection {
-  client: Client;
-  serverId: string;
-  serverName: string;
-  tools: Map<
-    string,
-    {
-      name: string;
-      description?: string;
-      inputSchema?: Record<string, unknown>;
-    }
-  >;
+export interface ConnectionManagerOptions {
+  /** Builds an OAuth provider per server record. Omit for static-auth only. */
+  oauthFactory?: OAuthProviderFactory;
+  /** Client identification advertised on the MCP handshake. */
+  clientName?: string;
+  clientVersion?: string;
 }
 
 export class ConnectionManager {
   private connections = new Map<string, DownstreamConnection>();
   private serverRecords = new Map<string, McpServerRecord>();
-  /** OAuth providers keyed by serverId — reused across reconnects */
-  private oauthProviders = new Map<string, ServerOAuthProvider>();
+  /** OAuth providers keyed by serverId — reused across reconnects. */
+  private oauthProviders = new Map<string, OAuthClientProvider>();
+  private readonly oauthFactory: OAuthProviderFactory | undefined;
+  private readonly clientName: string;
+  private readonly clientVersion: string;
+
+  constructor(options: ConnectionManagerOptions = {}) {
+    this.oauthFactory = options.oauthFactory;
+    this.clientName = options.clientName ?? "mcp-security-gateway";
+    this.clientVersion = options.clientVersion ?? "0.1.0";
+  }
 
   getServerRecord(serverId: string): McpServerRecord | undefined {
     return this.serverRecords.get(serverId);
   }
 
-  getOAuthProvider(serverId: string): ServerOAuthProvider | undefined {
+  getOAuthProvider(serverId: string): OAuthClientProvider | undefined {
     return this.oauthProviders.get(serverId);
   }
 
   async connect(server: McpServerRecord): Promise<DownstreamConnection> {
-    // Disconnect existing if present
     if (this.connections.has(server.id)) {
       await this.disconnect(server.id);
     }
 
-    // Store server record for reconnection
     this.serverRecords.set(server.id, server);
 
     const client = new Client(
-      { name: "mcp-security-gateway", version: "0.1.0" },
+      { name: this.clientName, version: this.clientVersion },
       { capabilities: {} }
     );
 
@@ -57,7 +74,7 @@ export class ConnectionManager {
         command: server.command,
         args: server.args ?? [],
         env: server.env
-          ? { ...process.env, ...server.env } as Record<string, string>
+          ? ({ ...process.env, ...server.env } as Record<string, string>)
           : undefined,
       });
     } else {
@@ -67,24 +84,24 @@ export class ConnectionManager {
         );
       }
 
-      if (server.authType === "oauth2") {
-        // Use MCP SDK's built-in OAuth 2.1 with PKCE
+      if (server.authType === "oauth2" && this.oauthFactory) {
         let provider = this.oauthProviders.get(server.id);
         if (!provider) {
-          provider = new ServerOAuthProvider(server);
-          this.oauthProviders.set(server.id, provider);
-        } else {
-          provider.updateServerRecord(server);
+          const built = this.oauthFactory.forServer(server);
+          if (built) {
+            provider = built;
+            this.oauthProviders.set(server.id, provider);
+          }
         }
-        transport = new StreamableHTTPClientTransport(
-          new URL(server.url),
-          { authProvider: provider }
-        );
+        transport = provider
+          ? new StreamableHTTPClientTransport(new URL(server.url), {
+              authProvider: provider,
+            })
+          : new StreamableHTTPClientTransport(new URL(server.url));
       } else {
-        // Static auth headers
-        let headers: Record<string, string> = {};
+        const headers: Record<string, string> = {};
         if (server.authHeaders && Object.keys(server.authHeaders).length > 0) {
-          headers = { ...server.authHeaders };
+          Object.assign(headers, server.authHeaders);
         }
 
         const httpOpts: Record<string, unknown> = {};
@@ -100,9 +117,11 @@ export class ConnectionManager {
 
     await client.connect(transport);
 
-    // Discover tools
     const toolsResult = await client.listTools();
-    const tools = new Map<string, DownstreamConnection["tools"] extends Map<string, infer V> ? V : never>();
+    const tools = new Map<
+      string,
+      DownstreamConnection["tools"] extends Map<string, infer V> ? V : never
+    >();
     for (const tool of toolsResult.tools) {
       tools.set(tool.name, {
         name: tool.name,
@@ -126,24 +145,21 @@ export class ConnectionManager {
     return conn;
   }
 
-  /**
-   * Update the cached server record (e.g., after OAuth token exchange).
-   */
   updateServerRecord(server: McpServerRecord): void {
     this.serverRecords.set(server.id, server);
   }
 
-  /**
-   * Reconnect to a downstream server with fresh credentials.
-   * Used after an OAuth token refresh.
-   */
   async reconnect(serverId: string): Promise<DownstreamConnection | null> {
     const server = this.serverRecords.get(serverId);
     if (!server) {
-      console.warn(`[gateway] Cannot reconnect: no server record for ${serverId}`);
+      console.warn(
+        `[gateway] Cannot reconnect: no server record for ${serverId}`
+      );
       return null;
     }
-    console.log(`[gateway] Reconnecting to "${server.name}" with fresh credentials`);
+    console.log(
+      `[gateway] Reconnecting to "${server.name}" with fresh credentials`
+    );
     return this.connect(server);
   }
 
@@ -174,7 +190,8 @@ export class ConnectionManager {
   }
 
   /**
-   * Resolve a namespaced tool name (serverId__toolName) to its connection and original name.
+   * Resolve a namespaced tool name (`serverName__toolName`) to its connection
+   * and the original (unnamespaced) tool name.
    */
   resolveNamespacedTool(
     namespacedName: string
@@ -185,7 +202,6 @@ export class ConnectionManager {
     const serverName = namespacedName.substring(0, separatorIndex);
     const toolName = namespacedName.substring(separatorIndex + 2);
 
-    // Find by server name
     for (const conn of this.connections.values()) {
       if (conn.serverName === serverName && conn.tools.has(toolName)) {
         return { connection: conn, toolName };

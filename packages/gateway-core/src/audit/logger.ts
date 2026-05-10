@@ -90,6 +90,16 @@ export class BaseAuditLogger {
     }
   }
 
+  /**
+   * Implements the `AuditRecorder` port used by the proxy.
+   *
+   * Base behavior ignores `toolParams`. Cloud's `AuditLogger` overrides this
+   * to call its Atlassian-aware `logEnriched()` path.
+   */
+  record(entry: AuditEntry, _toolParams?: Record<string, unknown>): void {
+    this.log(entry);
+  }
+
   /** Hook for subclasses to observe each logged entry (e.g. usage metering). */
   protected onLogged(_entry: AuditEntry): void {
     /* default: no-op */

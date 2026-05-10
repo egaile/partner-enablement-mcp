@@ -1,57 +1,86 @@
-import { generateCorrelationId } from "../audit/correlation.js";
-import { AuditLogger } from "../audit/logger.js";
-import { PolicyEngine } from "../policy/engine.js";
-import { getScanner } from "../security/scanner.js";
-import { scanForPii, redactPii } from "../security/pii-scanner.js";
-import { RateLimiter } from "../security/rate-limiter.js";
-import { checkToolDrift } from "../monitor/tool-snapshot.js";
-import { upsertSnapshot } from "../db/queries/snapshots.js";
-import { AlertEngine } from "../alerts/engine.js";
-import type { PlanCache } from "../billing/plan-cache.js";
-import { isWithinSoftLimit } from "../billing/plans.js";
-import type { DownstreamConnection } from "./connection-manager.js";
-import type { AuditEntry } from "../schemas/index.js";
-import type { TenantContext } from "../auth/types.js";
+/**
+ * ToolInterceptor — runs every `tools/call` request through the security
+ * pipeline before (and after) forwarding it to the downstream MCP server.
+ *
+ * Pipeline order:
+ *   0. Billing guard (cloud usage limits)
+ *   1. Policy evaluation
+ *   1.5. Rate limiting (when policy rule sets maxCallsPerMinute)
+ *   2. Request injection scan
+ *   2.5. Request PII detection
+ *   3. Tool definition drift check
+ *   4. Forward to downstream
+ *   5. Response injection scan
+ *   5.5. Response PII detection (+ optional redaction)
+ *   6. Audit log
+ *
+ * Every step writes to the in-flight `AuditEntry` so the eventual log entry
+ * captures the full decision path. Alerts are fire-and-forget — an alert
+ * sink failure must never block a tool call.
+ */
 
-export interface InterceptResult {
-  allowed: boolean;
-  response?: {
-    content: Array<{ type: string; text: string }>;
-    isError?: boolean;
-  };
-  correlationId: string;
+import { generateCorrelationId } from "../audit/correlation.js";
+import { redactPii, scanForPii } from "../security/pii-scanner.js";
+import { RateLimiter } from "../security/rate-limiter.js";
+import type { PromptInjectionScanner } from "../security/scanner.js";
+import type { PolicyEngine } from "../policy/engine.js";
+import type { DriftDetector } from "../monitor/tool-snapshot.js";
+import type { AuditEntry } from "../schemas/index.js";
+import type {
+  AlertSink,
+  AuditRecorder,
+  BillingGuard,
+} from "./ports.js";
+import { noopAlertSink, noopBillingGuard } from "./ports.js";
+import type { DownstreamConnection, InterceptResult, TenantContext } from "./types.js";
+
+export interface ToolInterceptorOptions {
+  policyEngine: PolicyEngine;
+  driftDetector: DriftDetector;
+  scanner: PromptInjectionScanner;
+  auditRecorder: AuditRecorder;
+  alertSink?: AlertSink;
+  billingGuard?: BillingGuard;
+  rateLimiter?: RateLimiter;
 }
 
 export class ToolInterceptor {
-  private policyEngine: PolicyEngine;
-  private auditLogger: AuditLogger;
-  private alertEngine: AlertEngine;
-  private rateLimiter: RateLimiter;
-  private planCache: PlanCache | null = null;
+  private readonly policyEngine: PolicyEngine;
+  private readonly driftDetector: DriftDetector;
+  private readonly scanner: PromptInjectionScanner;
+  private readonly auditRecorder: AuditRecorder;
+  private readonly alertSink: AlertSink;
+  private readonly billingGuard: BillingGuard;
+  private readonly rateLimiter: RateLimiter;
+  private readonly ownsRateLimiter: boolean;
 
-  constructor(
-    policyEngine: PolicyEngine,
-    auditLogger: AuditLogger,
-    alertEngine: AlertEngine
-  ) {
-    this.policyEngine = policyEngine;
-    this.auditLogger = auditLogger;
-    this.alertEngine = alertEngine;
-    this.rateLimiter = new RateLimiter();
-    this.rateLimiter.start();
+  constructor(options: ToolInterceptorOptions) {
+    this.policyEngine = options.policyEngine;
+    this.driftDetector = options.driftDetector;
+    this.scanner = options.scanner;
+    this.auditRecorder = options.auditRecorder;
+    this.alertSink = options.alertSink ?? noopAlertSink;
+    this.billingGuard = options.billingGuard ?? noopBillingGuard;
+
+    if (options.rateLimiter) {
+      this.rateLimiter = options.rateLimiter;
+      this.ownsRateLimiter = false;
+    } else {
+      this.rateLimiter = new RateLimiter();
+      this.rateLimiter.start();
+      this.ownsRateLimiter = true;
+    }
   }
 
   /**
-   * Set the plan cache for usage limit enforcement.
+   * Stop the embedded rate limiter (no-op if one was supplied by the caller).
    */
-  setPlanCache(cache: PlanCache): void {
-    this.planCache = cache;
+  stop(): void {
+    if (this.ownsRateLimiter) {
+      this.rateLimiter.stop();
+    }
   }
 
-  /**
-   * Run the security pipeline for a tool call.
-   * Returns the downstream response or a blocked response.
-   */
   async intercept(
     tenant: TenantContext,
     connection: DownstreamConnection,
@@ -76,40 +105,37 @@ export class ToolInterceptor {
 
     try {
       // Step 0: Usage limit check (billing tier enforcement)
-      if (this.planCache) {
-        try {
-          const { plan, usage } = await this.planCache.getPlanAndUsage(
-            tenant.tenantId
-          );
+      try {
+        const billing = await this.billingGuard.check(tenant.tenantId);
+        if (!billing.allowed) {
+          const latencyMs = performance.now() - startTime;
+          this.record({
+            ...(auditBase as AuditEntry),
+            policyDecision: "deny",
+            latencyMs,
+            success: false,
+            errorMessage: billing.reason ?? "Usage limit exceeded",
+          });
 
-          if (!isWithinSoftLimit(usage.callCount, plan)) {
-            const latencyMs = performance.now() - startTime;
-            this.logAudit({
-              ...(auditBase as AuditEntry),
-              policyDecision: "deny",
-              latencyMs,
-              success: false,
-              errorMessage: `Usage limit exceeded: ${usage.callCount}/${plan.maxCallsPerMonth} calls this period`,
-            });
-
-            return {
-              allowed: false,
-              correlationId,
-              response: {
-                content: [
-                  {
-                    type: "text",
-                    text: `Usage limit exceeded (${plan.maxCallsPerMonth} calls/month on ${plan.name} plan). Please upgrade your plan or contact support.`,
-                  },
-                ],
-                isError: true,
-              },
-            };
-          }
-        } catch (err) {
-          // Don't block on billing check failure — log and continue
-          console.error("[billing] Plan check failed, proceeding:", err);
+          return {
+            allowed: false,
+            correlationId,
+            response: {
+              content: [
+                {
+                  type: "text",
+                  text:
+                    billing.reason ??
+                    "Usage limit exceeded. Please upgrade your plan or contact support.",
+                },
+              ],
+              isError: true,
+            },
+          };
         }
+      } catch (err) {
+        // Don't block on billing check failure — log and continue.
+        console.error("[billing] Check failed, proceeding:", err);
       }
 
       // Step 1: Policy evaluation
@@ -124,7 +150,7 @@ export class ToolInterceptor {
 
       if (decision.action === "deny") {
         if (decision.ruleName) {
-          this.alertEngine
+          this.alertSink
             .firePolicyViolation(tenant.tenantId, {
               serverId: connection.serverId,
               toolName,
@@ -138,7 +164,7 @@ export class ToolInterceptor {
         }
 
         const latencyMs = performance.now() - startTime;
-        this.logAudit({
+        this.record({
           ...(auditBase as AuditEntry),
           latencyMs,
           success: false,
@@ -174,8 +200,8 @@ export class ToolInterceptor {
         );
 
         if (!rateResult.allowed) {
-          this.alertEngine
-            .fireRateLimitExceeded(tenant.tenantId, {
+          this.alertSink
+            .fireRateLimit(tenant.tenantId, {
               serverId: connection.serverId,
               toolName,
               correlationId,
@@ -188,7 +214,7 @@ export class ToolInterceptor {
             );
 
           const latencyMs = performance.now() - startTime;
-          this.logAudit({
+          this.record({
             ...(auditBase as AuditEntry),
             policyDecision: "deny",
             latencyMs,
@@ -213,17 +239,16 @@ export class ToolInterceptor {
       }
 
       // Step 2: Scan request for injection
-      const scanner = getScanner();
-      const scanResult = scanner.scan(params);
+      const scanResult = this.scanner.scan(params);
       auditBase.threatsDetected = scanResult.indicators.length;
 
       if (scanResult.indicators.length > 0) {
         auditBase.threatDetails = scanResult.indicators;
       }
 
-      if (scanner.shouldBlock(scanResult)) {
-        this.alertEngine
-          .fireInjectionAlert(tenant.tenantId, scanResult, {
+      if (this.scanner.shouldBlock(scanResult)) {
+        this.alertSink
+          .fireInjection(tenant.tenantId, scanResult, {
             serverId: connection.serverId,
             toolName,
             correlationId,
@@ -233,7 +258,7 @@ export class ToolInterceptor {
           );
 
         const latencyMs = performance.now() - startTime;
-        this.logAudit({
+        this.record({
           ...(auditBase as AuditEntry),
           policyDecision: "deny",
           latencyMs,
@@ -263,7 +288,7 @@ export class ToolInterceptor {
       // Step 3: Check tool drift
       const toolDef = connection.tools.get(toolName);
       if (toolDef) {
-        const drift = await checkToolDrift(
+        const drift = await this.driftDetector.check(
           tenant.tenantId,
           connection.serverId,
           toolDef
@@ -271,8 +296,8 @@ export class ToolInterceptor {
         auditBase.driftDetected = drift.drifted;
 
         if (drift.drifted && drift.severity === "critical") {
-          this.alertEngine
-            .fireDriftAlert(tenant.tenantId, drift, {
+          this.alertSink
+            .fireDrift(tenant.tenantId, drift, {
               serverId: connection.serverId,
               correlationId,
             })
@@ -281,7 +306,7 @@ export class ToolInterceptor {
             );
 
           const latencyMs = performance.now() - startTime;
-          this.logAudit({
+          this.record({
             ...(auditBase as AuditEntry),
             policyDecision: "deny",
             latencyMs,
@@ -303,9 +328,8 @@ export class ToolInterceptor {
             },
           };
         } else if (drift.drifted && drift.severity === "functional") {
-          // Functional drift (params removed, schema changed) — alert but allow
-          this.alertEngine
-            .fireDriftAlert(tenant.tenantId, drift, {
+          this.alertSink
+            .fireDrift(tenant.tenantId, drift, {
               serverId: connection.serverId,
               correlationId,
             })
@@ -313,21 +337,21 @@ export class ToolInterceptor {
               console.error("[alert] Failed to fire drift alert:", err)
             );
         } else if (drift.drifted && drift.severity === "cosmetic") {
-          // Cosmetic drift (description-only) — auto-approve, no alert
-          upsertSnapshot(
-            tenant.tenantId,
-            connection.serverId,
-            drift.toolName,
-            drift.currentHash,
-            toolDef
-          ).catch((err) =>
-            console.warn("[drift] Auto-approve cosmetic drift failed:", err)
-          );
+          this.driftDetector
+            .approve(
+              tenant.tenantId,
+              connection.serverId,
+              toolDef,
+              drift.currentHash
+            )
+            .catch((err) =>
+              console.warn("[drift] Auto-approve cosmetic drift failed:", err)
+            );
         }
       }
 
-      // Step 4: Forward to downstream server
-      // (OAuth 401 retry is handled automatically by the SDK's authProvider)
+      // Step 4: Forward to downstream server.
+      // OAuth 401 retry is handled by the SDK's authProvider when present.
       const result = await connection.client.callTool({
         name: toolName,
         arguments: params,
@@ -342,9 +366,10 @@ export class ToolInterceptor {
             responseTexts[`response[${i}]`] = item.text;
           }
         }
-        const responseScan = scanner.scan(responseTexts);
+        const responseScan = this.scanner.scan(responseTexts);
         if (responseScan.indicators.length > 0) {
-          auditBase.threatsDetected += responseScan.indicators.length;
+          auditBase.threatsDetected =
+            (auditBase.threatsDetected ?? 0) + responseScan.indicators.length;
           console.warn(
             `[gateway] Threats detected in response for ${toolName}: ${responseScan.indicators.length} indicators`
           );
@@ -354,7 +379,6 @@ export class ToolInterceptor {
         const responsePii = scanForPii(responseTexts);
         auditBase.responsePiiDetected = responsePii.detected;
 
-        // Apply PII redaction if policy requires it
         if (decision.modifiers?.redactPII && responsePii.detected) {
           for (let i = 0; i < result.content.length; i++) {
             const item = result.content[i] as { type?: string; text?: string };
@@ -365,9 +389,9 @@ export class ToolInterceptor {
         }
       }
 
-      // Step 6: Log success (with Atlassian metadata enrichment)
+      // Step 6: Log success
       const latencyMs = performance.now() - startTime;
-      this.logAudit(
+      this.record(
         {
           ...(auditBase as AuditEntry),
           latencyMs,
@@ -386,12 +410,9 @@ export class ToolInterceptor {
       const latencyMs = performance.now() - startTime;
       const rawErrorMessage =
         error instanceof Error ? error.message : "Unknown error";
-
-      // Redact any PII that may have leaked into the error message
       const errorMessage = redactPii(rawErrorMessage);
 
-      // Fire server error alert for downstream failures
-      this.alertEngine
+      this.alertSink
         .fireServerError(tenant.tenantId, {
           serverId: connection.serverId,
           serverName: connection.serverName,
@@ -403,7 +424,7 @@ export class ToolInterceptor {
           console.error("[alert] Failed to fire server error alert:", err)
         );
 
-      this.logAudit({
+      this.record({
         ...(auditBase as AuditEntry),
         policyDecision: auditBase.policyDecision ?? "allow",
         latencyMs,
@@ -427,10 +448,10 @@ export class ToolInterceptor {
     }
   }
 
-  private logAudit(
+  private record(
     entry: AuditEntry,
     toolParams?: Record<string, unknown>
   ): void {
-    this.auditLogger.logEnriched(entry, toolParams);
+    this.auditRecorder.record(entry, toolParams);
   }
 }

@@ -1,15 +1,21 @@
 /**
  * @mcpshield/gateway-core — public API surface.
  *
- * Phase 0 progress: storage abstraction (StorageBackend + SQLite), auth
- * abstraction (AuthProvider + API-key), config-as-code loader, the entire
- * scanner pipeline (PromptInjectionScanner + 4 strategies + secrets), the
- * PII registry (with classification), the rate limiter, drift result types,
- * and audit utilities.
+ * Includes:
+ *   - Storage abstraction (StorageBackend + SQLite reference impl)
+ *   - Auth abstraction (AuthProvider + API-key reference impl)
+ *   - Config-as-code loader
+ *   - Scanner pipeline (PromptInjectionScanner + 4 strategies + secrets)
+ *   - PII registry with classification
+ *   - Rate limiter
+ *   - Drift detector + audit utilities
+ *   - Policy engine
+ *   - Proxy subsystem (GatewayProxyEngine, ConnectionManager, ToolInterceptor,
+ *     HealthChecker) with pluggable cloud ports for alerts, billing, and OAuth
  *
- * Storage-dependent modules (audit logger, drift detector, policy engine,
- * connection manager, proxy engine) ship in a follow-up commit once the
- * cloud control plane has its SupabaseStorageBackend adapter.
+ * Cloud-only concerns (multi-tenancy plumbing, billing, Clerk auth, hosted
+ * dashboard, Atlassian-specific scanners) live in the closed-source cloud
+ * control plane and adapt to this core via the documented ports.
  */
 
 export * from "./schemas/index.js";
@@ -21,5 +27,6 @@ export * from "./config/index.js";
 export * from "./policy/index.js";
 export * from "./monitor/index.js";
 export * from "./audit/index.js";
+export * from "./proxy/index.js";
 
 export const VERSION = "0.1.0";

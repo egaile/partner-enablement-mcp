@@ -41,7 +41,9 @@ export function createOAuthRouter(state: GatewayState): Router {
         const engine = state.engines.get(req.tenant!.tenantId);
         let provider: ServerOAuthProvider;
         if (engine) {
-          const existing = engine.getConnectionManager().getOAuthProvider(server.id);
+          const existing = engine.getConnectionManager().getOAuthProvider(
+            server.id
+          ) as ServerOAuthProvider | undefined;
           if (existing) {
             existing.updateServerRecord(server);
             provider = existing;
@@ -138,7 +140,9 @@ export function createOAuthRouter(state: GatewayState): Router {
         const engine = state.engines.get(tenantId);
         let provider: ServerOAuthProvider;
         if (engine) {
-          const existing = engine.getConnectionManager().getOAuthProvider(serverId);
+          const existing = engine.getConnectionManager().getOAuthProvider(
+            serverId
+          ) as ServerOAuthProvider | undefined;
           if (existing) {
             existing.updateServerRecord(server);
             provider = existing;

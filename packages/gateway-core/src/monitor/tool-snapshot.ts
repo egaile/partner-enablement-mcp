@@ -152,4 +152,29 @@ export class DriftDetector {
       approvedHash: snapshot.definitionHash,
     };
   }
+
+  /**
+   * Mark the current tool definition as the approved snapshot.
+   *
+   * Used by the interceptor to auto-approve cosmetic drift (description-only
+   * changes) and by the admin UI to approve a flagged drift after review.
+   */
+  async approve(
+    tenantId: string,
+    serverId: string,
+    tool: ToolDefinition,
+    hash?: string
+  ): Promise<void> {
+    await this.snapshots.upsert({
+      tenantId,
+      serverId,
+      toolName: tool.name,
+      definitionHash: hash ?? hashToolDefinition(tool),
+      definition: {
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+      },
+    });
+  }
 }

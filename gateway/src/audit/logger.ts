@@ -91,6 +91,17 @@ export class AuditLogger extends BaseAuditLogger {
     }
     this.log(entry);
   }
+
+  /**
+   * AuditRecorder port override — routes proxy writes through the
+   * Atlassian-aware enrichment path.
+   */
+  override record(
+    entry: AuditEntry,
+    toolParams?: Record<string, unknown>
+  ): void {
+    this.logEnriched(entry, toolParams);
+  }
 }
 
 /**
