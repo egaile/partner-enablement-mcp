@@ -19,6 +19,7 @@ import {
   type TenantContext,
 } from "@mcpshield/gateway-core/proxy";
 import {
+  ApprovalEngine,
   DriftDetector,
   PolicyEngine,
   type McpServerRecord,
@@ -66,6 +67,10 @@ export class GatewayProxyEngine {
       snapshots: this.storage.snapshots,
     });
 
+    const approvalEngine = new ApprovalEngine({
+      approvals: this.storage.approvals,
+    });
+
     this.auditLogger.setUsageMeter(this.usageMeter);
 
     const webhookDispatcher = new WebhookDispatcher({
@@ -85,6 +90,7 @@ export class GatewayProxyEngine {
       alertSink,
       billingGuard: new CloudBillingGuard(this.planCache),
       oauthFactory: new CloudOAuthProviderFactory(),
+      approvalEngine,
     });
   }
 

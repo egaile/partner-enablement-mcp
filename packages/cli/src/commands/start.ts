@@ -14,6 +14,7 @@
 
 import {
   ApiKeyAuthProvider,
+  ApprovalEngine,
   BaseAuditLogger,
   ConfigError,
   DriftDetector,
@@ -75,6 +76,7 @@ export async function runStart(options: StartOptions = {}): Promise<void> {
 
   const policyEngine = new PolicyEngine({ policies: storage.policies });
   const driftDetector = new DriftDetector({ snapshots: storage.snapshots });
+  const approvalEngine = new ApprovalEngine({ approvals: storage.approvals });
 
   const webhookDispatcher = new WebhookDispatcher({
     webhooks: storage.webhooks,
@@ -88,6 +90,7 @@ export async function runStart(options: StartOptions = {}): Promise<void> {
     scanner: getScanner(),
     auditRecorder: auditLogger,
     alertSink,
+    approvalEngine,
   });
 
   engine.setTenantContext({

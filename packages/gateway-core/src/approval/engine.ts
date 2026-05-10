@@ -80,6 +80,18 @@ export class ApprovalEngine {
     });
   }
 
+  /**
+   * Look up a request by id. Returns null if not found or wrong tenant.
+   * Used by the interceptor to verify a claimed approval id matches the
+   * current call (tool / user / server).
+   */
+  get(
+    id: string,
+    tenantId: string
+  ): Promise<ApprovalRequestRecord | null> {
+    return this.approvals.get(id, tenantId);
+  }
+
   approve(
     id: string,
     tenantId: string,

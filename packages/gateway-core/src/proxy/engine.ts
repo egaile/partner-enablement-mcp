@@ -20,6 +20,7 @@ import type { StorageBackend, McpServerRecord } from "../storage/types.js";
 import type { PromptInjectionScanner } from "../security/scanner.js";
 import type { PolicyEngine } from "../policy/engine.js";
 import type { DriftDetector } from "../monitor/tool-snapshot.js";
+import type { ApprovalEngine } from "../approval/engine.js";
 import { ConnectionManager } from "./connection-manager.js";
 import { ToolInterceptor } from "./tool-interceptor.js";
 import { HealthChecker } from "./health-checker.js";
@@ -41,6 +42,12 @@ export interface GatewayProxyEngineOptions {
   alertSink?: AlertSink;
   billingGuard?: BillingGuard;
   oauthFactory?: OAuthProviderFactory;
+  /**
+   * Optional. When provided, `require_approval` policy decisions create a
+   * pending request and block the call until the client resubmits with
+   * `__approvalId` set to an approved id.
+   */
+  approvalEngine?: ApprovalEngine;
   /** Health check polling interval. Pass 0 to disable health checking. */
   healthCheckIntervalMs?: number;
   /** Advertised on the MCP server handshake. */
@@ -81,6 +88,7 @@ export class GatewayProxyEngine {
       auditRecorder: options.auditRecorder,
       alertSink: options.alertSink,
       billingGuard: options.billingGuard,
+      approvalEngine: options.approvalEngine,
     });
   }
 

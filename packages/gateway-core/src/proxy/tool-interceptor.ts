@@ -25,6 +25,7 @@ import { RateLimiter } from "../security/rate-limiter.js";
 import type { PromptInjectionScanner } from "../security/scanner.js";
 import type { PolicyEngine } from "../policy/engine.js";
 import type { DriftDetector } from "../monitor/tool-snapshot.js";
+import type { ApprovalEngine } from "../approval/engine.js";
 import type { AuditEntry } from "../schemas/index.js";
 import type {
   AlertSink,
@@ -34,6 +35,18 @@ import type {
 import { noopAlertSink, noopBillingGuard } from "./ports.js";
 import type { DownstreamConnection, InterceptResult, TenantContext } from "./types.js";
 
+/**
+ * Special argument key clients pass to bypass a `require_approval` policy
+ * with a previously-issued approval id.
+ *
+ * Usage from the client side:
+ *   tools/call { arguments: { ...realArgs, __approvalId: "<id>" } }
+ *
+ * The interceptor strips the key before forwarding to the downstream so
+ * the underlying tool never sees it.
+ */
+export const APPROVAL_ID_FIELD = "__approvalId";
+
 export interface ToolInterceptorOptions {
   policyEngine: PolicyEngine;
   driftDetector: DriftDetector;
@@ -42,6 +55,14 @@ export interface ToolInterceptorOptions {
   alertSink?: AlertSink;
   billingGuard?: BillingGuard;
   rateLimiter?: RateLimiter;
+  /**
+   * Optional. When provided, `decision.action === "require_approval"`
+   * triggers a real approval flow: create a pending request and block
+   * the call with the new id. Clients re-call with `__approvalId` in
+   * arguments to consume an approved request. Omit on self-host configs
+   * that don't use require_approval policies.
+   */
+  approvalEngine?: ApprovalEngine;
 }
 
 export class ToolInterceptor {
@@ -51,6 +72,7 @@ export class ToolInterceptor {
   private readonly auditRecorder: AuditRecorder;
   private readonly alertSink: AlertSink;
   private readonly billingGuard: BillingGuard;
+  private readonly approvalEngine: ApprovalEngine | null;
   private readonly rateLimiter: RateLimiter;
   private readonly ownsRateLimiter: boolean;
 
@@ -61,6 +83,7 @@ export class ToolInterceptor {
     this.auditRecorder = options.auditRecorder;
     this.alertSink = options.alertSink ?? noopAlertSink;
     this.billingGuard = options.billingGuard ?? noopBillingGuard;
+    this.approvalEngine = options.approvalEngine ?? null;
 
     if (options.rateLimiter) {
       this.rateLimiter = options.rateLimiter;
@@ -184,6 +207,39 @@ export class ToolInterceptor {
             isError: true,
           },
         };
+      }
+
+      // Step 1.2: Human-in-the-loop approval gate.
+      // If policy says require_approval, either consume a previously-issued
+      // approval id (allow) or create a new pending request (block).
+      if (decision.action === "require_approval") {
+        const approvalResult = await this.handleApprovalGate(
+          tenant,
+          connection,
+          toolName,
+          params,
+          correlationId
+        );
+        if (approvalResult.blocked) {
+          const latencyMs = performance.now() - startTime;
+          this.record({
+            ...(auditBase as AuditEntry),
+            policyDecision: "deny",
+            latencyMs,
+            success: false,
+            errorMessage: approvalResult.reason,
+          });
+          return {
+            allowed: false,
+            correlationId,
+            response: {
+              content: [{ type: "text", text: approvalResult.message }],
+              isError: true,
+            },
+          };
+        }
+        // Approved — strip the marker so the downstream tool never sees it.
+        params = approvalResult.params;
       }
 
       // Step 1.5: Rate limiting (if policy specifies maxCallsPerMinute)
@@ -454,4 +510,113 @@ export class ToolInterceptor {
   ): void {
     this.auditRecorder.record(entry, toolParams);
   }
+
+  /**
+   * Resolve a `require_approval` policy decision.
+   *
+   * - If client passed `__approvalId` and it points to an approved request
+   *   belonging to this tenant/user/tool: returns `{ blocked: false, params }`
+   *   with the marker stripped.
+   * - Otherwise: creates a new pending approval request and returns
+   *   `{ blocked: true, message, reason }` describing why the call was
+   *   denied and what id to re-submit with.
+   *
+   * When no `approvalEngine` is wired up, falls back to "block, log
+   * reason" so misconfigured deployments fail closed instead of silently
+   * letting calls through.
+   */
+  private async handleApprovalGate(
+    tenant: TenantContext,
+    connection: DownstreamConnection,
+    toolName: string,
+    params: Record<string, unknown>,
+    correlationId: string
+  ): Promise<
+    | { blocked: false; params: Record<string, unknown> }
+    | { blocked: true; message: string; reason: string }
+  > {
+    const claimedApprovalId = params[APPROVAL_ID_FIELD];
+
+    if (!this.approvalEngine) {
+      return {
+        blocked: true,
+        message: `Request requires approval, but no approval engine is configured on this gateway.`,
+        reason: "require_approval policy hit, no approval engine wired up",
+      };
+    }
+
+    if (typeof claimedApprovalId === "string" && claimedApprovalId.length > 0) {
+      const detail = await this.approvalEngine
+        .get(claimedApprovalId, tenant.tenantId)
+        .catch(() => null);
+
+      if (!detail) {
+        return {
+          blocked: true,
+          message: `Approval ${claimedApprovalId} not found.`,
+          reason: `approval ${claimedApprovalId} not found`,
+        };
+      }
+
+      // Even if marked approved, reject if it's past its TTL.
+      const expired =
+        detail.status === "expired" ||
+        (detail.status === "pending" &&
+          new Date(detail.expiresAt) < new Date());
+
+      if (detail.status === "approved") {
+        if (
+          detail.userId !== tenant.userId ||
+          detail.toolName !== toolName ||
+          detail.serverName !== connection.serverName
+        ) {
+          return {
+            blocked: true,
+            message: `Approval ${claimedApprovalId} does not match this tool / user.`,
+            reason: "approval id mismatch (user/tool/server)",
+          };
+        }
+        const cleaned = { ...params };
+        delete cleaned[APPROVAL_ID_FIELD];
+        return { blocked: false, params: cleaned };
+      }
+
+      if (expired) {
+        return {
+          blocked: true,
+          message: `Approval ${claimedApprovalId} has expired. Submit a new request.`,
+          reason: `approval ${claimedApprovalId} expired`,
+        };
+      }
+      if (detail.status === "pending") {
+        return {
+          blocked: true,
+          message: `Approval ${claimedApprovalId} is still pending. Wait for an administrator to approve, then retry.`,
+          reason: `approval ${claimedApprovalId} still pending`,
+        };
+      }
+      return {
+        blocked: true,
+        message: `Approval ${claimedApprovalId} was rejected.`,
+        reason: `approval ${claimedApprovalId} rejected`,
+      };
+    }
+
+    // No approval id claimed — create a new pending request.
+    const cleaned = { ...params };
+    delete cleaned[APPROVAL_ID_FIELD];
+    const req = await this.approvalEngine.requestApproval(tenant.tenantId, {
+      correlationId,
+      userId: tenant.userId,
+      serverName: connection.serverName,
+      toolName,
+      params: cleaned,
+    });
+    return {
+      blocked: true,
+      message: `This tool call requires human approval. Submit approval id: ${req.id} (passing it as __approvalId in arguments) once an administrator approves.`,
+      reason: `created approval request ${req.id}`,
+    };
+  }
+
 }
