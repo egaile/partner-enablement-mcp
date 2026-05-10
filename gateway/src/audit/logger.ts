@@ -1,29 +1,53 @@
-import { insertAuditEntries } from "../db/queries/audit.js";
+/**
+ * AuditLogger — cloud-flavored extension of @mcpshield/gateway-core's
+ * BaseAuditLogger. Adds Atlassian metadata enrichment and usage-meter
+ * billing hooks on top of the generic batched flush.
+ *
+ * Default constructor wires up the SupabaseStorageBackend for the existing
+ * gateway runtime; tests can pass their own audit port for isolation.
+ */
+
+import {
+  BaseAuditLogger,
+  type AuditAppendPort,
+  type AuditEntry,
+} from "@mcpshield/gateway-core/audit";
 import { loadConfig } from "../config.js";
-import { enrichAtlassianMetadata, type AtlassianMetadata } from "./atlassian-enricher.js";
+import {
+  enrichAtlassianMetadata,
+  type AtlassianMetadata,
+} from "./atlassian-enricher.js";
 import type { UsageMeter } from "../billing/usage-meter.js";
-import type { AuditEntry } from "../schemas/index.js";
-import { CircularBuffer } from "./circular-buffer.js";
+import { SupabaseStorageBackend } from "../storage/supabase.js";
 
 export interface EnrichedAuditEntry extends AuditEntry {
   atlassianMetadata?: AtlassianMetadata;
 }
 
-export class AuditLogger {
-  private buffer: CircularBuffer<AuditEntry>;
-  private flushTimer: ReturnType<typeof setInterval> | null = null;
-  private batchSize: number;
-  private flushIntervalMs: number;
-  private usageMeter: UsageMeter | null = null;
-  private lastSeenDropCount = 0;
+export interface AuditLoggerOptions {
+  audit?: AuditAppendPort;
+  batchSize?: number;
+  flushIntervalMs?: number;
+  maxBufferSize?: number;
+}
 
-  constructor(options?: { batchSize?: number; flushIntervalMs?: number; maxBufferSize?: number }) {
-    const config = loadConfig();
-    this.batchSize = options?.batchSize ?? config.auditBatchSize;
-    this.flushIntervalMs =
-      options?.flushIntervalMs ?? config.auditFlushIntervalMs;
-    const maxBufferSize = options?.maxBufferSize ?? 10000;
-    this.buffer = new CircularBuffer<AuditEntry>(maxBufferSize);
+let _defaultBackend: SupabaseStorageBackend | null = null;
+function defaultAuditPort(): AuditAppendPort {
+  if (!_defaultBackend) _defaultBackend = new SupabaseStorageBackend();
+  return _defaultBackend.audit;
+}
+
+export class AuditLogger extends BaseAuditLogger {
+  private usageMeter: UsageMeter | null = null;
+
+  constructor(options?: AuditLoggerOptions) {
+    const config = loadConfigSafe();
+    super({
+      audit: options?.audit ?? defaultAuditPort(),
+      batchSize: options?.batchSize ?? config.auditBatchSize,
+      flushIntervalMs: options?.flushIntervalMs ?? config.auditFlushIntervalMs,
+      maxBufferSize: options?.maxBufferSize ?? 10000,
+    });
   }
 
   /**
@@ -33,42 +57,9 @@ export class AuditLogger {
     this.usageMeter = meter;
   }
 
-  start(): void {
-    if (this.flushTimer) return;
-    this.flushTimer = setInterval(() => {
-      this.flush().catch((err) => {
-        console.error("[audit] Flush error:", err);
-      });
-    }, this.flushIntervalMs);
-  }
-
-  stop(): void {
-    if (this.flushTimer) {
-      clearInterval(this.flushTimer);
-      this.flushTimer = null;
-    }
-  }
-
-  log(entry: AuditEntry): void {
-    this.buffer.push(entry);
-
-    // Warn when new entries have been dropped since we last checked
-    const currentDropped = this.buffer.dropped;
-    if (currentDropped > this.lastSeenDropCount) {
-      const newDrops = currentDropped - this.lastSeenDropCount;
-      console.warn(`[audit] Buffer overflow: dropped ${newDrops} oldest entries`);
-      this.lastSeenDropCount = currentDropped;
-    }
-
-    // Record usage for billing
+  protected override onLogged(entry: AuditEntry): void {
     if (this.usageMeter) {
       this.usageMeter.record(entry.tenantId, !entry.success);
-    }
-
-    if (this.buffer.length >= this.batchSize) {
-      this.flush().catch((err) => {
-        console.error("[audit] Flush error:", err);
-      });
     }
   }
 
@@ -82,12 +73,15 @@ export class AuditLogger {
   ): void {
     if (toolParams) {
       const metadata = enrichAtlassianMetadata(entry.toolName, toolParams);
-      // Attach Atlassian metadata to threat details for storage
-      if (metadata.projectKey || metadata.spaceKey || metadata.operationType !== "unknown") {
+      if (
+        metadata.projectKey ||
+        metadata.spaceKey ||
+        metadata.operationType !== "unknown"
+      ) {
         const enriched = {
           ...entry,
           threatDetails: {
-            ...(entry.threatDetails as Record<string, unknown> ?? {}),
+            ...((entry.threatDetails as Record<string, unknown>) ?? {}),
             atlassian: metadata,
           },
         };
@@ -97,21 +91,23 @@ export class AuditLogger {
     }
     this.log(entry);
   }
+}
 
-  async flush(): Promise<void> {
-    if (this.buffer.length === 0) return;
-
-    const batch = this.buffer.drain(this.batchSize);
-    try {
-      await insertAuditEntries(batch);
-    } catch (error) {
-      // Put failed entries back at the front for retry
-      this.buffer.prepend(batch);
-      throw error;
-    }
-  }
-
-  get pendingCount(): number {
-    return this.buffer.length;
+/**
+ * Load config defensively so AuditLogger tests don't have to mock it as long
+ * as required env vars are present (or the test passes explicit options).
+ */
+function loadConfigSafe(): {
+  auditBatchSize: number;
+  auditFlushIntervalMs: number;
+} {
+  try {
+    const cfg = loadConfig();
+    return {
+      auditBatchSize: cfg.auditBatchSize,
+      auditFlushIntervalMs: cfg.auditFlushIntervalMs,
+    };
+  } catch {
+    return { auditBatchSize: 50, auditFlushIntervalMs: 5000 };
   }
 }
