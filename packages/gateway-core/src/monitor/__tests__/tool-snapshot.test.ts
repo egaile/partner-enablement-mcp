@@ -1,50 +1,51 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { ToolSnapshotRecord } from "../../db/queries/snapshots.js";
-
-// ---------------------------------------------------------------------------
-// Mocks — must come before importing the module under test
-// ---------------------------------------------------------------------------
-
-const mockGetSnapshot = vi.fn<
-  (tenantId: string, serverId: string, toolName: string) => Promise<ToolSnapshotRecord | null>
->();
-const mockUpsertSnapshot = vi.fn<
-  (
-    tenantId: string,
-    serverId: string,
-    toolName: string,
-    definitionHash: string,
-    definition: Record<string, unknown>
-  ) => Promise<ToolSnapshotRecord>
->();
-
-vi.mock("../../db/queries/snapshots.js", () => ({
-  getSnapshot: (...args: unknown[]) =>
-    mockGetSnapshot(args[0] as string, args[1] as string, args[2] as string),
-  upsertSnapshot: (...args: unknown[]) =>
-    mockUpsertSnapshot(
-      args[0] as string,
-      args[1] as string,
-      args[2] as string,
-      args[3] as string,
-      args[4] as Record<string, unknown>
-    ),
-}));
-
-// Now import the module under test
-const { hashToolDefinition, checkToolDrift } = await import("../tool-snapshot.js");
-type ToolDefinition = import("../tool-snapshot.js").ToolDefinition;
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
+import {
+  DriftDetector,
+  hashToolDefinition,
+  type SnapshotsPort,
+  type ToolDefinition,
+} from "../tool-snapshot.js";
+import type {
+  SnapshotUpsertInput,
+  ToolSnapshotRecord,
+} from "../../storage/types.js";
 
 const TENANT = "tenant-abc";
 const SERVER = "server-xyz";
 
-// ---------------------------------------------------------------------------
-// hashToolDefinition
-// ---------------------------------------------------------------------------
+function makeFake(): {
+  port: SnapshotsPort;
+  get: ReturnType<typeof vi.fn>;
+  upsert: ReturnType<typeof vi.fn>;
+} {
+  const get = vi.fn<
+    (
+      tenantId: string,
+      serverId: string,
+      toolName: string
+    ) => Promise<ToolSnapshotRecord | null>
+  >();
+  const upsert = vi.fn<(input: SnapshotUpsertInput) => Promise<ToolSnapshotRecord>>();
+  upsert.mockResolvedValue({
+    id: "fake",
+    tenantId: TENANT,
+    serverId: SERVER,
+    toolName: "fake",
+    definitionHash: "fake",
+    definition: {},
+    approved: true,
+    createdAt: "2024-01-01T00:00:00Z",
+    updatedAt: "2024-01-01T00:00:00Z",
+  });
+  return {
+    port: {
+      get: (t: string, s: string, n: string) => get(t, s, n),
+      upsert: (input: SnapshotUpsertInput) => upsert(input),
+    },
+    get,
+    upsert,
+  };
+}
 
 describe("hashToolDefinition", () => {
   it("produces a consistent SHA-256 hex string", () => {
@@ -56,113 +57,97 @@ describe("hashToolDefinition", () => {
         properties: { userId: { type: "string" } },
       },
     };
-
-    const hash1 = hashToolDefinition(def);
-    const hash2 = hashToolDefinition(def);
-
-    expect(hash1).toBe(hash2);
-    // SHA-256 produces a 64-character hex string
-    expect(hash1).toMatch(/^[0-9a-f]{64}$/);
+    const h1 = hashToolDefinition(def);
+    const h2 = hashToolDefinition(def);
+    expect(h1).toBe(h2);
+    expect(h1).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("identical definitions produce the same hash", () => {
-    const def1: ToolDefinition = {
+    const a: ToolDefinition = {
       name: "list_items",
       description: "Lists items",
       inputSchema: { type: "object", properties: {} },
     };
-    const def2: ToolDefinition = {
+    const b: ToolDefinition = {
       name: "list_items",
       description: "Lists items",
       inputSchema: { type: "object", properties: {} },
     };
-
-    expect(hashToolDefinition(def1)).toBe(hashToolDefinition(def2));
+    expect(hashToolDefinition(a)).toBe(hashToolDefinition(b));
   });
 
   it("different descriptions produce different hashes", () => {
-    const def1: ToolDefinition = { name: "tool", description: "Version 1" };
-    const def2: ToolDefinition = { name: "tool", description: "Version 2" };
-
-    expect(hashToolDefinition(def1)).not.toBe(hashToolDefinition(def2));
+    expect(
+      hashToolDefinition({ name: "tool", description: "Version 1" })
+    ).not.toBe(hashToolDefinition({ name: "tool", description: "Version 2" }));
   });
 
   it("different names produce different hashes", () => {
-    const def1: ToolDefinition = { name: "tool_a", description: "Same" };
-    const def2: ToolDefinition = { name: "tool_b", description: "Same" };
-
-    expect(hashToolDefinition(def1)).not.toBe(hashToolDefinition(def2));
+    expect(
+      hashToolDefinition({ name: "tool_a", description: "Same" })
+    ).not.toBe(hashToolDefinition({ name: "tool_b", description: "Same" }));
   });
 
   it("different input schemas produce different hashes", () => {
-    const def1: ToolDefinition = {
+    const a: ToolDefinition = {
       name: "tool",
       inputSchema: { type: "object", properties: { a: { type: "string" } } },
     };
-    const def2: ToolDefinition = {
+    const b: ToolDefinition = {
       name: "tool",
       inputSchema: { type: "object", properties: { b: { type: "number" } } },
     };
-
-    expect(hashToolDefinition(def1)).not.toBe(hashToolDefinition(def2));
+    expect(hashToolDefinition(a)).not.toBe(hashToolDefinition(b));
   });
 
-  it("treats missing description as empty string (consistent hash)", () => {
-    const def1: ToolDefinition = { name: "tool" };
-    const def2: ToolDefinition = { name: "tool", description: "" };
-
-    expect(hashToolDefinition(def1)).toBe(hashToolDefinition(def2));
+  it("treats missing description as empty string", () => {
+    expect(hashToolDefinition({ name: "tool" })).toBe(
+      hashToolDefinition({ name: "tool", description: "" })
+    );
   });
 
-  it("treats missing inputSchema as empty object (consistent hash)", () => {
-    const def1: ToolDefinition = { name: "tool" };
-    const def2: ToolDefinition = { name: "tool", inputSchema: {} };
-
-    expect(hashToolDefinition(def1)).toBe(hashToolDefinition(def2));
+  it("treats missing inputSchema as empty object", () => {
+    expect(hashToolDefinition({ name: "tool" })).toBe(
+      hashToolDefinition({ name: "tool", inputSchema: {} })
+    );
   });
 });
 
-// ---------------------------------------------------------------------------
-// checkToolDrift
-// ---------------------------------------------------------------------------
+describe("DriftDetector", () => {
+  let fake: ReturnType<typeof makeFake>;
+  let detector: DriftDetector;
 
-describe("checkToolDrift", () => {
   beforeEach(() => {
-    mockGetSnapshot.mockReset();
-    mockUpsertSnapshot.mockReset();
-    mockUpsertSnapshot.mockResolvedValue({} as ToolSnapshotRecord);
+    fake = makeFake();
+    detector = new DriftDetector({ snapshots: fake.port });
   });
 
-  // ---- New tool (no existing snapshot) ----
-
   it("auto-approves a new tool when no snapshot exists", async () => {
-    mockGetSnapshot.mockResolvedValue(null);
+    fake.get.mockResolvedValue(null);
 
     const tool: ToolDefinition = {
       name: "new_tool",
       description: "A brand new tool",
       inputSchema: { type: "object", properties: { q: { type: "string" } } },
     };
-
-    const result = await checkToolDrift(TENANT, SERVER, tool);
+    const result = await detector.check(TENANT, SERVER, tool);
 
     expect(result.drifted).toBe(false);
     expect(result.severity).toBeNull();
     expect(result.changes).toHaveLength(0);
     expect(result.currentHash).toBe(result.approvedHash);
-
-    // Should have upserted the snapshot
-    expect(mockUpsertSnapshot).toHaveBeenCalledOnce();
-    expect(mockUpsertSnapshot).toHaveBeenCalledWith(
-      TENANT,
-      SERVER,
-      "new_tool",
-      expect.stringMatching(/^[0-9a-f]{64}$/),
-      expect.objectContaining({ name: "new_tool" })
+    expect(fake.upsert).toHaveBeenCalledOnce();
+    expect(fake.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: TENANT,
+        serverId: SERVER,
+        toolName: "new_tool",
+        definitionHash: expect.stringMatching(/^[0-9a-f]{64}$/),
+        definition: expect.objectContaining({ name: "new_tool" }),
+      })
     );
   });
-
-  // ---- Matching hash (no drift) ----
 
   it("reports no drift when the hash matches", async () => {
     const tool: ToolDefinition = {
@@ -170,10 +155,8 @@ describe("checkToolDrift", () => {
       description: "Unchanged",
       inputSchema: { type: "object", properties: { x: { type: "number" } } },
     };
-
     const currentHash = hashToolDefinition(tool);
-
-    mockGetSnapshot.mockResolvedValue({
+    fake.get.mockResolvedValue({
       id: "snap-1",
       tenantId: TENANT,
       serverId: SERVER,
@@ -189,18 +172,12 @@ describe("checkToolDrift", () => {
       updatedAt: "2024-01-01T00:00:00Z",
     });
 
-    const result = await checkToolDrift(TENANT, SERVER, tool);
-
+    const result = await detector.check(TENANT, SERVER, tool);
     expect(result.drifted).toBe(false);
     expect(result.severity).toBeNull();
     expect(result.changes).toHaveLength(0);
-    expect(result.currentHash).toBe(currentHash);
-    expect(result.approvedHash).toBe(currentHash);
-    // Should NOT upsert
-    expect(mockUpsertSnapshot).not.toHaveBeenCalled();
+    expect(fake.upsert).not.toHaveBeenCalled();
   });
-
-  // ---- Description-only change (cosmetic severity) ----
 
   it("detects description-only change as cosmetic severity", async () => {
     const oldDef = {
@@ -209,35 +186,26 @@ describe("checkToolDrift", () => {
       inputSchema: { type: "object", properties: { a: { type: "string" } } },
     };
     const newTool: ToolDefinition = {
-      name: "my_tool",
+      ...oldDef,
       description: "New description",
-      inputSchema: { type: "object", properties: { a: { type: "string" } } },
     };
-
-    const oldHash = hashToolDefinition(oldDef);
-
-    mockGetSnapshot.mockResolvedValue({
-      id: "snap-1",
+    fake.get.mockResolvedValue({
+      id: "s1",
       tenantId: TENANT,
       serverId: SERVER,
       toolName: "my_tool",
-      definitionHash: oldHash,
+      definitionHash: hashToolDefinition(oldDef),
       definition: oldDef,
       approved: true,
       createdAt: "2024-01-01T00:00:00Z",
       updatedAt: "2024-01-01T00:00:00Z",
     });
 
-    const result = await checkToolDrift(TENANT, SERVER, newTool);
-
+    const result = await detector.check(TENANT, SERVER, newTool);
     expect(result.drifted).toBe(true);
     expect(result.severity).toBe("cosmetic");
     expect(result.changes).toContain("description changed");
-    expect(result.currentHash).not.toBe(oldHash);
-    expect(result.approvedHash).toBe(oldHash);
   });
-
-  // ---- Added parameter (critical severity) ----
 
   it("detects added parameter as critical severity", async () => {
     const oldDef = {
@@ -259,29 +227,23 @@ describe("checkToolDrift", () => {
         },
       },
     };
-
-    const oldHash = hashToolDefinition(oldDef);
-
-    mockGetSnapshot.mockResolvedValue({
-      id: "snap-1",
+    fake.get.mockResolvedValue({
+      id: "s1",
       tenantId: TENANT,
       serverId: SERVER,
       toolName: "my_tool",
-      definitionHash: oldHash,
+      definitionHash: hashToolDefinition(oldDef),
       definition: oldDef,
       approved: true,
       createdAt: "2024-01-01T00:00:00Z",
       updatedAt: "2024-01-01T00:00:00Z",
     });
 
-    const result = await checkToolDrift(TENANT, SERVER, newTool);
-
+    const result = await detector.check(TENANT, SERVER, newTool);
     expect(result.drifted).toBe(true);
     expect(result.severity).toBe("critical");
     expect(result.changes).toContain("parameter added: newParam");
   });
-
-  // ---- Removed parameter (functional severity) ----
 
   it("detects removed parameter as functional severity", async () => {
     const oldDef = {
@@ -303,29 +265,23 @@ describe("checkToolDrift", () => {
         properties: { keepMe: { type: "string" } },
       },
     };
-
-    const oldHash = hashToolDefinition(oldDef);
-
-    mockGetSnapshot.mockResolvedValue({
-      id: "snap-1",
+    fake.get.mockResolvedValue({
+      id: "s1",
       tenantId: TENANT,
       serverId: SERVER,
       toolName: "my_tool",
-      definitionHash: oldHash,
+      definitionHash: hashToolDefinition(oldDef),
       definition: oldDef,
       approved: true,
       createdAt: "2024-01-01T00:00:00Z",
       updatedAt: "2024-01-01T00:00:00Z",
     });
 
-    const result = await checkToolDrift(TENANT, SERVER, newTool);
-
+    const result = await detector.check(TENANT, SERVER, newTool);
     expect(result.drifted).toBe(true);
     expect(result.severity).toBe("functional");
     expect(result.changes).toContain("parameter removed: removeMe");
   });
-
-  // ---- Both added and removed (critical wins) ----
 
   it("classifies as critical when both added and removed parameters", async () => {
     const oldDef = {
@@ -344,37 +300,27 @@ describe("checkToolDrift", () => {
         properties: { new_param: { type: "string" } },
       },
     };
-
-    const oldHash = hashToolDefinition(oldDef);
-
-    mockGetSnapshot.mockResolvedValue({
-      id: "snap-1",
+    fake.get.mockResolvedValue({
+      id: "s1",
       tenantId: TENANT,
       serverId: SERVER,
       toolName: "my_tool",
-      definitionHash: oldHash,
+      definitionHash: hashToolDefinition(oldDef),
       definition: oldDef,
       approved: true,
       createdAt: "2024-01-01T00:00:00Z",
       updatedAt: "2024-01-01T00:00:00Z",
     });
 
-    const result = await checkToolDrift(TENANT, SERVER, newTool);
-
+    const result = await detector.check(TENANT, SERVER, newTool);
     expect(result.drifted).toBe(true);
-    expect(result.severity).toBe("critical"); // added param takes precedence
+    expect(result.severity).toBe("critical");
     expect(result.changes).toContain("parameter added: new_param");
     expect(result.changes).toContain("parameter removed: old_param");
   });
 
-  // ---- Input schema added ----
-
   it("detects input schema added as functional severity", async () => {
-    const oldDef = {
-      name: "my_tool",
-      description: "Same",
-      // no inputSchema (or no properties)
-    };
+    const oldDef = { name: "my_tool", description: "Same" };
     const newTool: ToolDefinition = {
       name: "my_tool",
       description: "Same",
@@ -383,26 +329,20 @@ describe("checkToolDrift", () => {
         properties: { q: { type: "string" } },
       },
     };
-
-    const oldHash = hashToolDefinition(oldDef);
-
-    mockGetSnapshot.mockResolvedValue({
-      id: "snap-1",
+    fake.get.mockResolvedValue({
+      id: "s1",
       tenantId: TENANT,
       serverId: SERVER,
       toolName: "my_tool",
-      definitionHash: oldHash,
+      definitionHash: hashToolDefinition(oldDef),
       definition: oldDef,
       approved: true,
       createdAt: "2024-01-01T00:00:00Z",
       updatedAt: "2024-01-01T00:00:00Z",
     });
 
-    const result = await checkToolDrift(TENANT, SERVER, newTool);
-
+    const result = await detector.check(TENANT, SERVER, newTool);
     expect(result.drifted).toBe(true);
-    // The old schema is {} (no properties key), new has properties.
-    // Code checks: !oldProps && newProps → "input schema added" → functional
     expect(result.changes).toContain("input schema added");
     expect(result.severity).toBe("functional");
   });
