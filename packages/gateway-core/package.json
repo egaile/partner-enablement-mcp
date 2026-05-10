@@ -47,6 +47,10 @@
     "./webhooks": {
       "types": "./dist/webhooks/index.d.ts",
       "import": "./dist/webhooks/index.js"
+    },
+    "./approval": {
+      "types": "./dist/approval/index.d.ts",
+      "import": "./dist/approval/index.js"
     }
   },
   "files": [

@@ -13,6 +13,10 @@ export type {
   WebhookCreateInput,
   AuditLogRecord,
   AuditListOptions,
+  ApprovalRequestRecord,
+  ApprovalRequestCreateInput,
+  ApprovalListOptions,
+  ApprovalStatus,
 } from "./types.js";
 
 export { StorageError } from "./types.js";

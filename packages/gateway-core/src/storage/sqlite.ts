@@ -18,6 +18,10 @@ import {
   StorageError,
   type ApiKeyCreateInput,
   type ApiKeyRecord,
+  type ApprovalListOptions,
+  type ApprovalRequestCreateInput,
+  type ApprovalRequestRecord,
+  type ApprovalStatus,
   type AuditListOptions,
   type AuditLogRecord,
   type McpServerRecord,
@@ -169,6 +173,24 @@ CREATE TABLE IF NOT EXISTS webhooks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_webhooks_tenant ON webhooks(tenant_id);
+
+CREATE TABLE IF NOT EXISTS approval_requests (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  correlation_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  server_name TEXT NOT NULL,
+  tool_name TEXT NOT NULL,
+  params TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'expired')),
+  requested_at TEXT NOT NULL,
+  decided_by TEXT,
+  decided_at TEXT,
+  expires_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_approvals_tenant_status ON approval_requests(tenant_id, status, requested_at DESC);
+CREATE INDEX IF NOT EXISTS idx_approvals_correlation ON approval_requests(correlation_id);
 `;
 
 // === Helpers ===
@@ -369,6 +391,41 @@ interface WebhookRow {
   events: string;
   enabled: number;
   created_at: string;
+}
+
+interface ApprovalRow {
+  id: string;
+  tenant_id: string;
+  correlation_id: string;
+  user_id: string;
+  server_name: string;
+  tool_name: string;
+  params: string;
+  status: ApprovalStatus;
+  requested_at: string;
+  decided_by: string | null;
+  decided_at: string | null;
+  expires_at: string;
+}
+
+function mapApproval(row: ApprovalRow): ApprovalRequestRecord {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    correlationId: row.correlation_id,
+    userId: row.user_id,
+    serverName: row.server_name,
+    toolName: row.tool_name,
+    params: (jsonOrNull<Record<string, unknown>>(row.params) ?? {}) as Record<
+      string,
+      unknown
+    >,
+    status: row.status,
+    requestedAt: row.requested_at,
+    decidedBy: row.decided_by,
+    decidedAt: row.decided_at,
+    expiresAt: row.expires_at,
+  };
 }
 
 interface AuditLogRow {
@@ -1168,4 +1225,155 @@ export class SqliteStorageBackend implements StorageBackend {
         .run(id, tenantId);
     },
   };
+
+  // --- approvals ---
+
+  approvals = {
+    create: async (
+      input: ApprovalRequestCreateInput
+    ): Promise<ApprovalRequestRecord> => {
+      const id = randomUUID();
+      const now = nowIso();
+      const expiresAt =
+        input.expiresAt ??
+        new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      this.requireDb()
+        .prepare(
+          `INSERT INTO approval_requests
+             (id, tenant_id, correlation_id, user_id, server_name, tool_name,
+              params, status, requested_at, expires_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
+        )
+        .run(
+          id,
+          input.tenantId,
+          input.correlationId,
+          input.userId,
+          input.serverName,
+          input.toolName,
+          JSON.stringify(input.params),
+          now,
+          expiresAt
+        );
+      return {
+        id,
+        tenantId: input.tenantId,
+        correlationId: input.correlationId,
+        userId: input.userId,
+        serverName: input.serverName,
+        toolName: input.toolName,
+        params: input.params,
+        status: "pending",
+        requestedAt: now,
+        decidedBy: null,
+        decidedAt: null,
+        expiresAt,
+      };
+    },
+
+    get: async (
+      id: string,
+      tenantId: string
+    ): Promise<ApprovalRequestRecord | null> => {
+      const row = this.requireDb()
+        .prepare<[string, string], ApprovalRow>(
+          `SELECT * FROM approval_requests WHERE id = ? AND tenant_id = ?`
+        )
+        .get(id, tenantId);
+      return row ? mapApproval(row) : null;
+    },
+
+    getByCorrelation: async (
+      correlationId: string,
+      tenantId: string
+    ): Promise<ApprovalRequestRecord | null> => {
+      const row = this.requireDb()
+        .prepare<[string, string], ApprovalRow>(
+          `SELECT * FROM approval_requests
+           WHERE correlation_id = ? AND tenant_id = ?
+           ORDER BY requested_at DESC LIMIT 1`
+        )
+        .get(correlationId, tenantId);
+      return row ? mapApproval(row) : null;
+    },
+
+    listPending: async (
+      tenantId: string,
+      options?: ApprovalListOptions
+    ): Promise<{ data: ApprovalRequestRecord[]; count: number }> => {
+      const limit = Math.min(options?.limit ?? 50, 500);
+      const offset = options?.offset ?? 0;
+      const db = this.requireDb();
+
+      const countRow = db
+        .prepare<[string], { c: number }>(
+          `SELECT COUNT(*) as c FROM approval_requests
+           WHERE tenant_id = ? AND status = 'pending'`
+        )
+        .get(tenantId);
+
+      const rows = db
+        .prepare<[string, number, number], ApprovalRow>(
+          `SELECT * FROM approval_requests
+           WHERE tenant_id = ? AND status = 'pending'
+           ORDER BY requested_at DESC
+           LIMIT ? OFFSET ?`
+        )
+        .all(tenantId, limit, offset);
+
+      return {
+        data: rows.map(mapApproval),
+        count: countRow?.c ?? 0,
+      };
+    },
+
+    approve: async (
+      id: string,
+      tenantId: string,
+      decidedBy: string
+    ): Promise<ApprovalRequestRecord> => {
+      return this.decideApproval(id, tenantId, decidedBy, "approved");
+    },
+
+    reject: async (
+      id: string,
+      tenantId: string,
+      decidedBy: string
+    ): Promise<ApprovalRequestRecord> => {
+      return this.decideApproval(id, tenantId, decidedBy, "rejected");
+    },
+  };
+
+  private async decideApproval(
+    id: string,
+    tenantId: string,
+    decidedBy: string,
+    status: "approved" | "rejected"
+  ): Promise<ApprovalRequestRecord> {
+    const db = this.requireDb();
+    const now = nowIso();
+    const result = db
+      .prepare(
+        `UPDATE approval_requests
+         SET status = ?, decided_by = ?, decided_at = ?
+         WHERE id = ? AND tenant_id = ? AND status = 'pending'`
+      )
+      .run(status, decidedBy, now, id, tenantId);
+
+    if (result.changes === 0) {
+      throw new StorageError(
+        `Approval request ${id} not found or already decided`
+      );
+    }
+
+    const row = db
+      .prepare<[string, string], ApprovalRow>(
+        `SELECT * FROM approval_requests WHERE id = ? AND tenant_id = ?`
+      )
+      .get(id, tenantId);
+    if (!row) {
+      throw new StorageError(`Approval request ${id} disappeared after update`);
+    }
+    return mapApproval(row);
+  }
 }

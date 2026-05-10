@@ -13,6 +13,9 @@
 
 import type {
   ApiKeyRecord,
+  ApprovalListOptions,
+  ApprovalRequestCreateInput,
+  ApprovalRequestRecord,
   McpServerRecord,
   PolicyRuleRecord,
   PolicyRuleUpsertInput,
@@ -47,6 +50,14 @@ import {
   getWebhooksByEvent,
   getWebhooksForTenant,
 } from "../db/queries/webhooks.js";
+import {
+  approveRequest,
+  createApprovalRequest,
+  getApprovalByCorrelation,
+  getApprovalRequest,
+  getPendingApprovals,
+  rejectRequest,
+} from "../db/queries/approvals.js";
 
 async function notSupported(op: string): Promise<never> {
   throw new StorageError(
@@ -218,6 +229,58 @@ export class SupabaseStorageBackend implements StorageBackend {
 
     delete: async (id: string, tenantId: string): Promise<void> => {
       await deleteWebhook(id, tenantId);
+    },
+  };
+
+  approvals = {
+    create: async (
+      input: ApprovalRequestCreateInput
+    ): Promise<ApprovalRequestRecord> => {
+      return createApprovalRequest({
+        tenantId: input.tenantId,
+        correlationId: input.correlationId,
+        userId: input.userId,
+        serverName: input.serverName,
+        toolName: input.toolName,
+        params: input.params,
+      });
+    },
+
+    get: async (
+      id: string,
+      tenantId: string
+    ): Promise<ApprovalRequestRecord | null> => {
+      return getApprovalRequest(id, tenantId);
+    },
+
+    getByCorrelation: async (
+      correlationId: string,
+      tenantId: string
+    ): Promise<ApprovalRequestRecord | null> => {
+      return getApprovalByCorrelation(correlationId, tenantId);
+    },
+
+    listPending: async (
+      tenantId: string,
+      options?: ApprovalListOptions
+    ): Promise<{ data: ApprovalRequestRecord[]; count: number }> => {
+      return getPendingApprovals(tenantId, options);
+    },
+
+    approve: async (
+      id: string,
+      tenantId: string,
+      decidedBy: string
+    ): Promise<ApprovalRequestRecord> => {
+      return approveRequest(id, tenantId, decidedBy);
+    },
+
+    reject: async (
+      id: string,
+      tenantId: string,
+      decidedBy: string
+    ): Promise<ApprovalRequestRecord> => {
+      return rejectRequest(id, tenantId, decidedBy);
     },
   };
 }

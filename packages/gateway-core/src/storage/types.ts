@@ -137,6 +137,40 @@ export interface AuditListOptions {
   afterCreatedAt?: string;
 }
 
+export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired";
+
+export interface ApprovalRequestRecord {
+  id: string;
+  tenantId: string;
+  correlationId: string;
+  userId: string;
+  serverName: string;
+  toolName: string;
+  /** Original tool-call params, persisted so the reviewer can see context. */
+  params: Record<string, unknown>;
+  status: ApprovalStatus;
+  requestedAt: string;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  expiresAt: string;
+}
+
+export interface ApprovalRequestCreateInput {
+  tenantId: string;
+  correlationId: string;
+  userId: string;
+  serverName: string;
+  toolName: string;
+  params: Record<string, unknown>;
+  /** ISO 8601. Defaults to +24h from now if omitted. */
+  expiresAt?: string;
+}
+
+export interface ApprovalListOptions {
+  limit?: number;
+  offset?: number;
+}
+
 export interface TenantRecord {
   id: string;
   name: string;
@@ -298,6 +332,38 @@ export interface StorageBackend {
     create(input: WebhookCreateInput): Promise<WebhookRecord>;
     /** Admin: delete a webhook. */
     delete(id: string, tenantId: string): Promise<void>;
+  };
+
+  approvals: {
+    /** ApprovalEngine: create a new pending request. */
+    create(input: ApprovalRequestCreateInput): Promise<ApprovalRequestRecord>;
+    /** ApprovalEngine: lookup by id, scoped to tenant. */
+    get(
+      id: string,
+      tenantId: string
+    ): Promise<ApprovalRequestRecord | null>;
+    /** ApprovalEngine: lookup by correlation id (e.g. on retry). */
+    getByCorrelation(
+      correlationId: string,
+      tenantId: string
+    ): Promise<ApprovalRequestRecord | null>;
+    /** Admin: list pending requests for review queue. */
+    listPending(
+      tenantId: string,
+      options?: ApprovalListOptions
+    ): Promise<{ data: ApprovalRequestRecord[]; count: number }>;
+    /** Admin: approve a pending request. Throws if already decided. */
+    approve(
+      id: string,
+      tenantId: string,
+      decidedBy: string
+    ): Promise<ApprovalRequestRecord>;
+    /** Admin: reject a pending request. Throws if already decided. */
+    reject(
+      id: string,
+      tenantId: string,
+      decidedBy: string
+    ): Promise<ApprovalRequestRecord>;
   };
 }
 
