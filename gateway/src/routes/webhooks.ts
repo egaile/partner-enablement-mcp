@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { WebhookDispatcher } from "@mcpshield/gateway-core/webhooks";
 import { requireAuth } from "../auth/middleware.js";
 import type { AuthenticatedRequest } from "../auth/types.js";
 import {
@@ -7,13 +8,15 @@ import {
   updateWebhook,
   deleteWebhook,
 } from "../db/queries/webhooks.js";
-import { AlertDispatcher } from "../alerts/dispatcher.js";
+import { SupabaseStorageBackend } from "../storage/supabase.js";
 import { CreateWebhookSchema, UpdateWebhookSchema } from "../schemas/index.js";
 import type { GatewayState } from "./types.js";
 
 export function createWebhooksRouter(state: GatewayState): Router {
   const router = Router();
-  const dispatcher = new AlertDispatcher();
+  const dispatcher = new WebhookDispatcher({
+    webhooks: new SupabaseStorageBackend().webhooks,
+  });
 
   router.get(
     "/api/webhooks",

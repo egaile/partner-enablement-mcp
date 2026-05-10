@@ -92,6 +92,26 @@ export interface ApiKeyRecord {
   createdAt: string;
 }
 
+export interface WebhookRecord {
+  id: string;
+  tenantId: string;
+  url: string;
+  /** HMAC-SHA256 signing secret. Stored in plaintext; treat the table as secrets. */
+  secret: string;
+  /** Event names this webhook subscribes to (e.g. "injection_detected", "tool_drift"). */
+  events: string[];
+  enabled: boolean;
+  createdAt: string;
+}
+
+export interface WebhookCreateInput {
+  tenantId: string;
+  url: string;
+  secret: string;
+  events: string[];
+  enabled?: boolean;
+}
+
 export interface TenantRecord {
   id: string;
   name: string;
@@ -229,6 +249,19 @@ export interface StorageBackend {
      * Returns the stored record.
      */
     create(input: ApiKeyCreateInput): Promise<ApiKeyRecord>;
+  };
+
+  webhooks: {
+    /** Dispatcher: find enabled webhooks subscribed to a given event name. */
+    listByEvent(tenantId: string, event: string): Promise<WebhookRecord[]>;
+    /** Dispatcher (test deliveries): lookup by id, scoped to tenant. */
+    get(id: string, tenantId: string): Promise<WebhookRecord | null>;
+    /** Admin (CLI / dashboard): list all webhooks for a tenant. */
+    listForTenant(tenantId: string): Promise<WebhookRecord[]>;
+    /** Admin: register a new webhook. */
+    create(input: WebhookCreateInput): Promise<WebhookRecord>;
+    /** Admin: delete a webhook. */
+    delete(id: string, tenantId: string): Promise<void>;
   };
 }
 

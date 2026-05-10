@@ -26,6 +26,8 @@ import {
   type StorageBackend,
   type TenantRecord,
   type ToolSnapshotRecord,
+  type WebhookCreateInput,
+  type WebhookRecord,
 } from "./types.js";
 
 const DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001";
@@ -153,6 +155,18 @@ CREATE TABLE IF NOT EXISTS api_keys (
 
 CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
 CREATE INDEX IF NOT EXISTS idx_api_keys_tenant ON api_keys(tenant_id);
+
+CREATE TABLE IF NOT EXISTS webhooks (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  url TEXT NOT NULL,
+  secret TEXT NOT NULL,
+  events TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhooks_tenant ON webhooks(tenant_id);
 `;
 
 // === Helpers ===
@@ -341,6 +355,28 @@ function mapApiKey(row: ApiKeyRow): ApiKeyRecord {
     createdBy: row.created_by,
     lastUsedAt: row.last_used_at,
     expiresAt: row.expires_at,
+    createdAt: row.created_at,
+  };
+}
+
+interface WebhookRow {
+  id: string;
+  tenant_id: string;
+  url: string;
+  secret: string;
+  events: string;
+  enabled: number;
+  created_at: string;
+}
+
+function mapWebhook(row: WebhookRow): WebhookRecord {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    url: row.url,
+    secret: row.secret,
+    events: (jsonOrNull<string[]>(row.events) ?? []) as string[],
+    enabled: row.enabled === 1,
     createdAt: row.created_at,
   };
 }
@@ -977,6 +1013,79 @@ export class SqliteStorageBackend implements StorageBackend {
         expiresAt: input.expiresAt ?? null,
         createdAt: now,
       };
+    },
+  };
+
+  // --- webhooks ---
+
+  webhooks = {
+    listByEvent: async (
+      tenantId: string,
+      event: string
+    ): Promise<WebhookRecord[]> => {
+      const rows = this.requireDb()
+        .prepare<[string], WebhookRow>(
+          `SELECT * FROM webhooks WHERE tenant_id = ? AND enabled = 1`
+        )
+        .all(tenantId);
+      return rows
+        .map(mapWebhook)
+        .filter((w) => w.events.includes(event));
+    },
+
+    get: async (
+      id: string,
+      tenantId: string
+    ): Promise<WebhookRecord | null> => {
+      const row = this.requireDb()
+        .prepare<[string, string], WebhookRow>(
+          `SELECT * FROM webhooks WHERE id = ? AND tenant_id = ?`
+        )
+        .get(id, tenantId);
+      return row ? mapWebhook(row) : null;
+    },
+
+    listForTenant: async (tenantId: string): Promise<WebhookRecord[]> => {
+      const rows = this.requireDb()
+        .prepare<[string], WebhookRow>(
+          `SELECT * FROM webhooks WHERE tenant_id = ? ORDER BY created_at DESC`
+        )
+        .all(tenantId);
+      return rows.map(mapWebhook);
+    },
+
+    create: async (input: WebhookCreateInput): Promise<WebhookRecord> => {
+      const id = randomUUID();
+      const now = nowIso();
+      this.requireDb()
+        .prepare(
+          `INSERT INTO webhooks (id, tenant_id, url, secret, events, enabled, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          id,
+          input.tenantId,
+          input.url,
+          input.secret,
+          JSON.stringify(input.events),
+          input.enabled === false ? 0 : 1,
+          now
+        );
+      return {
+        id,
+        tenantId: input.tenantId,
+        url: input.url,
+        secret: input.secret,
+        events: input.events,
+        enabled: input.enabled !== false,
+        createdAt: now,
+      };
+    },
+
+    delete: async (id: string, tenantId: string): Promise<void> => {
+      this.requireDb()
+        .prepare(`DELETE FROM webhooks WHERE id = ? AND tenant_id = ?`)
+        .run(id, tenantId);
     },
   };
 }

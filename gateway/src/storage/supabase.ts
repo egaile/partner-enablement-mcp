@@ -21,6 +21,8 @@ import type {
   StorageBackend,
   TenantRecord,
   ToolSnapshotRecord,
+  WebhookCreateInput,
+  WebhookRecord,
 } from "@mcpshield/gateway-core/storage";
 import { StorageError } from "@mcpshield/gateway-core/storage";
 import type { AuditEntry } from "@mcpshield/gateway-core/audit";
@@ -38,6 +40,13 @@ import {
   upsertSnapshot,
 } from "../db/queries/snapshots.js";
 import { getTenantById } from "../db/queries/tenants.js";
+import {
+  createWebhook,
+  deleteWebhook,
+  getWebhook,
+  getWebhooksByEvent,
+  getWebhooksForTenant,
+} from "../db/queries/webhooks.js";
 
 async function notSupported(op: string): Promise<never> {
   throw new StorageError(
@@ -172,6 +181,39 @@ export class SupabaseStorageBackend implements StorageBackend {
 
     create: async (): Promise<never> => {
       return notSupported("apiKeys.create");
+    },
+  };
+
+  webhooks = {
+    listByEvent: async (
+      tenantId: string,
+      event: string
+    ): Promise<WebhookRecord[]> => {
+      return getWebhooksByEvent(tenantId, event);
+    },
+
+    get: async (
+      id: string,
+      tenantId: string
+    ): Promise<WebhookRecord | null> => {
+      return getWebhook(id, tenantId);
+    },
+
+    listForTenant: async (tenantId: string): Promise<WebhookRecord[]> => {
+      return getWebhooksForTenant(tenantId);
+    },
+
+    create: async (input: WebhookCreateInput): Promise<WebhookRecord> => {
+      return createWebhook(input.tenantId, {
+        url: input.url,
+        secret: input.secret,
+        events: input.events,
+        enabled: input.enabled,
+      });
+    },
+
+    delete: async (id: string, tenantId: string): Promise<void> => {
+      await deleteWebhook(id, tenantId);
     },
   };
 }

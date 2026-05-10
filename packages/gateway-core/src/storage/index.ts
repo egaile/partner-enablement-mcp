@@ -9,6 +9,8 @@ export type {
   ServerUpsertInput,
   SnapshotUpsertInput,
   ApiKeyCreateInput,
+  WebhookRecord,
+  WebhookCreateInput,
 } from "./types.js";
 
 export { StorageError } from "./types.js";

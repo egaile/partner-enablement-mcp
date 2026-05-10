@@ -28,5 +28,6 @@ export * from "./policy/index.js";
 export * from "./monitor/index.js";
 export * from "./audit/index.js";
 export * from "./proxy/index.js";
+export * from "./webhooks/index.js";
 
 export const VERSION = "0.1.0";
