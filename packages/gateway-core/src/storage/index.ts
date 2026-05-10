@@ -8,6 +8,7 @@ export type {
   PolicyRuleUpsertInput,
   ServerUpsertInput,
   SnapshotUpsertInput,
+  ApiKeyCreateInput,
 } from "./types.js";
 
 export { StorageError } from "./types.js";

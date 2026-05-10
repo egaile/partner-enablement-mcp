@@ -169,5 +169,9 @@ export class SupabaseStorageBackend implements StorageBackend {
     updateLastUsed: async (id: string): Promise<void> => {
       await updateLastUsed(id);
     },
+
+    create: async (): Promise<never> => {
+      return notSupported("apiKeys.create");
+    },
   };
 }

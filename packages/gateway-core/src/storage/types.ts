@@ -223,7 +223,22 @@ export interface StorageBackend {
     findByHash(keyHash: string): Promise<ApiKeyRecord | null>;
     /** Auth middleware: bump last_used_at after successful auth. */
     updateLastUsed(id: string): Promise<void>;
+    /**
+     * Persist a freshly minted key. Caller hashes the raw key first
+     * (see `generateApiKey()` / `hashApiKey()` in `@mcpshield/gateway-core/auth`).
+     * Returns the stored record.
+     */
+    create(input: ApiKeyCreateInput): Promise<ApiKeyRecord>;
   };
+}
+
+export interface ApiKeyCreateInput {
+  tenantId: string;
+  name: string;
+  keyHash: string;
+  keyPrefix: string;
+  createdBy: string;
+  expiresAt?: string | null;
 }
 
 /** Common error thrown by storage backends. */

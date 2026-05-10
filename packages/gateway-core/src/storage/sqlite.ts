@@ -16,6 +16,7 @@ import { dirname } from "node:path";
 import type { AuditEntry } from "../schemas/index.js";
 import {
   StorageError,
+  type ApiKeyCreateInput,
   type ApiKeyRecord,
   type McpServerRecord,
   type PolicyRuleRecord,
@@ -945,6 +946,37 @@ export class SqliteStorageBackend implements StorageBackend {
       this.requireDb()
         .prepare(`UPDATE api_keys SET last_used_at = ? WHERE id = ?`)
         .run(nowIso(), id);
+    },
+
+    create: async (input: ApiKeyCreateInput): Promise<ApiKeyRecord> => {
+      const id = randomUUID();
+      const now = nowIso();
+      this.requireDb()
+        .prepare(
+          `INSERT INTO api_keys (id, tenant_id, name, key_hash, key_prefix, created_by, expires_at, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          id,
+          input.tenantId,
+          input.name,
+          input.keyHash,
+          input.keyPrefix,
+          input.createdBy,
+          input.expiresAt ?? null,
+          now
+        );
+      return {
+        id,
+        tenantId: input.tenantId,
+        name: input.name,
+        keyHash: input.keyHash,
+        keyPrefix: input.keyPrefix,
+        createdBy: input.createdBy,
+        lastUsedAt: null,
+        expiresAt: input.expiresAt ?? null,
+        createdAt: now,
+      };
     },
   };
 }
