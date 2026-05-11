@@ -25,6 +25,7 @@ import {
   WebhookDispatcher,
   getScanner,
   loadConfig,
+  loadPacks,
 } from "@mcpshield/gateway-core";
 import { applyConfig } from "../lib/apply-config.js";
 import { resolveConfigPath, resolveDbPath } from "../lib/paths.js";
@@ -66,6 +67,20 @@ export async function runStart(options: StartOptions = {}): Promise<void> {
   console.log(
     `[mcpshield] Applied ${apply.serversApplied} server(s), ${apply.policiesApplied} policy rule(s)`
   );
+
+  if (config.packs.length > 0) {
+    const packResult = await loadPacks(config.packs);
+    for (const ok of packResult.loaded) {
+      console.log(
+        `[mcpshield] Loaded pack ${ok.source} (${ok.pack.pii.length} PII patterns, ${ok.pack.policyTemplates.length} templates)`
+      );
+    }
+    for (const fail of packResult.failed) {
+      console.error(
+        `[mcpshield] Failed to load pack ${fail.source}: ${fail.reason}`
+      );
+    }
+  }
 
   const auditLogger = new BaseAuditLogger({
     audit: storage.audit,

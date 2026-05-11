@@ -20,6 +20,7 @@ import {
 import { runServersList } from "./commands/servers.js";
 import { runPoliciesList } from "./commands/policies.js";
 import { runApprovalsList } from "./commands/approvals.js";
+import { runPacksList } from "./commands/packs.js";
 
 const VERSION = "0.1.0";
 
@@ -70,6 +71,7 @@ Usage:
   mcpshield servers list
   mcpshield policies list
   mcpshield approvals list [--limit N]
+  mcpshield packs list
   mcpshield --version | --help
 
 Commands:
@@ -85,6 +87,7 @@ Commands:
   servers list     Show registered downstream MCP servers.
   policies list    Show enabled policy rules in priority order.
   approvals list   Show pending HITL approval requests.
+  packs list       Show configured industry packs (load + introspect).
 
 Common flags:
   --config <path>   Path to mcpshield.yaml (default: ./mcpshield.yaml)
@@ -240,6 +243,16 @@ async function main(): Promise<void> {
       }
       console.error(`Unknown subcommand: approvals ${sub ?? ""}`);
       console.error("Try: mcpshield approvals list");
+      process.exit(1);
+      return;
+
+    case "packs":
+      if (sub === "list") {
+        await runPacksList({ configPath });
+        return;
+      }
+      console.error(`Unknown subcommand: packs ${sub ?? ""}`);
+      console.error("Try: mcpshield packs list");
       process.exit(1);
       return;
 

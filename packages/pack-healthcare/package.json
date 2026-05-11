@@ -1,0 +1,53 @@
+{
+  "name": "@mcpshield/pack-healthcare",
+  "version": "0.1.0",
+  "description": "MCPShield healthcare / HIPAA industry pack — PHI detection (NPI, ICD-10, DEA), PHI redaction policy templates, HIPAA compliance metadata.",
+  "license": "MIT",
+  "author": "Ed Gaile",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/egaile/partner-enablement-mcp.git",
+    "directory": "packages/pack-healthcare"
+  },
+  "bugs": {
+    "url": "https://github.com/egaile/partner-enablement-mcp/issues"
+  },
+  "homepage": "https://github.com/egaile/partner-enablement-mcp/tree/main/packages/pack-healthcare#readme",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "healthcare",
+    "hipaa",
+    "phi",
+    "pii",
+    "industry-pack",
+    "mcpshield",
+    "mcpshield-pack"
+  ],
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mcpshield/sdk": "0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.2",
+    "vitest": "^2.1.9"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
