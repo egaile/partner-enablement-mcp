@@ -172,8 +172,8 @@ These are demos, not part of the open-core or commercial product line.
 
 ## License
 
-- **`packages/`** — MIT (see [`LICENSE`](LICENSE)). Use it, fork it, sell it, no strings.
-- **`gateway/`**, **`dashboard/`**, **`packages/pack-saas/`** — commercial (see [`LICENSE-COMMERCIAL`](LICENSE-COMMERCIAL)). Evaluation-only reading; modification or redistribution requires a written license.
+- **`packages/`** (gateway-core, cli, sdk, pack-saas) — MIT (see [`LICENSE`](LICENSE)). Use it, fork it, sell it, no strings.
+- **`gateway/`**, **`dashboard/`** — commercial (see [`LICENSE-COMMERCIAL`](LICENSE-COMMERCIAL)). Evaluation-only reading; modification or redistribution requires a written license.
 
 ---
 

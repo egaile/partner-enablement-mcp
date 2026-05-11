@@ -4,6 +4,25 @@
   "description": "MCPShield SaaS / SOC2 baseline industry pack. Reference implementation, ships in OSS core.",
   "license": "MIT",
   "author": "Ed Gaile",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/egaile/partner-enablement-mcp.git",
+    "directory": "packages/pack-saas"
+  },
+  "bugs": {
+    "url": "https://github.com/egaile/partner-enablement-mcp/issues"
+  },
+  "homepage": "https://github.com/egaile/partner-enablement-mcp/tree/main/packages/pack-saas#readme",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "saas",
+    "soc2",
+    "compliance",
+    "industry-pack",
+    "mcpshield",
+    "mcpshield-pack"
+  ],
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

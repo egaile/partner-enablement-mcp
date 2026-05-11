@@ -4,6 +4,23 @@
   "description": "MCPShield CLI — init, start, and manage your MCP security gateway from the terminal.",
   "license": "MIT",
   "author": "Ed Gaile",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/egaile/partner-enablement-mcp.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/egaile/partner-enablement-mcp/issues"
+  },
+  "homepage": "https://github.com/egaile/partner-enablement-mcp/tree/main/packages/cli#readme",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "cli",
+    "gateway",
+    "security",
+    "mcpshield"
+  ],
   "type": "module",
   "main": "dist/index.js",
   "bin": {

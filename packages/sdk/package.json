@@ -4,6 +4,25 @@
   "description": "Plugin SDK for building MCPShield industry packs (PII patterns, policy templates, compliance metadata).",
   "license": "MIT",
   "author": "Ed Gaile",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/egaile/partner-enablement-mcp.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/egaile/partner-enablement-mcp/issues"
+  },
+  "homepage": "https://github.com/egaile/partner-enablement-mcp/tree/main/packages/sdk#readme",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "sdk",
+    "pii",
+    "compliance",
+    "policy",
+    "industry-pack",
+    "mcpshield"
+  ],
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
