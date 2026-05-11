@@ -72,6 +72,10 @@
     "./approval": {
       "types": "./dist/approval/index.d.ts",
       "import": "./dist/approval/index.js"
+    },
+    "./packs": {
+      "types": "./dist/packs/index.d.ts",
+      "import": "./dist/packs/index.js"
     }
   },
   "files": [
@@ -86,6 +90,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@mcpshield/sdk": "0.1.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "better-sqlite3": "^11.5.0",
     "chokidar": "^4.0.1",
