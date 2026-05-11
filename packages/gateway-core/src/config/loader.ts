@@ -112,6 +112,9 @@ export function watchConfig(
 
   const watcher: FSWatcher = chokidar.watch(abs, {
     persistent: true,
+    // Don't fire on the initial `add` when chokidar first discovers the
+    // file — the caller has already loaded it explicitly via loadConfig().
+    ignoreInitial: true,
     awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 },
   });
 
