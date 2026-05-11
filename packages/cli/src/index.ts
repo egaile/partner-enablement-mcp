@@ -60,7 +60,7 @@ mcpshield — open-core MCP security gateway
 
 Usage:
   mcpshield init [--force] [--config <path>]
-  mcpshield start [--config <path>] [--host <host>] [--port <n>] [--auth]
+  mcpshield start [--config <path>] [--host <host>] [--port <n>] [--auth] [--no-watch]
   mcpshield policy lint [--config <path>]
   mcpshield key create [--config <path>] [--name <name>]
   mcpshield audit tail [--limit N] [--follow] [--flagged]
@@ -129,6 +129,7 @@ async function main(): Promise<void> {
           ? Number(args.flags.port)
           : undefined,
         requireAuth: Boolean(args.flags.auth),
+        noWatch: Boolean(args.flags["no-watch"]),
       });
       return;
 
