@@ -1,145 +1,32 @@
-import picomatch from "picomatch";
-import {
-  getPoliciesForTenant,
-  type PolicyRuleRecord,
-} from "../db/queries/policies.js";
-import type { PolicyDecision } from "./types.js";
-import { loadConfig } from "../config.js";
+/**
+ * Cloud-flavored PolicyEngine. Inherits all logic from the gateway-core
+ * implementation; injects the Supabase storage port and reads the cache TTL
+ * from env-driven config.
+ */
 
-interface CacheEntry {
-  rules: PolicyRuleRecord[];
-  expiresAt: number;
+import { PolicyEngine as CorePolicyEngine } from "@mcpshield/gateway-core/policy";
+import { loadConfig } from "../config.js";
+import { SupabaseStorageBackend } from "../storage/supabase.js";
+
+let _defaultBackend: SupabaseStorageBackend | null = null;
+function defaultBackend(): SupabaseStorageBackend {
+  if (!_defaultBackend) _defaultBackend = new SupabaseStorageBackend();
+  return _defaultBackend;
 }
 
-export class PolicyEngine {
-  private cache = new Map<string, CacheEntry>();
-  private cacheTtlMs: number;
-
+export class PolicyEngine extends CorePolicyEngine {
   constructor(cacheTtlMs?: number) {
-    this.cacheTtlMs = cacheTtlMs ?? loadConfig().policyCacheTtlMs;
-  }
-
-  async evaluate(
-    tenantId: string,
-    context: {
-      serverName: string;
-      toolName: string;
-      userId?: string;
-    }
-  ): Promise<PolicyDecision> {
-    const rules = await this.getRules(tenantId);
-
-    // Evaluate rules in priority order (lower = higher priority)
-    for (const rule of rules) {
-      if (this.matchesConditions(rule, context)) {
-        return {
-          action: rule.action,
-          ruleId: rule.id,
-          ruleName: rule.name,
-          modifiers: rule.modifiers ?? {},
-        };
+    let resolvedTtl = cacheTtlMs;
+    if (resolvedTtl === undefined) {
+      try {
+        resolvedTtl = loadConfig().policyCacheTtlMs;
+      } catch {
+        resolvedTtl = 30_000;
       }
     }
-
-    // Default: allow
-    return {
-      action: "allow",
-      ruleId: null,
-      ruleName: null,
-      modifiers: {},
-    };
-  }
-
-  clearCache(tenantId?: string): void {
-    if (tenantId) {
-      this.cache.delete(tenantId);
-    } else {
-      this.cache.clear();
-    }
-  }
-
-  /**
-   * Remove all expired entries from the cache to prevent unbounded growth.
-   */
-  private pruneExpired(): void {
-    const now = Date.now();
-    for (const [key, entry] of this.cache.entries()) {
-      if (entry.expiresAt <= now) {
-        this.cache.delete(key);
-      }
-    }
-  }
-
-  private async getRules(tenantId: string): Promise<PolicyRuleRecord[]> {
-    this.pruneExpired();
-
-    const now = Date.now();
-    const cached = this.cache.get(tenantId);
-
-    if (cached && cached.expiresAt > now) {
-      return cached.rules;
-    }
-
-    const rules = await getPoliciesForTenant(tenantId);
-    this.cache.set(tenantId, {
-      rules,
-      expiresAt: now + this.cacheTtlMs,
+    super({
+      policies: defaultBackend().policies,
+      cacheTtlMs: resolvedTtl,
     });
-
-    return rules;
-  }
-
-  private matchesConditions(
-    rule: PolicyRuleRecord,
-    context: { serverName: string; toolName: string; userId?: string }
-  ): boolean {
-    const { conditions } = rule;
-
-    // Check server match
-    if (conditions.servers && conditions.servers.length > 0) {
-      const matched = conditions.servers.some((pattern) =>
-        picomatch.isMatch(context.serverName, pattern)
-      );
-      if (!matched) return false;
-    }
-
-    // Check tool match
-    if (conditions.tools && conditions.tools.length > 0) {
-      const matched = conditions.tools.some((pattern) =>
-        picomatch.isMatch(context.toolName, pattern)
-      );
-      if (!matched) return false;
-    }
-
-    // Check user match
-    if (conditions.users && conditions.users.length > 0) {
-      if (!context.userId || !conditions.users.includes(context.userId)) {
-        return false;
-      }
-    }
-
-    // Check time window
-    if (conditions.timeWindows && conditions.timeWindows.length > 0) {
-      const now = new Date();
-      const day = now.getDay();
-      const hour = now.getHours();
-
-      const inWindow = conditions.timeWindows.some((window) => {
-        if (window.daysOfWeek && !window.daysOfWeek.includes(day)) {
-          return false;
-        }
-        if (window.startHour !== undefined && hour < window.startHour) {
-          return false;
-        }
-        if (window.endHour !== undefined && hour >= window.endHour) {
-          return false;
-        }
-        return true;
-      });
-
-      if (!inWindow) return false;
-    }
-
-    return true;
   }
 }

@@ -1,73 +1,23 @@
+/**
+ * Cloud ApprovalEngine — thin wrapper around gateway-core's engine,
+ * wired to the SupabaseStorageBackend.
+ *
+ * Re-exports `ApprovalContext` and `ApprovalRequestRecord` (renamed from
+ * the legacy `ApprovalRecord`) so existing routes keep compiling.
+ */
+
 import {
-  createApprovalRequest,
-  getApprovalRequest,
-  getPendingApprovals,
-  approveRequest,
-  rejectRequest,
-  type ApprovalRecord,
-} from "../db/queries/approvals.js";
+  ApprovalEngine as CoreApprovalEngine,
+  type ApprovalContext,
+} from "@mcpshield/gateway-core/approval";
+import type { ApprovalRequestRecord } from "@mcpshield/gateway-core/storage";
+import { SupabaseStorageBackend } from "../storage/supabase.js";
 
-export interface ApprovalContext {
-  correlationId: string;
-  userId: string;
-  serverName: string;
-  toolName: string;
-  params: Record<string, unknown>;
-}
+export type { ApprovalContext };
+export type ApprovalRecord = ApprovalRequestRecord;
 
-export class ApprovalEngine {
-  async requestApproval(
-    tenantId: string,
-    context: ApprovalContext
-  ): Promise<ApprovalRecord> {
-    return createApprovalRequest({
-      tenantId,
-      correlationId: context.correlationId,
-      userId: context.userId,
-      serverName: context.serverName,
-      toolName: context.toolName,
-      params: context.params,
-    });
-  }
-
-  async approve(
-    id: string,
-    tenantId: string,
-    decidedBy: string
-  ): Promise<ApprovalRecord> {
-    return approveRequest(id, tenantId, decidedBy);
-  }
-
-  async reject(
-    id: string,
-    tenantId: string,
-    decidedBy: string
-  ): Promise<ApprovalRecord> {
-    return rejectRequest(id, tenantId, decidedBy);
-  }
-
-  async checkStatus(
-    id: string,
-    tenantId: string
-  ): Promise<ApprovalRecord["status"] | null> {
-    const record = await getApprovalRequest(id, tenantId);
-    if (!record) return null;
-
-    // Check if the pending request has expired
-    if (
-      record.status === "pending" &&
-      new Date(record.expiresAt) < new Date()
-    ) {
-      return "expired";
-    }
-
-    return record.status;
-  }
-
-  async getPending(
-    tenantId: string,
-    options?: { limit?: number; offset?: number }
-  ): Promise<{ data: ApprovalRecord[]; count: number }> {
-    return getPendingApprovals(tenantId, options);
+export class ApprovalEngine extends CoreApprovalEngine {
+  constructor() {
+    super({ approvals: new SupabaseStorageBackend().approvals });
   }
 }

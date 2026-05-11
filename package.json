@@ -1,4 +1,13 @@
 {
   "private": true,
-  "workspaces": ["mcp-server", "web-demo", "gateway", "dashboard"]
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "packs-private/*",
+    "mcp-server",
+    "web-demo",
+    "gateway",
+    "dashboard"
+  ]
 }
+
