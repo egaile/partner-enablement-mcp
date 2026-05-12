@@ -145,17 +145,17 @@ Modifiers: `redactPII`, `redactSecrets`, `maxCallsPerMinute`, `requireMFA`.
 ### Build / test
 
 ```bash
-npm install                                       # all workspaces
+npm install         # all workspaces
 
-npm run --workspace @mcpshield/gateway-core build # tsc
-npm run --workspace @mcpshield/gateway-core test  # vitest
+npm run build       # dependency-ordered: sdk → gateway-core → packs → cli + gateway
+npm test            # vitest across every workspace
 
-npm run --workspace @mcpshield/cli build
-npm run --workspace mcp-security-gateway build
-npm run --workspace mcp-security-gateway test
-
-npm run --workspaces --if-present build           # everything
+# Per-package, when iterating on one:
+npm run --workspace @mcpshield/gateway-core build
+npm run --workspace @mcpshield/gateway-core test
 ```
+
+> `npm run --workspaces --if-present build` doesn't honor dependency order — use the root `npm run build` from a fresh checkout.
 
 ---
 

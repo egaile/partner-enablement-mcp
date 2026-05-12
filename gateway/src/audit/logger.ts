@@ -1,7 +1,8 @@
 /**
  * AuditLogger — cloud-flavored extension of @mcpshield/gateway-core's
- * BaseAuditLogger. Adds Atlassian metadata enrichment and usage-meter
- * billing hooks on top of the generic batched flush.
+ * BaseAuditLogger. Adds usage-meter billing hooks and runs every
+ * registered audit enricher (e.g. the Atlassian enricher contributed by
+ * @mcpshield/pack-atlassian) on top of the generic batched flush.
  *
  * Default constructor wires up the SupabaseStorageBackend for the existing
  * gateway runtime; tests can pass their own audit port for isolation.
@@ -9,20 +10,13 @@
 
 import {
   BaseAuditLogger,
+  applyEnrichers,
   type AuditAppendPort,
   type AuditEntry,
 } from "@mcpshield/gateway-core/audit";
 import { loadConfig } from "../config.js";
-import {
-  enrichAtlassianMetadata,
-  type AtlassianMetadata,
-} from "./atlassian-enricher.js";
 import type { UsageMeter } from "../billing/usage-meter.js";
 import { SupabaseStorageBackend } from "../storage/supabase.js";
-
-export interface EnrichedAuditEntry extends AuditEntry {
-  atlassianMetadata?: AtlassianMetadata;
-}
 
 export interface AuditLoggerOptions {
   audit?: AuditAppendPort;
@@ -64,37 +58,25 @@ export class AuditLogger extends BaseAuditLogger {
   }
 
   /**
-   * Log with Atlassian-aware enrichment.
-   * Extracts project keys, space keys, and operation types from tool params.
+   * Log after running every registered audit enricher (e.g. the
+   * Atlassian enricher contributed by @mcpshield/pack-atlassian).
+   * Each enricher's non-empty result is stored under its namespace in
+   * `threatDetails`.
    */
   logEnriched(
     entry: AuditEntry,
     toolParams?: Record<string, unknown>
   ): void {
     if (toolParams) {
-      const metadata = enrichAtlassianMetadata(entry.toolName, toolParams);
-      if (
-        metadata.projectKey ||
-        metadata.spaceKey ||
-        metadata.operationType !== "unknown"
-      ) {
-        const enriched = {
-          ...entry,
-          threatDetails: {
-            ...((entry.threatDetails as Record<string, unknown>) ?? {}),
-            atlassian: metadata,
-          },
-        };
-        this.log(enriched);
-        return;
-      }
+      this.log(applyEnrichers(entry, toolParams));
+      return;
     }
     this.log(entry);
   }
 
   /**
    * AuditRecorder port override — routes proxy writes through the
-   * Atlassian-aware enrichment path.
+   * enricher pipeline.
    */
   override record(
     entry: AuditEntry,

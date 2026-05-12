@@ -13,10 +13,34 @@ interface ExfilPattern {
  */
 const DEFAULT_EXEMPT_DOMAINS: RegExp[] = [];
 
+/**
+ * Module-level registry of additional exempt domains contributed by
+ * industry packs at boot. The default singleton strategy consults this
+ * registry on every scan, so packs can extend the exempt list without
+ * reconstructing the scanner.
+ */
+const REGISTERED_EXEMPT_DOMAINS: RegExp[] = [];
+
+/**
+ * Register an additional exempt domain pattern. Used by the pack loader
+ * to install `exfiltrationExemptDomains` from industry packs.
+ */
+export function registerExfiltrationExemptDomain(pattern: RegExp): void {
+  REGISTERED_EXEMPT_DOMAINS.push(pattern);
+}
+
+/** Test helper. */
+export function resetExfiltrationExemptDomains(): void {
+  REGISTERED_EXEMPT_DOMAINS.length = 0;
+}
+
 function isExemptUrl(url: string, exempt: RegExp[]): boolean {
   try {
     const hostname = new URL(url).hostname;
-    return exempt.some((re) => re.test(hostname));
+    return (
+      exempt.some((re) => re.test(hostname)) ||
+      REGISTERED_EXEMPT_DOMAINS.some((re) => re.test(hostname))
+    );
   } catch {
     return false;
   }

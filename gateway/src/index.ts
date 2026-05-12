@@ -1,11 +1,23 @@
 import express from "express";
 import helmet from "helmet";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { loadPacks } from "@mcpshield/gateway-core";
 import { loadConfig } from "./config.js";
 import { GatewayProxyEngine } from "./proxy/engine.js";
 import type { AuthenticatedRequest } from "./auth/types.js";
 import { registerRoutes } from "./routes/index.js";
 import type { GatewayState } from "./routes/types.js";
+
+/**
+ * Packs loaded into the cloud build at boot. Pack-atlassian is the
+ * commercial vertical wedge; it contributes the Atlassian injection
+ * scanner, audit enricher, exempt domains, and policy templates that
+ * used to be hard-coded in gateway/src/.
+ *
+ * Mutating this list (or making it env-driven) is the entry point for
+ * future commercial packs.
+ */
+const CLOUD_PACKS: string[] = ["@mcpshield/pack-atlassian"];
 
 /** Sanitize error messages for API responses — strip internal details in production */
 function safeErrorMessage(error: unknown): string {
@@ -47,6 +59,22 @@ process.on("uncaughtException", (error) => {
 
 async function main(): Promise<void> {
   const config = loadConfig();
+
+  // Load commercial packs before constructing any engine — the pack
+  // loader registers scanner strategies, audit enrichers, and exempt
+  // domains into the singletons that the engines consume.
+  const packResult = await loadPacks(CLOUD_PACKS);
+  for (const ok of packResult.loaded) {
+    console.log(
+      `[gateway] Loaded pack ${ok.source} (${ok.pack.scannerStrategies?.length ?? 0} strategies, ${ok.pack.auditEnrichers?.length ?? 0} enrichers, ${ok.pack.policyTemplates.length} templates)`
+    );
+  }
+  for (const fail of packResult.failed) {
+    console.error(
+      `[gateway] Failed to load pack ${fail.source}: ${fail.reason}`
+    );
+  }
+
   const app = express();
 
   // Security headers
