@@ -5,4 +5,10 @@ export {
   type AuditAppendPort,
   type BaseAuditLoggerOptions,
 } from "./logger.js";
+export {
+  registerAuditEnricher,
+  listAuditEnrichers,
+  resetAuditEnrichers,
+  applyEnrichers,
+} from "./enrichers.js";
 export type { AuditEntry } from "../schemas/index.js";

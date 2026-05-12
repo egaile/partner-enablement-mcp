@@ -1,10 +1,19 @@
 import { Router } from "express";
+import {
+  ATLASSIAN_POLICY_TEMPLATES,
+  getAtlassianTemplate,
+} from "@mcpshield/pack-atlassian";
 import { requireAuth } from "../auth/middleware.js";
 import type { AuthenticatedRequest } from "../auth/types.js";
-import { ATLASSIAN_POLICY_TEMPLATES, getAtlassianTemplate } from "../policies/atlassian-templates.js";
 import { createPolicy } from "../db/queries/policies.js";
 import type { GatewayState } from "./types.js";
 
+/**
+ * Templates served by this route come from the loaded commercial Atlassian
+ * pack (`@mcpshield/pack-atlassian`). When more packs land, this route
+ * should iterate `state.loadedPacks` instead of hard-coding the import;
+ * for now the cloud bundles exactly one templates source.
+ */
 export function createTemplatesRouter(state: GatewayState): Router {
   const router = Router();
 

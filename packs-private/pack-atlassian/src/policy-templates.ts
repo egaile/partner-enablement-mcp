@@ -3,27 +3,13 @@
  * Each template maps to a PolicyRuleInput that can be created via the policies API.
  */
 
-export interface AtlassianPolicyTemplate {
-  id: string;
-  name: string;
-  description: string;
-  category: "access" | "security" | "compliance";
-  rules: Array<{
-    name: string;
-    description: string;
-    priority: number;
-    conditions: {
-      servers?: string[];
-      tools?: string[];
-      users?: string[];
-    };
-    action: "allow" | "deny" | "require_approval" | "log_only";
-    modifiers?: {
-      redactPII?: boolean;
-      maxCallsPerMinute?: number;
-    };
-  }>;
-}
+import type { PolicyTemplate } from "@mcpshield/sdk";
+
+/**
+ * @deprecated Kept as an alias for legacy cloud imports. New consumers
+ * should depend on `PolicyTemplate` from `@mcpshield/sdk` directly.
+ */
+export type AtlassianPolicyTemplate = PolicyTemplate;
 
 /**
  * Atlassian Rovo MCP Server tool naming conventions:

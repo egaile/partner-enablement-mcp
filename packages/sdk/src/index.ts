@@ -73,6 +73,51 @@ export interface CompliancePack {
   knowledgeRef?: string;
 }
 
+/**
+ * Threat indicator emitted by a scanner strategy. Mirrors gateway-core's
+ * `ThreatIndicator` so packs don't need to import gateway-core directly.
+ */
+export interface ThreatIndicator {
+  strategy: string;
+  severity: "critical" | "high" | "medium" | "low" | "info";
+  description: string;
+  fieldPath: string;
+  matchedContent?: string;
+}
+
+/**
+ * A scanner strategy contributed by a pack. The gateway runs every
+ * registered strategy against every string in tool params + responses.
+ *
+ * Implementations should be PURE — no I/O, no shared state across calls.
+ * Throwing inside scan() will be caught and reported as a degraded
+ * strategy; the gateway never propagates the error to the client.
+ */
+export interface ScanStrategy {
+  /** Stable identifier shown in audit details. */
+  name: string;
+  scan(input: string, fieldPath: string): ThreatIndicator[];
+}
+
+/**
+ * An audit enricher contributed by a pack. The gateway runs every
+ * registered enricher whenever an audit entry is being recorded for a
+ * tool call and stores the (non-empty) return value on the audit row
+ * under `threatDetails[enricher.namespace]`.
+ *
+ * Use for industry-specific metadata: project keys, ticket numbers,
+ * patient IDs (post-hash), etc.
+ */
+export interface AuditEnricher {
+  /** Stable identifier — also used as the threatDetails sub-key. */
+  namespace: string;
+  /** Return any object; the gateway skips storage if every value is null/undefined. */
+  enrich(
+    toolName: string,
+    params: Record<string, unknown>
+  ): Record<string, unknown> | null;
+}
+
 export interface IndustryPack {
   /** Stable identifier, e.g. "healthcare", "financial", "saas". */
   id: string;
@@ -90,6 +135,23 @@ export interface IndustryPack {
   defaultClassification: DataClassification;
   /** Onboarding copy shown to admins enabling this pack. */
   onboardingCopy?: { headline: string; bullets: string[] };
+  /**
+   * Additional scanner strategies — appended to the gateway-core defaults
+   * (pattern-match, unicode, structural, exfiltration). Use for
+   * domain-specific injection patterns the core scanner doesn't catch.
+   */
+  scannerStrategies?: ScanStrategy[];
+  /**
+   * Audit enrichers run on every recorded entry. Use for industry-specific
+   * metadata (e.g. extracting Jira project keys from tool params).
+   */
+  auditEnrichers?: AuditEnricher[];
+  /**
+   * Hostnames matching these patterns are exempt from URL-exfiltration
+   * flagging. Use for the legitimate endpoints of the systems this pack
+   * targets (e.g. *.atlassian.net for an Atlassian pack).
+   */
+  exfiltrationExemptDomains?: RegExp[];
 }
 
 /**

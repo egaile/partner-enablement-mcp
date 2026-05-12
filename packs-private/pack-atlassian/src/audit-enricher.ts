@@ -4,6 +4,8 @@
  * from tool call parameters to enhance audit log entries.
  */
 
+import type { AuditEnricher } from "@mcpshield/sdk";
+
 export interface AtlassianMetadata {
   /** Jira project key (e.g., "PROJ") extracted from issue keys or params */
   projectKey?: string;
@@ -195,3 +197,28 @@ function extractPageId(
   }
   return undefined;
 }
+
+/**
+ * Pack-shaped `AuditEnricher`. Registered by the pack manifest; the
+ * gateway runs this on every audit-recorded tool call and stores the
+ * result under `threatDetails.atlassian` when any field resolves.
+ */
+export const atlassianAuditEnricher: AuditEnricher = {
+  namespace: "atlassian",
+  enrich(toolName, params) {
+    const metadata = enrichAtlassianMetadata(toolName, params);
+    // Only return when at least one non-default field resolved — the
+    // gateway-core enricher applier skips empty results.
+    if (
+      !metadata.projectKey &&
+      !metadata.issueKey &&
+      !metadata.spaceKey &&
+      !metadata.pageId &&
+      metadata.operationType === "unknown" &&
+      !metadata.isWriteOperation
+    ) {
+      return null;
+    }
+    return metadata as unknown as Record<string, unknown>;
+  },
+};
