@@ -21,6 +21,10 @@ import { runServersList } from "./commands/servers.js";
 import { runPoliciesList } from "./commands/policies.js";
 import { runApprovalsList } from "./commands/approvals.js";
 import { runPacksList } from "./commands/packs.js";
+import {
+  runTemplatesList,
+  runTemplatesApply,
+} from "./commands/templates.js";
 
 const VERSION = "0.1.0";
 
@@ -72,6 +76,8 @@ Usage:
   mcpshield policies list
   mcpshield approvals list [--limit N]
   mcpshield packs list
+  mcpshield templates list [--category access|security|compliance]
+  mcpshield templates apply <id>
   mcpshield --version | --help
 
 Commands:
@@ -88,6 +94,8 @@ Commands:
   policies list    Show enabled policy rules in priority order.
   approvals list   Show pending HITL approval requests.
   packs list       Show configured industry packs (load + introspect).
+  templates list   Show policy templates contributed by loaded packs.
+  templates apply  Upsert a template's rules into the local policy table.
 
 Common flags:
   --config <path>   Path to mcpshield.yaml (default: ./mcpshield.yaml)
@@ -254,6 +262,26 @@ async function main(): Promise<void> {
       }
       console.error(`Unknown subcommand: packs ${sub ?? ""}`);
       console.error("Try: mcpshield packs list");
+      process.exit(1);
+      return;
+
+    case "templates":
+      if (sub === "list") {
+        await runTemplatesList({
+          configPath,
+          category: args.flags.category as string | undefined,
+        });
+        return;
+      }
+      if (sub === "apply") {
+        await runTemplatesApply({
+          configPath,
+          id: args.positional[2],
+        });
+        return;
+      }
+      console.error(`Unknown subcommand: templates ${sub ?? ""}`);
+      console.error("Try: mcpshield templates list|apply <id>");
       process.exit(1);
       return;
 
