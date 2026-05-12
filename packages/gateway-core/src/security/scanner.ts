@@ -33,6 +33,23 @@ export class PromptInjectionScanner {
     this.strategies = strategies ?? defaultStrategies();
   }
 
+  /**
+   * Append a strategy to the scan pipeline. Used by the pack loader to
+   * register pack-contributed strategies at boot.
+   */
+  addStrategy(strategy: ScanStrategy): void {
+    this.strategies.push(strategy);
+  }
+
+  /**
+   * Return the current strategy list. Exposed for introspection (CLI
+   * `packs list`, tests). The returned array is a copy — mutate the
+   * scanner via `addStrategy()`.
+   */
+  listStrategies(): ScanStrategy[] {
+    return [...this.strategies];
+  }
+
   scan(params: Record<string, unknown>): ThreatScanResult {
     const startTime = performance.now();
     const indicators: ThreatIndicator[] = [];
@@ -114,4 +131,12 @@ export function getScanner(): PromptInjectionScanner {
  */
 export function setScanner(scanner: PromptInjectionScanner): void {
   _scanner = scanner;
+}
+
+/**
+ * Append a strategy to the singleton scanner. Called by the pack loader
+ * to install strategies contributed by industry packs at boot.
+ */
+export function registerScanStrategy(strategy: ScanStrategy): void {
+  getScanner().addStrategy(strategy);
 }

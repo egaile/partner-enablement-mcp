@@ -15,6 +15,9 @@
 
 import type { IndustryPack } from "@mcpshield/sdk";
 import { registerPiiPattern } from "../security/pii-scanner.js";
+import { registerScanStrategy } from "../security/scanner.js";
+import { registerExfiltrationExemptDomain } from "../security/strategies/exfiltration.js";
+import { registerAuditEnricher } from "../audit/enrichers.js";
 
 export interface LoadedPack {
   /** The npm package id used to import (e.g. `@mcpshield/pack-healthcare`). */
@@ -57,6 +60,15 @@ export async function loadPacks(
           redactionLabel: p.redactionLabel,
           classification: p.classification,
         });
+      }
+      for (const strategy of pack.scannerStrategies ?? []) {
+        registerScanStrategy(strategy);
+      }
+      for (const enricher of pack.auditEnrichers ?? []) {
+        registerAuditEnricher(enricher);
+      }
+      for (const domain of pack.exfiltrationExemptDomains ?? []) {
+        registerExfiltrationExemptDomain(domain);
       }
       loaded.push({ source: id, pack });
     } catch (err) {

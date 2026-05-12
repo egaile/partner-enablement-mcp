@@ -1,4 +1,4 @@
-import type { ScanStrategy, ThreatIndicator } from "../types.js";
+import type { ScanStrategy, ThreatIndicator } from "@mcpshield/sdk";
 
 interface PatternDef {
   pattern: RegExp;
