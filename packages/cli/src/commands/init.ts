@@ -10,7 +10,7 @@ import { relative } from "node:path";
 import { resolveConfigPath } from "../lib/paths.js";
 
 const STARTER_YAML = `# mcpshield.yaml — open-core MCP security gateway config.
-# Docs: https://github.com/anthropics/mcpshield  (replace with your repo URL)
+# Docs: https://github.com/egaile/partner-enablement-mcp
 
 server:
   host: 127.0.0.1   # bind to loopback by default; set to 0.0.0.0 to expose

@@ -25,6 +25,8 @@ import {
   WebhookDispatcher,
   getScanner,
   loadConfig,
+  loadPacks,
+  watchConfig,
 } from "@mcpshield/gateway-core";
 import { applyConfig } from "../lib/apply-config.js";
 import { resolveConfigPath, resolveDbPath } from "../lib/paths.js";
@@ -38,6 +40,8 @@ export interface StartOptions {
   port?: number;
   /** Enable API-key auth on /mcp. Defaults to false (loopback only). */
   requireAuth?: boolean;
+  /** Disable filesystem watching of mcpshield.yaml. */
+  noWatch?: boolean;
 }
 
 export async function runStart(options: StartOptions = {}): Promise<void> {
@@ -66,6 +70,20 @@ export async function runStart(options: StartOptions = {}): Promise<void> {
   console.log(
     `[mcpshield] Applied ${apply.serversApplied} server(s), ${apply.policiesApplied} policy rule(s)`
   );
+
+  if (config.packs.length > 0) {
+    const packResult = await loadPacks(config.packs);
+    for (const ok of packResult.loaded) {
+      console.log(
+        `[mcpshield] Loaded pack ${ok.source} (${ok.pack.pii.length} PII patterns, ${ok.pack.policyTemplates.length} templates)`
+      );
+    }
+    for (const fail of packResult.failed) {
+      console.error(
+        `[mcpshield] Failed to load pack ${fail.source}: ${fail.reason}`
+      );
+    }
+  }
 
   const auditLogger = new BaseAuditLogger({
     audit: storage.audit,
@@ -123,9 +141,46 @@ export async function runStart(options: StartOptions = {}): Promise<void> {
     allowedOrigins: config.server.allowedOrigins,
   });
 
+  // Hot-reload: watch the config file for changes. On valid reload, apply
+  // servers + policies and clear the policy cache so new rules take effect
+  // immediately. Server reconnects and pack changes still require a
+  // restart — those are noted in the reload log line.
+  const watcher = options.noWatch
+    ? null
+    : watchConfig({ path: configPath }, (next, err) => {
+        if (err) {
+          console.error(`[mcpshield] Config reload failed: ${err.message}`);
+          return;
+        }
+        if (!next) return;
+        void (async () => {
+          try {
+            const result = await applyConfig(next, storage);
+            engine.clearPolicyCache();
+            console.log(
+              `[mcpshield] Reloaded: ${result.serversApplied} server(s), ${result.policiesApplied} policy rule(s); policy cache cleared`
+            );
+            // Server connections + pack registrations only happen at boot.
+            // Surface this so users aren't surprised when those edits
+            // don't appear to take effect.
+            if (next.servers.length > 0 || next.packs.length > 0) {
+              console.log(
+                "[mcpshield]   note: server connections and pack registrations are bound at boot; restart to pick up changes there"
+              );
+            }
+          } catch (e) {
+            console.error("[mcpshield] Reload apply failed:", e);
+          }
+        })();
+      });
+  if (watcher) {
+    console.log(`[mcpshield] Watching ${configPath} for changes`);
+  }
+
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`\n[mcpshield] ${signal} received, shutting down...`);
     try {
+      if (watcher) await watcher.stop();
       await running.close();
       await engine.shutdown();
       await auditLogger.flush();

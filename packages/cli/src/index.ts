@@ -17,6 +17,10 @@ import {
   runWebhookList,
   runWebhookRemove,
 } from "./commands/webhooks.js";
+import { runServersList } from "./commands/servers.js";
+import { runPoliciesList } from "./commands/policies.js";
+import { runApprovalsList } from "./commands/approvals.js";
+import { runPacksList } from "./commands/packs.js";
 
 const VERSION = "0.1.0";
 
@@ -56,7 +60,7 @@ mcpshield — open-core MCP security gateway
 
 Usage:
   mcpshield init [--force] [--config <path>]
-  mcpshield start [--config <path>] [--host <host>] [--port <n>] [--auth]
+  mcpshield start [--config <path>] [--host <host>] [--port <n>] [--auth] [--no-watch]
   mcpshield policy lint [--config <path>]
   mcpshield key create [--config <path>] [--name <name>]
   mcpshield audit tail [--limit N] [--follow] [--flagged]
@@ -64,6 +68,10 @@ Usage:
   mcpshield webhooks add --url <url> --events <a,b,c> [--secret <s>]
   mcpshield webhooks list
   mcpshield webhooks remove <id>
+  mcpshield servers list
+  mcpshield policies list
+  mcpshield approvals list [--limit N]
+  mcpshield packs list
   mcpshield --version | --help
 
 Commands:
@@ -76,6 +84,10 @@ Commands:
   webhooks add     Register a new webhook subscriber.
   webhooks list    Show registered webhooks.
   webhooks remove  Delete a webhook by id.
+  servers list     Show registered downstream MCP servers.
+  policies list    Show enabled policy rules in priority order.
+  approvals list   Show pending HITL approval requests.
+  packs list       Show configured industry packs (load + introspect).
 
 Common flags:
   --config <path>   Path to mcpshield.yaml (default: ./mcpshield.yaml)
@@ -117,6 +129,7 @@ async function main(): Promise<void> {
           ? Number(args.flags.port)
           : undefined,
         requireAuth: Boolean(args.flags.auth),
+        noWatch: Boolean(args.flags["no-watch"]),
       });
       return;
 
@@ -198,6 +211,49 @@ async function main(): Promise<void> {
       }
       console.error(`Unknown subcommand: webhooks ${sub ?? ""}`);
       console.error("Try: mcpshield webhooks add|list|remove");
+      process.exit(1);
+      return;
+
+    case "servers":
+      if (sub === "list") {
+        await runServersList({ configPath });
+        return;
+      }
+      console.error(`Unknown subcommand: servers ${sub ?? ""}`);
+      console.error("Try: mcpshield servers list");
+      process.exit(1);
+      return;
+
+    case "policies":
+      if (sub === "list") {
+        await runPoliciesList({ configPath });
+        return;
+      }
+      console.error(`Unknown subcommand: policies ${sub ?? ""}`);
+      console.error("Try: mcpshield policies list");
+      process.exit(1);
+      return;
+
+    case "approvals":
+      if (sub === "list") {
+        await runApprovalsList({
+          configPath,
+          limit: args.flags.limit ? Number(args.flags.limit) : undefined,
+        });
+        return;
+      }
+      console.error(`Unknown subcommand: approvals ${sub ?? ""}`);
+      console.error("Try: mcpshield approvals list");
+      process.exit(1);
+      return;
+
+    case "packs":
+      if (sub === "list") {
+        await runPacksList({ configPath });
+        return;
+      }
+      console.error(`Unknown subcommand: packs ${sub ?? ""}`);
+      console.error("Try: mcpshield packs list");
       process.exit(1);
       return;
 

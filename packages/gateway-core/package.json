@@ -4,6 +4,27 @@
   "description": "MCPShield Gateway Core — open-source MCP security proxy. Scanners, policy engine, audit, drift detection.",
   "license": "MIT",
   "author": "Ed Gaile",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/egaile/partner-enablement-mcp.git",
+    "directory": "packages/gateway-core"
+  },
+  "bugs": {
+    "url": "https://github.com/egaile/partner-enablement-mcp/issues"
+  },
+  "homepage": "https://github.com/egaile/partner-enablement-mcp/tree/main/packages/gateway-core#readme",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "security",
+    "gateway",
+    "proxy",
+    "policy-engine",
+    "pii",
+    "prompt-injection",
+    "audit",
+    "mcpshield"
+  ],
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -51,6 +72,10 @@
     "./approval": {
       "types": "./dist/approval/index.d.ts",
       "import": "./dist/approval/index.js"
+    },
+    "./packs": {
+      "types": "./dist/packs/index.d.ts",
+      "import": "./dist/packs/index.js"
     }
   },
   "files": [
@@ -65,6 +90,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@mcpshield/sdk": "0.1.0",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "better-sqlite3": "^11.5.0",
     "chokidar": "^4.0.1",
