@@ -8,6 +8,9 @@
     "web-demo",
     "gateway",
     "dashboard"
-  ]
+  ],
+  "scripts": {
+    "build": "npm run -w @mcpshield/sdk build && npm run -w @mcpshield/gateway-core build && npm run -w @mcpshield/pack-saas build && npm run -w @mcpshield/pack-healthcare build && npm run -w @mcpshield/pack-atlassian build && npm run -w @mcpshield/cli build && npm run -w mcp-security-gateway build",
+    "test": "npm run --workspaces --if-present test"
+  }
 }
-

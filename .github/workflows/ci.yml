@@ -34,12 +34,12 @@ jobs:
       - name: Install workspaces
         run: npm ci --no-audit --no-fund
 
-      # The packages have an internal build dependency chain
-      # (sdk → gateway-core → cli + pack-* → gateway). Running --workspaces
-      # build in the right order is handled by npm because each package's
-      # tsc resolves siblings via the workspace symlinks created at install.
-      - name: Build all workspaces
-        run: npm run --workspaces --if-present build
+      # `npm run build` at the root sequences sdk → gateway-core →
+      # packs → cli + gateway. npm doesn't topologically order
+      # `--workspaces run build`, so a naive iteration tries to build
+      # consumers before their dependencies' .d.ts files exist.
+      - name: Build packages (dependency-ordered)
+        run: npm run build
 
       - name: Run tests across all workspaces
-        run: npm run --workspaces --if-present test
+        run: npm test

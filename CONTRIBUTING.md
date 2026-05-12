@@ -27,12 +27,14 @@ git clone https://github.com/egaile/partner-enablement-mcp.git
 cd partner-enablement-mcp
 npm install                             # picks up every workspace
 
-# Build everything in dependency order:
-npm run --workspaces --if-present build
+# Build the packages we care about (dependency-ordered):
+npm run build
 
 # Test everything:
-npm run --workspaces --if-present test
+npm test
 ```
+
+> The root `build` script sequences `sdk → gateway-core → packs → cli + gateway`. `npm run --workspaces --if-present build` does NOT respect topological order — it iterates alphabetically — so a consumer (e.g. `@mcpshield/cli`) may try to type-check before its dependency's `.d.ts` exists. Always go through `npm run build` at the root from a fresh checkout.
 
 Node ≥ 20 is required (CI runs against 20 + 22).
 
