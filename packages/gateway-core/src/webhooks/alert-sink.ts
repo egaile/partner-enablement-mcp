@@ -1,5 +1,5 @@
 /**
- * WebhookAlertSink — adapts WebhookDispatcher to the AlertSink port so
+ * WebhookAlertSink: adapts WebhookDispatcher to the AlertSink port so
  * proxy alerts trigger webhook deliveries automatically.
  *
  * Event names follow the `ALERT_EVENTS` enum. Payloads carry the full

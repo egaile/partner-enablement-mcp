@@ -1,13 +1,13 @@
 /**
- * StorageBackend — pluggable persistence interface for the gateway hot path.
+ * StorageBackend: pluggable persistence interface for the gateway hot path.
  *
  * Scoped narrowly to what the proxy + scanner pipeline + audit + drift
  * detection need at request time. Cloud-only CRUD endpoints (billing, team,
  * dashboard) keep their own query modules in apps/cloud-control-plane.
  *
  * Two reference implementations:
- *   - SqliteStorageBackend — OSS default, runs anywhere
- *   - SupabaseStorageBackend — cloud, multi-tenant with RLS
+ *   - SqliteStorageBackend: OSS default, runs anywhere
+ *   - SupabaseStorageBackend: cloud, multi-tenant with RLS
  */
 
 import type { AuditEntry } from "../schemas/index.js";
@@ -264,7 +264,7 @@ export interface StorageBackend {
      * Read recent audit entries. Used by the CLI (`audit tail`, `alerts
      * list`) and by self-host introspection.
      *
-     * Cloud deployments may throw — the dashboard uses dedicated query
+     * Cloud deployments may throw; the dashboard uses dedicated query
      * routes with richer pagination + filtering.
      */
     list(

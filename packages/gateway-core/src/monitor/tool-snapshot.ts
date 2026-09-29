@@ -2,7 +2,7 @@
  * Tool drift detection.
  *
  * `hashToolDefinition()` is a pure function. `DriftDetector` is a class that
- * holds a reference to the snapshots storage port and exposes `check()` —
+ * holds a reference to the snapshots storage port and exposes `check()`:
  * the hot-path API used by the proxy when the downstream MCP server returns
  * a `tools/list` response.
  *
@@ -60,7 +60,7 @@ export class DriftDetector {
     const currentHash = hashToolDefinition(tool);
     const snapshot = await this.snapshots.get(tenantId, serverId, tool.name);
 
-    // No existing snapshot — auto-approve as the first observation.
+    // No existing snapshot: auto-approve as the first observation.
     if (!snapshot) {
       await this.snapshots.upsert({
         tenantId,

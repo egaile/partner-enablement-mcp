@@ -44,7 +44,7 @@ export interface DownstreamConnection {
 /**
  * Result of running a tool call through the security pipeline.
  *
- * `response` is the message that should be returned to the MCP client —
+ * `response` is the message that should be returned to the MCP client:
  * either the downstream server's response or a gateway-generated block.
  */
 export interface InterceptResult {

@@ -2,11 +2,11 @@
  * HTTP bootstrap for the self-hosted gateway.
  *
  * Wraps the proxy engine in an Express app exposing two endpoints:
- *   - `GET /health` — unauthenticated liveness probe
- *   - `ALL /mcp`   — Streamable HTTP transport for MCP clients, optionally
+ *   - `GET /health`: unauthenticated liveness probe
+ *   - `ALL /mcp`: Streamable HTTP transport for MCP clients, optionally
  *                    gated by API-key auth
  *
- * Multi-tenancy is out of scope here — the engine is bound to the default
+ * Multi-tenancy is out of scope here. The engine is bound to the default
  * tenant created by `SqliteStorageBackend`. Cloud deployments use a different
  * server layer with per-tenant engine multiplexing.
  */
@@ -16,14 +16,16 @@ import express, { type Express, type Request, type Response } from "express";
 import helmet from "helmet";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { Server as HttpServer } from "node:http";
-import type {
-  AuthProvider,
-  GatewayProxyEngine,
+import {
+  AuthError,
+  type AuthProvider,
+  type GatewayProxyEngine,
+  type TenantContext,
 } from "@mcpshield/gateway-core";
 
 export interface HttpServerOptions {
   engine: GatewayProxyEngine;
-  /** Optional AuthProvider — when omitted, /mcp is open (loopback only is recommended). */
+  /** Optional AuthProvider. When omitted, /mcp is open (loopback only is recommended). */
   authProvider?: AuthProvider;
   host: string;
   port: number;
@@ -62,6 +64,12 @@ export async function startHttpServer(
 function buildApp(options: HttpServerOptions): Express {
   const { engine, authProvider, allowedOrigins } = options;
   const transports = new Map<string, StreamableHTTPServerTransport>();
+  // A session id is not a credential: only the caller who opened a session
+  // may keep using it. Undefined owner means /mcp runs without auth.
+  const sessionOwners = new WeakMap<
+    StreamableHTTPServerTransport,
+    string | undefined
+  >();
   const transportLastActivity = new Map<string, number>();
 
   const app = express();
@@ -96,6 +104,7 @@ function buildApp(options: HttpServerOptions): Express {
 
   app.all("/mcp", async (req: Request, res: Response) => {
     try {
+      let sessionContext: TenantContext | undefined;
       if (authProvider) {
         try {
           const principal = await authProvider.authenticate(req.headers);
@@ -105,11 +114,15 @@ function buildApp(options: HttpServerOptions): Express {
             });
             return;
           }
+          sessionContext = {
+            tenantId: principal.tenantId,
+            tenantName: principal.tenantName,
+            userId: principal.userId,
+            userRole: principal.role,
+            plan: principal.plan,
+          };
         } catch (err) {
-          const status =
-            err instanceof Error && "status" in err
-              ? Number((err as { status?: number }).status) || 401
-              : 401;
+          const status = err instanceof AuthError ? err.statusCode : 401;
           res.status(status).json({
             error: err instanceof Error ? err.message : "Unauthorized",
           });
@@ -121,12 +134,16 @@ function buildApp(options: HttpServerOptions): Express {
       if (sessionId && transports.has(sessionId)) {
         transportLastActivity.set(sessionId, Date.now());
         const transport = transports.get(sessionId)!;
+        if (sessionOwners.get(transport) !== sessionContext?.userId) {
+          res.status(403).json({ error: "Session belongs to a different caller" });
+          return;
+        }
         await transport.handleRequest(req, res, req.body);
         return;
       }
 
       if (req.method === "POST") {
-        const sessionServer = engine.createSessionServer();
+        const sessionServer = engine.createSessionServer(sessionContext);
         const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
           enableJsonResponse: true,
@@ -146,6 +163,7 @@ function buildApp(options: HttpServerOptions): Express {
         const sid = transport.sessionId;
         if (sid) {
           transports.set(sid, transport);
+          sessionOwners.set(transport, sessionContext?.userId);
           transportLastActivity.set(sid, Date.now());
         }
       } else {

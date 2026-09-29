@@ -1,12 +1,12 @@
 /**
- * `mcpshield approvals list [--limit N]` — show pending human-in-the-loop
+ * `mcpshield approvals list [--limit N]`: show pending human-in-the-loop
  * approval requests created by `require_approval` policy decisions.
  *
  * Each row shows the id, requesting user, tool, requested timestamp, and
  * the original params (one line, truncated). Approve them by re-running
  * the original tool call with `arguments.__approvalId = <id>`.
  *
- * (CLI approve / reject is intentionally not exposed here yet — approvals
+ * (CLI approve / reject is intentionally not exposed here yet; approvals
  * are a security-sensitive write that should go through an admin UI or
  * REST API with proper attribution.)
  */

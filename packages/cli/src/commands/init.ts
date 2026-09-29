@@ -1,5 +1,5 @@
 /**
- * `mcpshield init` — scaffold a starter `mcpshield.yaml` in the current
+ * `mcpshield init`: scaffold a starter `mcpshield.yaml` in the current
  * directory.
  *
  * Refuses to overwrite an existing file unless `--force` is passed.
@@ -9,7 +9,7 @@ import { existsSync, writeFileSync } from "node:fs";
 import { relative } from "node:path";
 import { resolveConfigPath } from "../lib/paths.js";
 
-const STARTER_YAML = `# mcpshield.yaml — open-core MCP security gateway config.
+const STARTER_YAML = `# mcpshield.yaml: open-core MCP security gateway config.
 # Docs: https://github.com/egaile/partner-enablement-mcp
 
 server:
@@ -27,14 +27,14 @@ packs: []
 
 # Downstream MCP servers to proxy. Removing an entry deletes it on next start.
 servers: []
-  # Example — local stdio server:
+  # Example: local stdio server
   # - id: my-local-server
   #   name: "My Local Server"
   #   transport: stdio
   #   command: node
   #   args: ["./server.js"]
   #
-  # Example — remote HTTP server with bearer token:
+  # Example: remote HTTP server with bearer token
   # - id: linear-mcp
   #   name: "Linear"
   #   transport: http
@@ -43,7 +43,7 @@ servers: []
   #   authHeaders:
   #     Authorization: "Bearer \${LINEAR_TOKEN}"
   #
-  # Example — OAuth 2.1 downstream:
+  # Example: OAuth 2.1 downstream
   # - id: atlassian
   #   name: "Atlassian Rovo"
   #   transport: http
@@ -55,7 +55,7 @@ servers: []
 # Policy rules. Evaluated in priority order; first match wins.
 policies: []
   # - name: "Audit everything"
-  #   description: "SOC2-style baseline — log every tool call"
+  #   description: "SOC2-style baseline: log every tool call"
   #   priority: 1000
   #   conditions:
   #     tools: ["*"]
@@ -64,7 +64,8 @@ policies: []
   # - name: "Deny destructive writes outside business hours"
   #   priority: 500
   #   conditions:
-  #     tools: ["*__delete*", "*__drop*"]
+  #     servers: ["*"]
+  #     tools: ["delete*", "drop*"]   # tool name without the server__ prefix
   #     timeWindows:
   #       - daysOfWeek: [0, 6]      # Sun, Sat
   #   action: deny
@@ -89,6 +90,6 @@ export async function runInit(options: InitOptions = {}): Promise<void> {
   console.log(`Wrote ${relative(process.cwd(), path)}`);
   console.log("");
   console.log("Next steps:");
-  console.log(`  1. Edit ${relative(process.cwd(), path)} — add at least one server.`);
+  console.log(`  1. Edit ${relative(process.cwd(), path)} and add at least one server.`);
   console.log("  2. Run: mcpshield start");
 }

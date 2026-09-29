@@ -68,7 +68,7 @@ describe("WebhookDispatcher", () => {
           webhooks: makePort([webhook({ url })]),
         });
         await dispatcher.dispatch(TENANT, "server_error", { x: 1 });
-        // Should never call fetch — the URL is rejected at the gate.
+        // Should never call fetch; the URL is rejected at the gate.
         expect(fetchMock).not.toHaveBeenCalled();
       });
     }

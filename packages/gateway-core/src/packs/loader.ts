@@ -6,8 +6,8 @@
  * and registers the pack's PII patterns into the gateway's runtime scanner.
  *
  * Policy templates are *exposed* via the returned `LoadedPack[]` but NOT
- * auto-applied — applying templates is an admin decision (dashboard / CLI
- * `templates apply <id>` in a future commit).
+ * auto-applied. Applying templates is an admin decision, made from the
+ * dashboard or with the CLI (`mcpshield templates apply <id>`).
  *
  * Failure mode: a single broken pack logs an error and is skipped; other
  * packs still load. The gateway never refuses to boot because of a pack.

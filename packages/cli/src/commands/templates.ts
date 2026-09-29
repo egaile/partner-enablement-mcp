@@ -26,7 +26,7 @@ export async function runTemplatesList(
 ): Promise<void> {
   const { loaded } = await resolveLoadedPacks(options.configPath);
   if (loaded.length === 0) {
-    console.log("No packs loaded — add packs to mcpshield.yaml under `packs:`.");
+    console.log("No packs loaded. Add packs to mcpshield.yaml under `packs:`.");
     return;
   }
 

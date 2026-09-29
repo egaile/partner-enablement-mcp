@@ -55,7 +55,7 @@ describe("loadPacks", () => {
 
   it("rejects a module whose default export is not an IndustryPack", async () => {
     // Pick any installed module whose default export does NOT match our shape.
-    // Using js-yaml — it has a default export but is not a pack.
+    // Using js-yaml: it has a default export but is not a pack.
     const r = await loadPacks(["js-yaml"]);
     expect(r.loaded).toHaveLength(0);
     expect(r.failed[0].reason).toMatch(/not a valid IndustryPack/);

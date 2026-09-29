@@ -1,5 +1,5 @@
 /**
- * GatewayProxyEngine — composes the proxy subsystem behind a single MCP
+ * GatewayProxyEngine: composes the proxy subsystem behind a single MCP
  * `Server` instance.
  *
  * One engine instance serves one tenant (multi-tenant deployments map
@@ -53,11 +53,14 @@ export interface GatewayProxyEngineOptions {
   /** Advertised on the MCP server handshake. */
   serverName?: string;
   serverVersion?: string;
+  /** See ConnectionManagerOptions.allowStdio. Defaults to true. */
+  allowStdio?: boolean;
 }
 
 export class GatewayProxyEngine {
   private readonly storage: StorageBackend;
   private readonly connectionManager: ConnectionManager;
+  private readonly allowStdio: boolean;
   private readonly interceptor: ToolInterceptor;
   private readonly policyEngine: PolicyEngine;
   private readonly alertSink: AlertSink;
@@ -75,8 +78,10 @@ export class GatewayProxyEngine {
     this.serverName = options.serverName ?? "mcp-security-gateway";
     this.serverVersion = options.serverVersion ?? "0.1.0";
 
+    this.allowStdio = options.allowStdio ?? true;
     this.connectionManager = new ConnectionManager({
       oauthFactory: options.oauthFactory,
+      allowStdio: options.allowStdio,
       clientName: this.serverName,
       clientVersion: this.serverVersion,
     });
@@ -112,19 +117,33 @@ export class GatewayProxyEngine {
    * Create a session-scoped MCP `Server`. Each connecting client gets its
    * own Server, but all sessions share the engine's downstream connections
    * and interceptor.
+   *
+   * Pass the authenticated caller's context so audit entries, per-user
+   * policies, rate limits and approvals are attributed to that session's
+   * user. Without it the engine-wide context from `setTenantContext` is used.
    */
-  createSessionServer(): Server {
+  createSessionServer(sessionContext?: TenantContext): Server {
     const server = new Server(
       { name: this.serverName, version: this.serverVersion },
       { capabilities: { tools: {} } }
     );
 
-    this.registerHandlers(server);
+    this.registerHandlers(server, sessionContext);
     return server;
   }
 
   async connectDownstreamServers(tenantId: string): Promise<void> {
-    const servers = await this.storage.servers.listEnabledForTenant(tenantId);
+    const enabled = await this.storage.servers.listEnabledForTenant(tenantId);
+    // Records created before stdio was turned off stay in storage. Skip them
+    // quietly rather than raising a connection alert every time an engine
+    // starts. ConnectionManager refuses them anyway.
+    const servers = enabled.filter((s) => {
+      if (s.transport !== "stdio" || this.allowStdio) return true;
+      console.warn(
+        `[gateway] Skipping stdio server "${s.name}": stdio is disabled on this gateway`
+      );
+      return false;
+    });
     console.log(
       `[gateway] Connecting to ${servers.length} downstream server(s) for tenant ${tenantId}`
     );
@@ -177,7 +196,7 @@ export class GatewayProxyEngine {
     await this.connectionManager.disconnectAll();
   }
 
-  private registerHandlers(server: Server): void {
+  private registerHandlers(server: Server, sessionContext?: TenantContext): void {
     server.setRequestHandler(ListToolsRequestSchema, async () => {
       const tools: Array<{
         name: string;
@@ -206,7 +225,8 @@ export class GatewayProxyEngine {
     server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
 
-      if (!this.tenantContext) {
+      const tenantContext = sessionContext ?? this.tenantContext;
+      if (!tenantContext) {
         return {
           content: [
             {
@@ -232,7 +252,7 @@ export class GatewayProxyEngine {
       }
 
       const result = await this.interceptor.intercept(
-        this.tenantContext,
+        tenantContext,
         resolved.connection,
         resolved.toolName,
         (args as Record<string, unknown>) ?? {}

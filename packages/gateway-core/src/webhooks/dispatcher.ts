@@ -1,10 +1,10 @@
 /**
- * Webhook dispatcher — HMAC-SHA256 signed JSON POSTs to subscriber URLs.
+ * Webhook dispatcher: HMAC-SHA256 signed JSON POSTs to subscriber URLs.
  *
  * Delivery is fire-and-forget: failures log but never throw back to the
  * caller. Built-in SSRF protection rejects loopback / private / cloud-
  * metadata IPs by default. Self-host dev loops can opt in to loopback
- * delivery via `{ allowLoopback: true }` — useful for piping into a local
+ * delivery via `{ allowLoopback: true }`, useful for piping into a local
  * webhook tester.
  *
  * Header on every delivery:
@@ -46,7 +46,7 @@ export class WebhookDispatcher {
   /**
    * Deliver `payload` to every webhook subscribed to `event`.
    *
-   * Returns when all deliveries have been *initiated* — the HTTP requests
+   * Returns when all deliveries have been *initiated*. The HTTP requests
    * themselves complete in the background. Caller is not expected to await
    * for delivery success.
    */

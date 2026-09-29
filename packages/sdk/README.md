@@ -35,11 +35,11 @@ export default definePack({
 
 ## Reference
 
-- `definePack(pack)` — type-checks and returns the pack
-- `IndustryPack` — full pack interface
-- `PiiPatternDef` — PII pattern with validator + classification
-- `PolicyTemplate` — one-click policy setup
-- `DataClassification` — `'public' | 'internal' | 'confidential' | 'restricted'`
+- `definePack(pack)`: type-checks and returns the pack
+- `IndustryPack`: full pack interface
+- `PiiPatternDef`: PII pattern with validator + classification
+- `PolicyTemplate`: one-click policy setup
+- `DataClassification`: `'public' | 'internal' | 'confidential' | 'restricted'`
 
 ## License
 

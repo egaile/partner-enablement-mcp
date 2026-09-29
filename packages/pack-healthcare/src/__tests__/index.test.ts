@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+// picomatch is what the gateway-core policy engine uses to match tool globs.
+// It is hoisted from @mcpshield/gateway-core; this test only needs it at runtime.
+import picomatch from "picomatch";
 import healthcare from "../index.js";
 
 describe("@mcpshield/pack-healthcare", () => {
@@ -35,7 +38,7 @@ describe("@mcpshield/pack-healthcare", () => {
     });
 
     it("rejects an NPI with a wrong check digit", () => {
-      // Same digits but the last one flipped — Luhn must reject.
+      // Same digits but the last one flipped. Luhn must reject.
       expect(findNpi().validator!("1234567890")).toBe(false);
     });
 
@@ -103,8 +106,39 @@ describe("@mcpshield/pack-healthcare", () => {
       )!;
       expect(tpl.rules[0].action).toBe("require_approval");
       const tools = tpl.rules[0].conditions.tools!;
-      expect(tools).toContain("*__edit*");
-      expect(tools).toContain("*__delete*");
+      expect(tools).toContain("edit*");
+      expect(tools).toContain("delete*");
+    });
+
+    it("'Approval for clinical writes' globs match real Rovo write tools, not reads", () => {
+      // The policy engine matches tool globs against the downstream tool name
+      // (no "server__" prefix), so these are the names the rule actually sees.
+      const tools = healthcare.policyTemplates.find(
+        (t) => t.id === "hipaa_approval_for_writes"
+      )!.rules[0].conditions.tools!;
+      const matches = (name: string) =>
+        tools.some((pattern) => picomatch.isMatch(name, pattern));
+
+      for (const write of [
+        "editJiraIssue",
+        "addCommentToJiraIssue",
+        "createJiraIssue",
+        "createConfluencePage",
+        "updateConfluencePage",
+        "transitionJiraIssue",
+      ]) {
+        expect(matches(write), write).toBe(true);
+      }
+      for (const read of [
+        "getJiraIssue",
+        "searchJiraIssuesUsingJql",
+        "getConfluencePage",
+        "getAccessibleAtlassianResources",
+        // The prefixed form never reaches the matcher.
+        "atlassian-rovo__getJiraIssue",
+      ]) {
+        expect(matches(read), read).toBe(false);
+      }
     });
 
     it("'Audit Everything' logs all tools", () => {

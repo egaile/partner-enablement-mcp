@@ -1,7 +1,7 @@
 {
   "name": "@mcpshield/cli",
   "version": "0.1.0",
-  "description": "MCPShield CLI — init, start, and manage your MCP security gateway from the terminal.",
+  "description": "MCPShield CLI: init, start, and manage your MCP security gateway from the terminal.",
   "license": "MIT",
   "author": "Ed Gaile",
   "repository": {

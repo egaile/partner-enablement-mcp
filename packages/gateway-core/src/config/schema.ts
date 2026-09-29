@@ -1,5 +1,5 @@
 /**
- * Zod schema for `mcpshield.yaml` — the OSS config-as-code source of truth.
+ * Zod schema for `mcpshield.yaml`, the OSS config-as-code source of truth.
  *
  * Cloud users define the same concepts via the dashboard (which writes to the
  * Supabase StorageBackend); OSS users define them in YAML and the loader
@@ -10,7 +10,7 @@ import { z } from "zod";
 
 const ServerConfig = z
   .object({
-    id: z.string().min(1).describe("Stable identifier — used as upsert key"),
+    id: z.string().min(1).describe("Stable identifier, used as upsert key"),
     name: z.string().min(1).optional().describe("Human-readable name; defaults to id"),
     transport: z.enum(["stdio", "http"]),
     command: z.string().optional(),

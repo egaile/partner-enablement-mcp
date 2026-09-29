@@ -1,5 +1,5 @@
 /**
- * ConnectionManager — owns the live MCP client connections to every downstream
+ * ConnectionManager: owns the live MCP client connections to every downstream
  * server registered for a tenant.
  *
  * Responsibilities:
@@ -8,7 +8,7 @@
  *   - Discover the downstream `tools/list` at connect time
  *   - Resolve `serverName__toolName` lookups back to the originating connection
  *
- * Server records are read-only here — persistence of OAuth tokens belongs to
+ * Server records are read-only here. Persistence of OAuth tokens belongs to
  * whichever provider the OAuthProviderFactory returns.
  */
 
@@ -26,18 +26,26 @@ export interface ConnectionManagerOptions {
   /** Client identification advertised on the MCP handshake. */
   clientName?: string;
   clientVersion?: string;
+  /**
+   * Whether stdio servers may be spawned. Defaults to true for self-host. A
+   * multi-tenant deployment must pass false: a stdio record is an arbitrary
+   * command run inside the gateway process's environment.
+   */
+  allowStdio?: boolean;
 }
 
 export class ConnectionManager {
   private connections = new Map<string, DownstreamConnection>();
   private serverRecords = new Map<string, McpServerRecord>();
-  /** OAuth providers keyed by serverId — reused across reconnects. */
+  /** OAuth providers keyed by serverId, reused across reconnects. */
   private oauthProviders = new Map<string, OAuthClientProvider>();
   private readonly oauthFactory: OAuthProviderFactory | undefined;
   private readonly clientName: string;
   private readonly clientVersion: string;
+  private readonly allowStdio: boolean;
 
   constructor(options: ConnectionManagerOptions = {}) {
+    this.allowStdio = options.allowStdio ?? true;
     this.oauthFactory = options.oauthFactory;
     this.clientName = options.clientName ?? "mcp-security-gateway";
     this.clientVersion = options.clientVersion ?? "0.1.0";
@@ -65,6 +73,11 @@ export class ConnectionManager {
 
     let transport;
     if (server.transport === "stdio") {
+      if (!this.allowStdio) {
+        throw new Error(
+          `Server "${server.name}" uses stdio, which is disabled on this gateway`
+        );
+      }
       if (!server.command) {
         throw new Error(
           `Server "${server.name}" configured for stdio but missing command`

@@ -207,7 +207,7 @@ export const atlassianAuditEnricher: AuditEnricher = {
   namespace: "atlassian",
   enrich(toolName, params) {
     const metadata = enrichAtlassianMetadata(toolName, params);
-    // Only return when at least one non-default field resolved — the
+    // Only return when at least one non-default field resolved; the
     // gateway-core enricher applier skips empty results.
     if (
       !metadata.projectKey &&

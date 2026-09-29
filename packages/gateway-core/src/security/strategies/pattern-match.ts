@@ -41,7 +41,7 @@ const INJECTION_PATTERNS: PatternDef[] = [
     description: "Attempts role injection via pretense",
   },
   {
-    pattern: /switch\s+to\s+.*mode/i,
+    pattern: /switch\s+to\s+[^\n]{0,80}?mode/i,
     severity: "high",
     description: "Attempts to change operational mode",
   },

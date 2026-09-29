@@ -15,7 +15,9 @@ const ATLASSIAN_PATTERNS: PatternDef[] = [
   // === Jira Issue Injection ===
   // Malicious instructions embedded in issue descriptions/comments
   {
-    pattern: /(?:^|\n)\s*(?:@ai|@agent|@assistant|@claude|@copilot)\s*[:\-]\s*/im,
+    // `[ \t]*` rather than `\s*`: `\s` crosses newlines, which made this
+    // quadratic on long runs of blank lines.
+    pattern: /^[ \t]*(?:@ai|@agent|@assistant|@claude|@copilot)[ \t]*[:\-]/im,
     severity: "high",
     description: "Atlassian: AI agent directive embedded in content",
   },
@@ -35,22 +37,8 @@ const ATLASSIAN_PATTERNS: PatternDef[] = [
     description: "Atlassian: Explicit hidden instruction for AI agents",
   },
 
-  // === Invisible/Hidden Content in Jira/Confluence ===
-  {
-    pattern: /\{color:#(?:ffffff|FFFFFF)\}[\s\S]+?\{color\}/,
-    severity: "high",
-    description: "Atlassian: White-text hiding in Confluence color macro",
-  },
-  {
-    pattern: /\{html\}[\s\S]*?(?:display\s*:\s*none|visibility\s*:\s*hidden|font-size\s*:\s*0|opacity\s*:\s*0)[\s\S]*?\{html\}/i,
-    severity: "critical",
-    description: "Atlassian: Hidden content via CSS in Confluence HTML macro",
-  },
-  {
-    pattern: /<!--[\s\S]*?(?:ignore|disregard|override|instruction|system\s+prompt)[\s\S]*?-->/i,
-    severity: "high",
-    description: "Atlassian: Injection payload hidden in HTML comments",
-  },
+  // Hidden-content and macro rules (color, html, comments, panel, expand,
+  // noformat) are block rules; see ATLASSIAN_BLOCK_RULES below.
 
   // === JQL Injection ===
   {
@@ -81,23 +69,6 @@ const ATLASSIAN_PATTERNS: PatternDef[] = [
     description: "Atlassian: Data exfiltration instruction in Jira context",
   },
 
-  // === Confluence Page Injection ===
-  {
-    pattern: /\{panel(?::title=[^}]*)?\}[\s\S]*?(?:ignore\s+previous|system\s+prompt|override\s+instruction)[\s\S]*?\{panel\}/i,
-    severity: "critical",
-    description: "Atlassian: Injection hidden in Confluence panel macro",
-  },
-  {
-    pattern: /\{expand(?::title=[^}]*)?\}[\s\S]*?(?:ignore|disregard|override)[\s\S]*?\{expand\}/i,
-    severity: "high",
-    description: "Atlassian: Injection hidden in Confluence expand macro",
-  },
-  {
-    pattern: /\{noformat\}[\s\S]*?(?:\[SYSTEM\]|\[INST\]|<<SYS>>|<\|im_start\|>)[\s\S]*?\{noformat\}/i,
-    severity: "critical",
-    description: "Atlassian: LLM delimiters hidden in Confluence noformat block",
-  },
-
   // === Atlassian API Abuse ===
   {
     pattern: /(?:create|update|delete|transition)\s+(?:all|every|multiple)\s+(?:issues?|tickets?|pages?|stories|epics?)\s+(?:in|across|for)\s+/i,
@@ -125,6 +96,112 @@ const ATLASSIAN_PATTERNS: PatternDef[] = [
   },
 ];
 
+/**
+ * Block rules: an opening tag, the matching closing tag, and (optionally) a
+ * keyword somewhere between them. These run in code rather than as one regex.
+ * A single regex either backtracks quadratically on unclosed or repeated tags,
+ * or has to stop at loose tokens, which lets `<!-- payload <!-- -->` or a
+ * stray `{expanded}` slip through. `findBlock` is linear and matches the real
+ * closing tag.
+ */
+interface BlockRuleDef {
+  /** Global regex for the opening tag. Keep it free of unbounded gaps. */
+  open: RegExp;
+  /**
+   * For macros with parameters (`{panel:title=...}`): `open` matches only the
+   * name, and the block body starts after the next `}`.
+   */
+  paramsEndAtBrace?: boolean;
+  /** Global regex for the closing tag. */
+  close: RegExp;
+  /** Tested against the text between the tags. Omit to flag any non-empty block. */
+  keywords?: RegExp;
+  severity: ThreatIndicator["severity"];
+  description: string;
+}
+
+const ATLASSIAN_BLOCK_RULES: BlockRuleDef[] = [
+  {
+    open: /\{color:#(?:ffffff|FFFFFF)\}/g,
+    close: /\{color\}/g,
+    severity: "high",
+    description: "Atlassian: White-text hiding in Confluence color macro",
+  },
+  {
+    open: /\{html\}/gi,
+    close: /\{html\}/gi,
+    keywords: /display\s*:\s*none|visibility\s*:\s*hidden|font-size\s*:\s*0|opacity\s*:\s*0/i,
+    severity: "critical",
+    description: "Atlassian: Hidden content via CSS in Confluence HTML macro",
+  },
+  {
+    open: /<!--/g,
+    close: /-->/g,
+    keywords: /ignore|disregard|override|instruction|system\s+prompt/i,
+    severity: "high",
+    description: "Atlassian: Injection payload hidden in HTML comments",
+  },
+  {
+    open: /\{panel(?=[:}])/gi,
+    paramsEndAtBrace: true,
+    close: /\{panel\}/gi,
+    keywords: /ignore\s+previous|system\s+prompt|override\s+instruction/i,
+    severity: "critical",
+    description: "Atlassian: Injection hidden in Confluence panel macro",
+  },
+  {
+    open: /\{expand(?=[:}])/gi,
+    paramsEndAtBrace: true,
+    close: /\{expand\}/gi,
+    keywords: /ignore|disregard|override/i,
+    severity: "high",
+    description: "Atlassian: Injection hidden in Confluence expand macro",
+  },
+  {
+    open: /\{noformat\}/gi,
+    close: /\{noformat\}/gi,
+    keywords: /\[SYSTEM\]|\[INST\]|<<SYS>>|<\|im_start\|>/i,
+    severity: "critical",
+    description: "Atlassian: LLM delimiters hidden in Confluence noformat block",
+  },
+];
+
+/**
+ * Returns the first opener..closer span whose body matches the rule, or null.
+ * Linear: each closer is searched for once, and when a body has no keyword,
+ * every later opener before that closer is skipped (its body is a suffix of
+ * the one just checked, so it can't contain a keyword either).
+ */
+export function findBlock(input: string, rule: BlockRuleDef): string | null {
+  const open = new RegExp(rule.open.source, rule.open.flags);
+  const close = new RegExp(rule.close.source, rule.close.flags);
+  let closer: { index: number; end: number } | null = null;
+  let brace = -1;
+
+  for (let m = open.exec(input); m; m = open.exec(input)) {
+    let bodyStart = m.index + m[0].length;
+    if (rule.paramsEndAtBrace) {
+      // Cached like the closer: positions only move forward.
+      if (brace < bodyStart) brace = input.indexOf("}", bodyStart);
+      if (brace === -1) return null;
+      bodyStart = brace + 1;
+    }
+    if (!closer || closer.index < bodyStart) {
+      close.lastIndex = bodyStart;
+      const c = close.exec(input);
+      // No closer after this opener means none after any later opener.
+      if (!c) return null;
+      closer = { index: c.index, end: c.index + c[0].length };
+    }
+    const body = input.slice(bodyStart, closer.index);
+    const hit = rule.keywords ? rule.keywords.test(body) : body.length > 0;
+    if (hit) return input.slice(m.index, closer.end);
+    // The closer itself may open the next block (same-token tags like {html}).
+    open.lastIndex = Math.max(open.lastIndex, closer.index);
+  }
+  return null;
+}
+
 export class AtlassianInjectionStrategy implements ScanStrategy {
   name = "atlassian_injection";
 
@@ -140,6 +217,19 @@ export class AtlassianInjectionStrategy implements ScanStrategy {
           description,
           fieldPath,
           matchedContent: match[0].substring(0, 100),
+        });
+      }
+    }
+
+    for (const rule of ATLASSIAN_BLOCK_RULES) {
+      const block = findBlock(input, rule);
+      if (block !== null) {
+        indicators.push({
+          strategy: this.name,
+          severity: rule.severity,
+          description: rule.description,
+          fieldPath,
+          matchedContent: block.substring(0, 100),
         });
       }
     }

@@ -1,5 +1,5 @@
 /**
- * `mcpshield policies list` — show enabled policy rules for the default
+ * `mcpshield policies list`: show enabled policy rules for the default
  * tenant in priority order. Reads from SqliteStorageBackend.policies.
  *
  * Sister to `policy lint` (which validates the YAML file without touching

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * @mcpshield/cli — entrypoint
+ * @mcpshield/cli entrypoint
  *
- * Tiny hand-rolled argv parser. No commander/yargs dep — the surface is
+ * Tiny hand-rolled argv parser. No commander/yargs dep; the surface is
  * small enough that a switch statement is clearer than a framework.
  */
 
@@ -60,7 +60,7 @@ function parseArgs(argv: string[]): ParsedArgs {
 
 function usage(): void {
   console.log(`
-mcpshield — open-core MCP security gateway
+mcpshield: open-core MCP security gateway
 
 Usage:
   mcpshield init [--force] [--config <path>]
@@ -102,7 +102,7 @@ Common flags:
   --version, -v     Print version
   --help, -h        Show this help
 
-Docs: https://github.com/anthropics/mcpshield   (replace with your repo URL)
+Docs: https://github.com/egaile/partner-enablement-mcp
 `);
 }
 

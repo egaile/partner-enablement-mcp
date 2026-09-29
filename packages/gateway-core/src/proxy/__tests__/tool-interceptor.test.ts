@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ToolInterceptor, APPROVAL_ID_FIELD } from "../tool-interceptor.js";
+import {
+  ToolInterceptor,
+  APPROVAL_ID_FIELD,
+  APPROVAL_EXECUTION_WINDOW_MS,
+} from "../tool-interceptor.js";
 import { PolicyEngine, type PoliciesPort } from "../../policy/engine.js";
 import {
   DriftDetector,
@@ -258,6 +262,20 @@ describe("ToolInterceptor", () => {
       expect(recorder.entries[0].policyDecision).toBe("allow");
       expect(recorder.entries[0].success).toBe(true);
     });
+
+    it("strips a stray approval marker before forwarding", async () => {
+      const { interceptor } = buildInterceptor({});
+
+      await interceptor.intercept(tenant(), conn, "doThing", {
+        x: 1,
+        [APPROVAL_ID_FIELD]: "approval-whatever",
+      });
+
+      expect(conn.client.callTool).toHaveBeenCalledWith({
+        name: "doThing",
+        arguments: { x: 1 },
+      });
+    });
   });
 
   describe("policy: deny", () => {
@@ -428,13 +446,15 @@ describe("ToolInterceptor", () => {
 
       expect(r.allowed).toBe(false);
       expect(r.response?.content[0].text).toMatch(/still pending/i);
-      // Quiet the unused warning on engine — it's been driven via interceptor.
+      // Quiet the unused warning on engine; it's been driven via interceptor.
       void approvalEngine;
     });
 
     it("retry with approved id: strips marker and forwards", async () => {
       const { interceptor, approvalEngine } = setupApprovalScenario();
-      const first = await interceptor.intercept(tenant(), conn, "doThing", {});
+      const first = await interceptor.intercept(tenant(), conn, "doThing", {
+        x: 42,
+      });
       const id = first.response!.content[0].text.match(
         /approval id: (\S+)/
       )![1];
@@ -452,6 +472,188 @@ describe("ToolInterceptor", () => {
         name: "doThing",
         arguments: { x: 42 },
       });
+    });
+
+    it("approved id reused with different arguments: blocks", async () => {
+      const { interceptor, approvalEngine } = setupApprovalScenario();
+      const first = await interceptor.intercept(tenant(), conn, "doThing", {
+        x: 1,
+      });
+      const id = first.response!.content[0].text.match(
+        /approval id: (\S+)/
+      )![1];
+      await approvalEngine.approve(id, TENANT_ID, "admin");
+
+      const r = await interceptor.intercept(tenant(), conn, "doThing", {
+        x: 999,
+        [APPROVAL_ID_FIELD]: id,
+      });
+
+      expect(r.allowed).toBe(false);
+      expect(r.response?.content[0].text).toMatch(/different arguments/i);
+      expect(conn.client.callTool).not.toHaveBeenCalled();
+    });
+
+    it("approved id matches arguments regardless of object key order", async () => {
+      // Stored params can come back from JSONB with keys reordered.
+      const { interceptor, approvalEngine } = setupApprovalScenario();
+      const first = await interceptor.intercept(tenant(), conn, "doThing", {
+        a: 1,
+        nested: { y: [1, { q: true, p: null }], x: "s" },
+      });
+      const id = first.response!.content[0].text.match(
+        /approval id: (\S+)/
+      )![1];
+      await approvalEngine.approve(id, TENANT_ID, "admin");
+
+      const reordered = await interceptor.intercept(tenant(), conn, "doThing", {
+        [APPROVAL_ID_FIELD]: id,
+        nested: { x: "s", y: [1, { p: null, q: true }] },
+        a: 1,
+      });
+      expect(reordered.allowed).toBe(true);
+
+      // Array order is significant, so a reordered array is a different call.
+      const swapped = await interceptor.intercept(tenant(), conn, "doThing", {
+        [APPROVAL_ID_FIELD]: id,
+        a: 1,
+        nested: { x: "s", y: [{ p: null, q: true }, 1] },
+      });
+      expect(swapped.allowed).toBe(false);
+      expect(swapped.response?.content[0].text).toMatch(/different arguments/i);
+    });
+
+    it("approved before the request TTL, used after it: still works within the window", async () => {
+      const { interceptor, approvalEngine } = setupApprovalScenario();
+      const first = await interceptor.intercept(tenant(), conn, "doThing", {
+        x: 1,
+      });
+      const id = first.response!.content[0].text.match(
+        /approval id: (\S+)/
+      )![1];
+      await approvalEngine.approve(id, TENANT_ID, "admin");
+      const rec = (await approvalEngine.get(id, TENANT_ID))!;
+      rec.decidedAt = new Date(Date.now() - 120_000).toISOString();
+      rec.expiresAt = new Date(Date.now() - 60_000).toISOString();
+
+      const r = await interceptor.intercept(tenant(), conn, "doThing", {
+        x: 1,
+        [APPROVAL_ID_FIELD]: id,
+      });
+
+      expect(r.allowed).toBe(true);
+    });
+
+    it("approved after the request had already expired: blocked", async () => {
+      const { interceptor, approvalEngine } = setupApprovalScenario();
+      const first = await interceptor.intercept(tenant(), conn, "doThing", {
+        x: 1,
+      });
+      const id = first.response!.content[0].text.match(
+        /approval id: (\S+)/
+      )![1];
+      await approvalEngine.approve(id, TENANT_ID, "admin");
+      const rec = (await approvalEngine.get(id, TENANT_ID))!;
+      rec.expiresAt = new Date(Date.now() - 60_000).toISOString();
+
+      const r = await interceptor.intercept(tenant(), conn, "doThing", {
+        x: 1,
+        [APPROVAL_ID_FIELD]: id,
+      });
+
+      expect(r.allowed).toBe(false);
+      expect(r.response?.content[0].text).toMatch(/expired/i);
+    });
+
+    it("matches arguments that went through a JSON round trip (Supabase jsonb)", async () => {
+      const { interceptor, approvalEngine } = setupApprovalScenario();
+      const args = { issueKey: "HEALTH-1", fields: { summary: "x", labels: ["a", "b"] }, n: 3 };
+      const first = await interceptor.intercept(tenant(), conn, "doThing", args);
+      const id = first.response!.content[0].text.match(
+        /approval id: (\S+)/
+      )![1];
+      await approvalEngine.approve(id, TENANT_ID, "admin");
+      const rec = (await approvalEngine.get(id, TENANT_ID))!;
+      rec.params = JSON.parse(JSON.stringify(rec.params));
+
+      const r = await interceptor.intercept(tenant(), conn, "doThing", {
+        n: 3,
+        fields: { labels: ["a", "b"], summary: "x" },
+        issueKey: "HEALTH-1",
+        [APPROVAL_ID_FIELD]: id,
+      });
+
+      expect(r.allowed).toBe(true);
+    });
+
+    it("rejected approval id: blocks and does not forward", async () => {
+      const { interceptor, approvalEngine } = setupApprovalScenario();
+      const first = await interceptor.intercept(tenant(), conn, "doThing", {
+        x: 1,
+      });
+      const id = first.response!.content[0].text.match(
+        /approval id: (\S+)/
+      )![1];
+      await approvalEngine.reject(id, TENANT_ID, "admin");
+
+      const r = await interceptor.intercept(tenant(), conn, "doThing", {
+        x: 1,
+        [APPROVAL_ID_FIELD]: id,
+      });
+
+      expect(r.allowed).toBe(false);
+      expect(r.response?.content[0].text).toMatch(/was rejected/i);
+      expect(conn.client.callTool).not.toHaveBeenCalled();
+    });
+
+    it("approved record without decidedAt falls back to expiresAt", async () => {
+      const { interceptor, approvalEngine } = setupApprovalScenario();
+      const first = await interceptor.intercept(tenant(), conn, "doThing", {
+        x: 1,
+      });
+      const id = first.response!.content[0].text.match(
+        /approval id: (\S+)/
+      )![1];
+      await approvalEngine.approve(id, TENANT_ID, "admin");
+      const rec = (await approvalEngine.get(id, TENANT_ID))!;
+      rec.decidedAt = null;
+      rec.expiresAt = new Date(Date.now() - 1000).toISOString();
+
+      const blocked = await interceptor.intercept(tenant(), conn, "doThing", {
+        x: 1,
+        [APPROVAL_ID_FIELD]: id,
+      });
+      expect(blocked.allowed).toBe(false);
+
+      rec.expiresAt = new Date(Date.now() + 60_000).toISOString();
+      const allowed = await interceptor.intercept(tenant(), conn, "doThing", {
+        x: 1,
+        [APPROVAL_ID_FIELD]: id,
+      });
+      expect(allowed.allowed).toBe(true);
+    });
+
+    it("approval used after the execution window: blocks", async () => {
+      const { interceptor, approvalEngine } = setupApprovalScenario();
+      const first = await interceptor.intercept(tenant(), conn, "doThing", {
+        x: 1,
+      });
+      const id = first.response!.content[0].text.match(
+        /approval id: (\S+)/
+      )![1];
+      await approvalEngine.approve(id, TENANT_ID, "admin");
+      const rec = (await approvalEngine.get(id, TENANT_ID))!;
+      rec.decidedAt = new Date(
+        Date.now() - APPROVAL_EXECUTION_WINDOW_MS - 1000
+      ).toISOString();
+
+      const r = await interceptor.intercept(tenant(), conn, "doThing", {
+        x: 1,
+        [APPROVAL_ID_FIELD]: id,
+      });
+
+      expect(r.allowed).toBe(false);
+      expect(r.response?.content[0].text).toMatch(/expired/i);
     });
 
     it("approval id from different user: blocks (mismatch)", async () => {

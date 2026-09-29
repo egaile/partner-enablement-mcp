@@ -9,6 +9,8 @@ export {
 } from "./connection-manager.js";
 export {
   ToolInterceptor,
+  APPROVAL_ID_FIELD,
+  APPROVAL_EXECUTION_WINDOW_MS,
   type ToolInterceptorOptions,
 } from "./tool-interceptor.js";
 export {

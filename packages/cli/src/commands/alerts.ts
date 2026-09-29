@@ -1,5 +1,5 @@
 /**
- * `mcpshield alerts list [--limit N]` — show recent flagged audit entries.
+ * `mcpshield alerts list [--limit N]`: show recent flagged audit entries.
  *
  * Self-host has no separate alerts table; "alerts" is just the filtered
  * audit view (threats detected, denials, errors). Cloud has a richer

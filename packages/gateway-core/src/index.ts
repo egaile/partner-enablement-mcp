@@ -1,5 +1,5 @@
 /**
- * @mcpshield/gateway-core — public API surface.
+ * @mcpshield/gateway-core public API surface.
  *
  * Includes:
  *   - Storage abstraction (StorageBackend + SQLite reference impl)

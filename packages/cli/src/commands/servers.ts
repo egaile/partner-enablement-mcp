@@ -1,8 +1,8 @@
 /**
- * `mcpshield servers list` — show downstream MCP servers registered for
+ * `mcpshield servers list`: show downstream MCP servers registered for
  * the default tenant. Reads from SqliteStorageBackend.servers.
  *
- * Only enabled servers are shown — these are the ones the gateway actually
+ * Only enabled servers are shown. These are the ones the gateway actually
  * connects to. Disabled rows are visible in mcpshield.yaml if you need them.
  */
 

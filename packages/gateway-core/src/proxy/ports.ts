@@ -1,5 +1,5 @@
 /**
- * Ports — interfaces the proxy depends on but does not implement.
+ * Ports: interfaces the proxy depends on but does not implement.
  *
  * The cloud control plane injects concrete adapters (CloudAlertSink,
  * CloudBillingGuard, CloudOAuthProviderFactory). Self-host deployments
@@ -28,7 +28,7 @@ export interface AuditRecorder {
 /**
  * Side-channel for security events: alerts, drift, policy violations.
  *
- * Implementations should never throw — the interceptor fires alerts
+ * Implementations should never throw. The interceptor fires alerts
  * fire-and-forget. A failing alert must never block a tool call.
  */
 export interface AlertSink {
@@ -89,7 +89,7 @@ export const noopAlertSink: AlertSink = {
  * underlying sink in parallel; individual failures are caught and logged
  * so one slow / broken sink can't drop alerts for the others.
  *
- * Useful pattern: `chainAlertSinks(cloudAlertSink, webhookAlertSink)` —
+ * Useful pattern: `chainAlertSinks(cloudAlertSink, webhookAlertSink)`.
  * persist the alert AND deliver webhooks on the same event.
  */
 export function chainAlertSinks(...sinks: AlertSink[]): AlertSink {

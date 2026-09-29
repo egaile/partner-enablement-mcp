@@ -1,5 +1,5 @@
 /**
- * `mcpshield audit tail [--limit N] [--follow]` — print recent audit log
+ * `mcpshield audit tail [--limit N] [--follow]`: print recent audit log
  * entries from the local SQLite store.
  *
  * In --follow mode, polls every 2 seconds for entries newer than the last
@@ -82,7 +82,7 @@ function printAuditRow(row: AuditLogRecord): void {
   if (row.responsePiiDetected) flags.push("pii-out");
   if (!row.success) flags.push("error");
   const flagStr = flags.length > 0 ? ` [${flags.join(",")}]` : "";
-  const error = row.errorMessage ? ` — ${row.errorMessage}` : "";
+  const error = row.errorMessage ? `: ${row.errorMessage}` : "";
   console.log(
     `${ts}  ${decision}  ${row.serverName}__${row.toolName}  ${row.latencyMs.toFixed(0)}ms${flagStr}${error}`
   );

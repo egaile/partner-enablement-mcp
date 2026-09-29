@@ -26,7 +26,7 @@ export function listAuditEnrichers(): AuditEnricher[] {
   return [...REGISTERED];
 }
 
-/** Test helper — clear the registry. */
+/** Test helper: clear the registry. */
 export function resetAuditEnrichers(): void {
   REGISTERED.length = 0;
 }
@@ -34,7 +34,7 @@ export function resetAuditEnrichers(): void {
 /**
  * Run every registered enricher against the given tool params; merge the
  * non-empty results into the entry under their respective namespaces.
- * Returns a new entry — never mutates the input.
+ * Returns a new entry and never mutates the input.
  */
 export function applyEnrichers(
   entry: AuditEntry,

@@ -353,6 +353,36 @@ describe("SqliteStorageBackend", () => {
     });
   });
 
+  describe("approvals", () => {
+    const base = {
+      tenantId: TEST_TENANT_ID,
+      correlationId: "c1",
+      userId: "u1",
+      serverName: "srv",
+      toolName: "editThing",
+      params: { x: 1 },
+    };
+
+    it("approves a pending request", async () => {
+      const req = await storage.approvals.create(base);
+      const rec = await storage.approvals.approve(req.id, TEST_TENANT_ID, "admin");
+      expect(rec.status).toBe("approved");
+      expect(rec.decidedBy).toBe("admin");
+    });
+
+    it("won't approve an expired request, but will reject it", async () => {
+      const past = new Date(Date.now() - 60_000).toISOString();
+      const a = await storage.approvals.create({ ...base, expiresAt: past });
+      await expect(
+        storage.approvals.approve(a.id, TEST_TENANT_ID, "admin")
+      ).rejects.toThrow(/expired/);
+
+      const b = await storage.approvals.create({ ...base, correlationId: "c2", expiresAt: past });
+      const rec = await storage.approvals.reject(b.id, TEST_TENANT_ID, "admin");
+      expect(rec.status).toBe("rejected");
+    });
+  });
+
   describe("apiKeys", () => {
     it("findByHash returns null for unknown hash", async () => {
       const key = await storage.apiKeys.findByHash("unknown");

@@ -1,15 +1,17 @@
 /**
- * @mcpshield/pack-healthcare — HIPAA-aligned industry pack.
+ * @mcpshield/pack-healthcare: HIPAA-aligned industry pack.
  *
  * Contributes:
  *   - PII patterns:
  *       npi              National Provider Identifier (10 digits, mod-10 Luhn)
  *       icd10            ICD-10-CM diagnosis codes (e.g. E11.65, J45.909)
  *       dea              DEA registration numbers (AB1234567, mod-checksum)
- *       medical_record   Override of the core MRN pattern with a [PHI:MRN] label
+ *       medical_record   Same regex as the core MRN pattern with a [PHI:MRN] label.
+ *                        Core patterns run first, so core MRN handling wins
+ *                        and this label is not applied in practice.
  *
  *   - Policy templates:
- *       phi_shield                Redact PII on all tool I/O; allow but mark
+ *       phi_shield                Redact PII in tool responses; allow the call
  *       hipaa_audit_everything    Log every tool call for compliance evidence
  *       hipaa_approval_for_writes Require HITL approval for write-shaped tools
  *
@@ -62,7 +64,7 @@ export default definePack({
   id: "healthcare",
   name: "Healthcare (HIPAA)",
   description:
-    "HIPAA-aligned baseline for healthcare-adjacent workloads. Detects NPI, ICD-10, DEA, and PHI-labeled MRNs; ships three drop-in policy templates covering audit, redaction, and clinical-write approvals.",
+    "HIPAA-aligned baseline for healthcare-adjacent workloads. Detects NPI, ICD-10, and DEA numbers (MRNs are covered by the core scanner); ships three drop-in policy templates covering audit, redaction, and clinical-write approvals.",
   pii: [
     {
       type: "npi",
@@ -87,7 +89,9 @@ export default definePack({
       classification: "restricted",
     },
     {
-      // Override the core MRN pattern with a HIPAA-flavored redaction label.
+      // Duplicates the core MRN pattern with a HIPAA-flavored label. Core
+      // patterns run first, so the core MRN match wins and this label is not
+      // applied in practice.
       type: "medical_record",
       pattern: /\bMRN[:\s#-]*\d{4,12}\b/gi,
       redactionLabel: "[PHI:MRN]",
@@ -105,7 +109,7 @@ export default definePack({
         {
           name: "Redact PHI in I/O",
           description:
-            "Scan and redact PHI from all tool inputs and responses",
+            "Redact PHI in tool responses. PII in requests is detected and logged, not redacted.",
           priority: 100,
           conditions: { tools: ["*"] },
           action: "allow",
@@ -133,7 +137,7 @@ export default definePack({
       id: "hipaa_approval_for_writes",
       name: "HIPAA: Approval for clinical writes",
       description:
-        "Block write-shaped tool calls (edit*, update*, delete*, transition*) until an admin approves. Forces a paper trail on PHI mutations.",
+        "Block write-shaped tool calls (create*, add*, edit*, update*, delete*, transition*) until an admin approves. Forces a paper trail on PHI mutations.",
       category: "security",
       rules: [
         {
@@ -142,13 +146,8 @@ export default definePack({
             "Require human-in-the-loop approval for any tool whose name implies a write",
           priority: 50,
           conditions: {
-            tools: [
-              "*__edit*",
-              "*__update*",
-              "*__delete*",
-              "*__transition*",
-              "*__create*",
-            ],
+            // Tool names are matched without the "server__" prefix.
+            tools: ["create*", "add*", "edit*", "update*", "delete*", "transition*"],
           },
           action: "require_approval",
         },
@@ -165,10 +164,10 @@ export default definePack({
   ],
   defaultClassification: "confidential",
   onboardingCopy: {
-    headline: "Healthcare baseline — HIPAA-aligned defaults",
+    headline: "Healthcare baseline: HIPAA-aligned defaults",
     bullets: [
       "Detect NPI, ICD-10, DEA, and MRN in tool inputs and responses",
-      "Redact PHI before it reaches AI transcripts",
+      "Redact PHI in tool responses before it reaches AI transcripts",
       "Require admin approval on clinical write operations",
       "Log everything for §164.312(b) audit-control evidence",
     ],

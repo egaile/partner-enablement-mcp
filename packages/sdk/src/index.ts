@@ -1,5 +1,5 @@
 /**
- * @mcpshield/sdk — Industry Pack SDK
+ * @mcpshield/sdk: Industry Pack SDK
  *
  * A pack is a small npm module that contributes industry-specific PII patterns,
  * policy templates, and compliance metadata to a running MCPShield gateway.
@@ -89,7 +89,7 @@ export interface ThreatIndicator {
  * A scanner strategy contributed by a pack. The gateway runs every
  * registered strategy against every string in tool params + responses.
  *
- * Implementations should be PURE — no I/O, no shared state across calls.
+ * Implementations should be PURE: no I/O, no shared state across calls.
  * Throwing inside scan() will be caught and reported as a degraded
  * strategy; the gateway never propagates the error to the client.
  */
@@ -109,7 +109,7 @@ export interface ScanStrategy {
  * patient IDs (post-hash), etc.
  */
 export interface AuditEnricher {
-  /** Stable identifier — also used as the threatDetails sub-key. */
+  /** Stable identifier, also used as the threatDetails sub-key. */
   namespace: string;
   /** Return any object; the gateway skips storage if every value is null/undefined. */
   enrich(
@@ -136,7 +136,7 @@ export interface IndustryPack {
   /** Onboarding copy shown to admins enabling this pack. */
   onboardingCopy?: { headline: string; bullets: string[] };
   /**
-   * Additional scanner strategies — appended to the gateway-core defaults
+   * Additional scanner strategies, appended to the gateway-core defaults
    * (pattern-match, unicode, structural, exfiltration). Use for
    * domain-specific injection patterns the core scanner doesn't catch.
    */
