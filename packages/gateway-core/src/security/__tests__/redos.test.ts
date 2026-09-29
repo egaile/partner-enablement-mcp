@@ -19,6 +19,7 @@ const ADVERSARIAL: Record<string, string> = {
   imageOpeners: "![".repeat(N / 2),
   codeFences: "```js\n".repeat(N / 6),
   switchTo: "switch to ".repeat(N / 10),
+  switchToSpaces: "switch to" + " ".repeat(N),
   newlines: "\n".repeat(N),
   newlineSpaces: "\n ".repeat(N / 2),
   codeThenLettersAndDots: "import os " + "a.".repeat(N / 2),
@@ -79,6 +80,12 @@ describe("rewritten patterns still detect what they did before", () => {
 
   it("structural doesn't flag code after the fence has closed", () => {
     expect(new StructuralStrategy().scan("```python\n```\neval(x)", "p")).toHaveLength(0);
+  });
+
+  it("pattern-match catches 'switch to ... mode' with a long gap", async () => {
+    const { PatternMatchStrategy } = await import("../strategies/pattern-match.js");
+    const input = "switch to " + "x".repeat(150) + " mode";
+    expect(new PatternMatchStrategy().scan(input, "p").length).toBeGreaterThan(0);
   });
 
   it("structural flags a code fence with Windows line endings", () => {

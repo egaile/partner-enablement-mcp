@@ -16,6 +16,14 @@ import type { GatewayState } from "./types.js";
 export function createDashboardRouter(state: GatewayState): Router {
   const router = Router();
 
+  // Unauthenticated. The dashboard calls this before it hands out a demo
+  // session, so a demo login is only issued if this gateway will force that
+  // user to read-only. It reveals nothing beyond yes/no for one given id.
+  router.get("/api/demo/viewer-check", (req, res) => {
+    const userId = typeof req.query.userId === "string" ? req.query.userId : "";
+    res.json({ viewer: userId !== "" && demoUserIds().has(userId) });
+  });
+
   router.get("/api/me", requireAuth, (req: AuthenticatedRequest, res) => {
     const t = req.tenant!;
     res.json({

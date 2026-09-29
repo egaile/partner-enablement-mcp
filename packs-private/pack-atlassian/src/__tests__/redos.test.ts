@@ -78,3 +78,13 @@ describe("rewritten Atlassian patterns still detect", () => {
     expect(strategy.scan("<!-- ok --> please ignore <!-- x -->", "p")).toHaveLength(0);
   });
 });
+
+describe("@ai directive", () => {
+  const strategy = new AtlassianInjectionStrategy();
+  it.each([" @claude: do x", "　@ai - do x", "@claude\n: do x", "  @agent: do x"])(
+    "detects %j",
+    (input) => {
+      expect(strategy.scan(input, "p").length).toBeGreaterThan(0);
+    }
+  );
+});

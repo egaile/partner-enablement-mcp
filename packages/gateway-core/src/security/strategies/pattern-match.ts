@@ -41,7 +41,10 @@ const INJECTION_PATTERNS: PatternDef[] = [
     description: "Attempts role injection via pretense",
   },
   {
-    pattern: /switch\s+to\s+[^\n]{0,80}?mode/i,
+    // The gap stops at the next "switch", so repeats on one line stay linear.
+    // A single `\s` after "to" (the gap covers any further spaces) avoids
+    // quadratic backtracking over how to split a run of spaces.
+    pattern: /switch\s+to\s(?:(?!switch\s)[^\n])*?mode/i,
     severity: "high",
     description: "Attempts to change operational mode",
   },

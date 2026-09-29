@@ -132,12 +132,13 @@ function buildApp(options: HttpServerOptions): Express {
 
       const sessionId = req.headers["mcp-session-id"] as string | undefined;
       if (sessionId && transports.has(sessionId)) {
-        transportLastActivity.set(sessionId, Date.now());
         const transport = transports.get(sessionId)!;
         if (sessionOwners.get(transport) !== sessionContext?.userId) {
           res.status(403).json({ error: "Session belongs to a different caller" });
           return;
         }
+        // Only the owner keeps the session alive.
+        transportLastActivity.set(sessionId, Date.now());
         await transport.handleRequest(req, res, req.body);
         return;
       }

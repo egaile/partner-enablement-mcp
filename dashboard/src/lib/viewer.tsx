@@ -40,7 +40,7 @@ const ViewerContext = createContext<ViewerState>({
 });
 
 export function ViewerProvider({ children }: { children: React.ReactNode }) {
-  const { getToken, isLoaded, isSignedIn } = useAuth();
+  const { getToken, isLoaded, isSignedIn, userId } = useAuth();
   const [me, setMe] = useState<Me | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -51,6 +51,10 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // Switching accounts without a reload must not keep the previous user's
+    // permissions: start over, read-only, for the new user.
+    setMe(null);
+    setLoaded(false);
     if (!isLoaded || !isSignedIn) return;
     let cancelled = false;
     (async () => {
@@ -71,7 +75,7 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [getToken, isLoaded, isSignedIn, attempt]);
+  }, [getToken, isLoaded, isSignedIn, userId, attempt]);
 
   return (
     // Treat the user as read-only until the gateway says otherwise, and keep

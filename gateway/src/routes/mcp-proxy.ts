@@ -25,12 +25,13 @@ export function createMcpProxyRouter(state: GatewayState): Router {
 
       const sessionId = req.headers["mcp-session-id"] as string | undefined;
       if (sessionId && state.mcpTransports.has(sessionId)) {
-        state.transportLastActivity.set(sessionId, Date.now());
         const transport = state.mcpTransports.get(sessionId)!;
         if (sessionOwners.get(transport) !== ownerKey(req.tenant!)) {
           res.status(403).json({ error: "Session belongs to a different caller" });
           return;
         }
+        // Only the owner keeps the session alive.
+        state.transportLastActivity.set(sessionId, Date.now());
         await transport.handleRequest(req, res, req.body);
         return;
       }

@@ -21,22 +21,50 @@ function redactValues(
   return Object.fromEntries(Object.keys(values).map((k) => [k, "[redacted]"]));
 }
 
-// Credentials never leave the gateway. Key names stay visible so the UI can
-// show which headers/env vars are configured.
+/**
+ * Some providers put credentials in the URL (`user:pass@host`, `?token=...`).
+ * Keep the origin and path, drop userinfo and the fragment, and keep query
+ * parameter names with their values redacted.
+ */
+export function redactUrl(raw: string | null): string | null {
+  if (!raw) return raw;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return "[redacted]";
+  }
+  url.username = "";
+  url.password = "";
+  url.hash = "";
+  for (const key of [...url.searchParams.keys()]) {
+    url.searchParams.set(key, "[redacted]");
+  }
+  return url.toString();
+}
+
+// Credentials never leave the gateway. This is an explicit allowlist, so a new
+// column on McpServerRecord stays private until someone adds it here. Key
+// names of headers/env stay visible so the UI can show what's configured.
+// Token presence is reported by GET /api/servers/:id/oauth/status.
 export function toPublicServer(server: McpServerRecord) {
-  const {
-    oauthClientSecret: _clientSecret,
-    oauthAccessToken: _accessToken,
-    oauthRefreshToken: _refreshToken,
-    oauthCodeVerifier: _codeVerifier,
-    oauthStateNonce: _stateNonce,
-    ...rest
-  } = server;
-  // Token presence is reported by GET /api/servers/:id/oauth/status.
   return {
-    ...rest,
+    id: server.id,
+    tenantId: server.tenantId,
+    name: server.name,
+    transport: server.transport,
+    url: redactUrl(server.url),
     env: redactValues(server.env),
     authHeaders: redactValues(server.authHeaders),
+    enabled: server.enabled,
+    createdAt: server.createdAt,
+    updatedAt: server.updatedAt,
+    authType: server.authType,
+    oauthClientId: server.oauthClientId,
+    oauthTokenExpiresAt: server.oauthTokenExpiresAt,
+    oauthTokenUrl: server.oauthTokenUrl,
+    oauthAuthorizeUrl: server.oauthAuthorizeUrl,
+    oauthScopes: server.oauthScopes,
   };
 }
 

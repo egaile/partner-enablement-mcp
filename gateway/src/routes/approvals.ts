@@ -4,6 +4,7 @@ import type { AuthenticatedRequest } from "../auth/types.js";
 import { VIEWER_ROLE } from "../auth/viewer-access.js";
 import { requireRole } from "../auth/role-guard.js";
 import { ApprovalEngine } from "../approval/engine.js";
+import { getApiKeyCreator } from "../db/queries/api-keys.js";
 import type { GatewayState } from "./types.js";
 
 // The approval gate only means something if the caller it holds back can't
@@ -129,7 +130,12 @@ export function createApprovalsRouter(state: GatewayState): Router {
     if (!record) {
       return { status: 404, error: "Approval request not found." };
     }
-    if (record.userId === userId) {
+    // MCP calls are made with API keys, so the requester is "apikey:<id>".
+    // The person behind that key is whoever created it.
+    const requester = record.userId.startsWith("apikey:")
+      ? await getApiKeyCreator(record.userId.slice("apikey:".length), tenantId)
+      : record.userId;
+    if (requester === userId) {
       return { status: 403, error: "You can't decide an approval request you made." };
     }
     return null;

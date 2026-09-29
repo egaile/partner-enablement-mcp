@@ -29,7 +29,7 @@ vi.mock("../../db/queries/billing.js", () => ({
   getServerCount: vi.fn(async () => 0),
 }));
 
-const { toPublicServer, createServersRouter } = await import("../servers.js");
+const { redactUrl, toPublicServer, createServersRouter } = await import("../servers.js");
 
 function record(overrides: Partial<McpServerRecord> = {}): McpServerRecord {
   return {
@@ -165,5 +165,38 @@ describe("servers router responses", () => {
         expect(text).not.toContain(secret);
       }
     }
+  });
+});
+
+describe("redactUrl", () => {
+  it.each([
+    ["https://mcp.example.com/v1/sse", "https://mcp.example.com/v1/sse"],
+    ["https://user:secret@mcp.example.com/v1", "https://mcp.example.com/v1"],
+    ["https://mcp.example.com/v1?token=abc&org=x", "https://mcp.example.com/v1?token=%5Bredacted%5D&org=%5Bredacted%5D"],
+    ["https://mcp.example.com/v1#key=abc", "https://mcp.example.com/v1"],
+    ["not a url", "[redacted]"],
+  ])("%s", (input, expected) => {
+    expect(redactUrl(input)).toBe(expected);
+  });
+
+  it("keeps null", () => {
+    expect(redactUrl(null)).toBeNull();
+  });
+});
+
+describe("toPublicServer allowlist", () => {
+  it("drops stdio command/args and fields it doesn't know about", () => {
+    const pub = toPublicServer({
+      ...record({}),
+      transport: "stdio",
+      command: "npx",
+      args: ["server", "--api-key=sk_live_123"],
+      url: "https://x.io/mcp?api_key=sk_live_456",
+      futureSecretColumn: "should-not-leak",
+    } as never) as Record<string, unknown>;
+    expect(pub).not.toHaveProperty("command");
+    expect(pub).not.toHaveProperty("args");
+    expect(pub).not.toHaveProperty("futureSecretColumn");
+    expect(JSON.stringify(pub)).not.toContain("sk_live");
   });
 });

@@ -32,6 +32,10 @@ vi.mock("../../approval/engine.js", () => ({
     reject = reject;
   },
 }));
+const getApiKeyCreator = vi.fn(async (_id: string, _tenant: string) => "user_creator");
+vi.mock("../../db/queries/api-keys.js", () => ({
+  getApiKeyCreator: (id: string, tenant: string) => getApiKeyCreator(id, tenant),
+}));
 vi.mock("../../db/queries/servers.js", () => ({ getServersForTenant: vi.fn() }));
 vi.mock("../../db/queries/audit.js", () => ({
   getAuditLogs: vi.fn(),
@@ -256,6 +260,42 @@ describe("deciding an unknown request", () => {
     expect(res.status).toBe(404);
     expect(approve).not.toHaveBeenCalled();
     expect(reject).not.toHaveBeenCalled();
+  });
+});
+
+describe("API-key requests belong to the key's creator", () => {
+  it("the admin who created the key can't approve a call made with it", async () => {
+    approve.mockClear();
+    getApproval.mockResolvedValue({ ...PENDING.data[0], userId: "apikey:k1" });
+    getApiKeyCreator.mockResolvedValueOnce("user_owner");
+    const base = await start(createApprovalsRouter(state));
+    const res = await fetch(`${base}/api/approvals/a1/approve`, { method: "POST" });
+    expect(res.status).toBe(403);
+    expect(getApiKeyCreator).toHaveBeenLastCalledWith("k1", "t1");
+    expect(approve).not.toHaveBeenCalled();
+  });
+
+  it("another admin can approve it", async () => {
+    approve.mockClear();
+    getApproval.mockResolvedValue({ ...PENDING.data[0], userId: "apikey:k1" });
+    getApiKeyCreator.mockResolvedValueOnce("user_someone_else");
+    const base = await start(createApprovalsRouter(state));
+    const res = await fetch(`${base}/api/approvals/a1/approve`, { method: "POST" });
+    expect(res.status).toBe(200);
+  });
+});
+
+describe("GET /api/demo/viewer-check", () => {
+  it("says yes only for configured demo users, without auth", async () => {
+    vi.stubEnv("DEMO_CLERK_USER_IDS", "user_demo");
+    const base = await start(createDashboardRouter(state));
+    const yes = await (await fetch(`${base}/api/demo/viewer-check?userId=user_demo`)).json();
+    const no = await (await fetch(`${base}/api/demo/viewer-check?userId=user_other`)).json();
+    const empty = await (await fetch(`${base}/api/demo/viewer-check`)).json();
+    vi.unstubAllEnvs();
+    expect(yes).toEqual({ viewer: true });
+    expect(no).toEqual({ viewer: false });
+    expect(empty).toEqual({ viewer: false });
   });
 });
 

@@ -108,8 +108,6 @@ The admin dashboard (Next.js) uses a separate set of environment variables:
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL (client-side). | `https://abcdefgh.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (client-side, RLS-protected). | `eyJhbGciOi...` |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key (client-side). | `pk_test_...` |
 | `CLERK_SECRET_KEY` | Clerk secret key (server-side). | `sk_test_...` |
 | `NEXT_PUBLIC_GATEWAY_API_URL` | Base URL of the gateway REST API. | `http://localhost:4000` |

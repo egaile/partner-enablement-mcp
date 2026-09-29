@@ -127,8 +127,6 @@ curl https://gateway-production-b077.up.railway.app/health
 2. Set the **Root Directory** to `dashboard`.
 3. Set the **Build Command** to `npm run build`.
 4. Add environment variables:
-   - `NEXT_PUBLIC_SUPABASE_URL` = your Supabase URL
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = your Supabase anon key
    - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` = your Clerk publishable key
    - `CLERK_SECRET_KEY` = your Clerk secret key
    - `NEXT_PUBLIC_GATEWAY_API_URL` = your Railway gateway URL (e.g., `https://gateway-production-b077.up.railway.app`)

@@ -100,6 +100,10 @@ Unauthenticated. Returns gateway health status.
 
 ## Current user
 
+### GET /api/demo/viewer-check
+
+Unauthenticated. `?userId=<clerk user id>` returns `{ "viewer": true }` only if this gateway forces that user to the `viewer` role (it's listed in `DEMO_CLERK_USER_IDS` or `DEMO_CLERK_USER_ID`). The dashboard calls it before issuing a demo session and refuses if the answer is `false`.
+
 ### GET /api/me
 
 Returns the caller's tenant, user ID and role. The dashboard uses `readOnly` to hide write controls. Allowed for viewers.
@@ -158,8 +162,6 @@ List all registered MCP servers for the authenticated tenant.
       "tenantId": "uuid",
       "name": "my-server",
       "transport": "http",
-      "command": null,
-      "args": null,
       "url": "https://example.com/mcp",
       "env": null,
       "authHeaders": { "Authorization": "[redacted]" },
@@ -179,7 +181,8 @@ List all registered MCP servers for the authenticated tenant.
 
 Fields are camelCase. Every server response (`GET`, `POST` and `PUT`) goes through the same filter:
 
-- `oauthClientSecret`, `oauthAccessToken`, `oauthRefreshToken`, `oauthCodeVerifier` and `oauthStateNonce` are never returned.
+- The response is an allowlist of fields. `oauthClientSecret`, `oauthAccessToken`, `oauthRefreshToken`, `oauthCodeVerifier`, `oauthStateNonce`, `command` and `args` are never returned.
+- `url` has credentials removed: no `user:pass@`, no fragment, and every query parameter value is `"[redacted]"` (names are kept).
 - `env` and `authHeaders` keep their keys, but every value is replaced with `"[redacted]"`, so you can see which variables and headers are set without seeing their values. Both are `null` when nothing is set.
 
 To check whether a server has OAuth tokens, use `GET /api/servers/:id/oauth/status`.
@@ -211,8 +214,6 @@ The hosted gateway only proxies HTTP servers. `"transport": "stdio"` returns `40
     "tenantId": "uuid",
     "name": "my-server",
     "transport": "http",
-    "command": null,
-    "args": null,
     "url": "https://example.com/mcp",
     "env": null,
     "authHeaders": { "Authorization": "[redacted]" },
@@ -575,7 +576,7 @@ Returns `403` when:
 - The caller is a `viewer` (`code: "read_only"`).
 - The caller used an API key: `{ "error": "API keys can't approve or reject requests. Sign in to the dashboard." }`. MCP clients use API keys, so a client can't approve its own blocked call. This check runs before the role check.
 - The caller's role is not `owner` or `admin`: `{ "error": "Insufficient permissions", "required": ["owner", "admin"], "current": "member" }`.
-- The caller is the user who made the request: `{ "error": "You can't decide an approval request you made." }`
+- The caller is the user who made the request: `{ "error": "You can't decide an approval request you made." }`. Requests made over `/mcp` with an API key count as made by the key's creator.
 
 Returns `404` (`{ "error": "Approval request not found." }`) when the ID doesn't exist in your tenant.
 

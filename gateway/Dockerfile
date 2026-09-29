@@ -35,11 +35,12 @@ ENV NODE_ENV=production
 
 # Copy the whole pruned workspace: packages can have their own nested
 # node_modules when versions conflict with the root.
-COPY --from=builder --chown=node:node /app /app
+COPY --from=builder /app /app
 
 WORKDIR /app/gateway
 # node:20-slim ships an unprivileged `node` user. The gateway holds the
-# Supabase service-role key, so don't run it as root.
+# Supabase service-role key, so don't run it as root. Files stay owned by root
+# (readable, not writable) so the process can't rewrite its own code.
 USER node
 EXPOSE 4000
 CMD ["node", "dist/index.js"]

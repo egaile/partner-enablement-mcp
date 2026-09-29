@@ -15,9 +15,10 @@ const ATLASSIAN_PATTERNS: PatternDef[] = [
   // === Jira Issue Injection ===
   // Malicious instructions embedded in issue descriptions/comments
   {
-    // `[ \t]*` rather than `\s*`: `\s` crosses newlines, which made this
+    // `[^\S\r\n]*` is whitespace that doesn't cross a line (so NBSP and
+    // ideographic spaces count). Plain `\s*` crossed newlines and was
     // quadratic on long runs of blank lines.
-    pattern: /^[ \t]*(?:@ai|@agent|@assistant|@claude|@copilot)[ \t]*[:\-]/im,
+    pattern: /^[^\S\r\n]*(?:@ai|@agent|@assistant|@claude|@copilot)\s*[:\-]/im,
     severity: "high",
     description: "Atlassian: AI agent directive embedded in content",
   },
