@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../auth/middleware.js";
 import type { AuthenticatedRequest } from "../auth/types.js";
+import { VIEWER_ROLE, demoUserIds } from "../auth/viewer-access.js";
 import { getServersForTenant } from "../db/queries/servers.js";
 import { getAuditLogs, getAuditMetrics } from "../db/queries/audit.js";
 import { getAlertsForTenant } from "../db/queries/alerts.js";
@@ -9,11 +10,25 @@ import { getPlan } from "../billing/plans.js";
 import type { GatewayState } from "./types.js";
 
 /**
- * Rec 9: Aggregated dashboard endpoint — returns all dashboard data in a single call
+ * Rec 9: Aggregated dashboard endpoint. Returns all dashboard data in a single call
  * instead of requiring 6+ separate API calls from the frontend.
  */
 export function createDashboardRouter(state: GatewayState): Router {
   const router = Router();
+
+  router.get("/api/me", requireAuth, (req: AuthenticatedRequest, res) => {
+    const t = req.tenant!;
+    res.json({
+      tenantId: t.tenantId,
+      tenantName: t.tenantName,
+      userId: t.userId,
+      role: t.userRole,
+      plan: t.plan ?? "starter",
+      readOnly: t.userRole === VIEWER_ROLE,
+      // The shared public demo login, as opposed to a regular read-only user.
+      demo: demoUserIds().has(t.userId),
+    });
+  });
 
   router.get(
     "/api/dashboard/overview",

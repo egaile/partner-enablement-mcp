@@ -1,4 +1,4 @@
-// Re-export shim — types live in @mcpshield/gateway-core.
+// Re-export shim. Types live in @mcpshield/gateway-core.
 export type {
   ScanStrategy,
   ThreatIndicator,

@@ -1,10 +1,10 @@
 /**
- * Cloud gateway scanner — re-exports gateway-core's singleton.
+ * Cloud gateway scanner. Re-exports gateway-core's singleton.
  *
  * Pack-contributed strategies (e.g. the Atlassian injection scanner from
  * @mcpshield/pack-atlassian) are appended to the default core strategies
  * via `registerScanStrategy()` when the pack loads at boot. Same for
- * exfiltration exempt domains — handled by the pack loader.
+ * exfiltration exempt domains are handled by the pack loader.
  *
  * This shim exists only to preserve the import path used by route
  * modules; nothing cloud-specific lives here anymore.

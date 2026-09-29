@@ -97,7 +97,7 @@ export function createOAuthRouter(state: GatewayState): Router {
         const { code, error: oauthError, state: stateParam } = req.query;
 
         if (oauthError) {
-          res.status(400).send(`OAuth error: ${oauthError}`);
+          res.status(400).type("text/plain").send(`OAuth error: ${String(oauthError)}`);
           return;
         }
         if (!code) {
@@ -181,7 +181,7 @@ export function createOAuthRouter(state: GatewayState): Router {
         if (!tokenResponse.ok) {
           const errorBody = await tokenResponse.text().catch(() => "");
           console.error(`[oauth] Token exchange failed (HTTP ${tokenResponse.status}):`, errorBody);
-          res.status(500).send(`Token exchange failed: ${errorBody}`);
+          res.status(500).type("text/plain").send(`Token exchange failed (HTTP ${tokenResponse.status}). Check the gateway logs.`);
           return;
         }
 
@@ -200,7 +200,7 @@ export function createOAuthRouter(state: GatewayState): Router {
           refresh_token: tokenData.refresh_token,
         });
 
-        // Clear the state nonce only after tokens are successfully saved — single use
+        // Clear the state nonce only after tokens are successfully saved (single use)
         await updateServerStateNonce(serverId, tenantId, null);
 
         ServerOAuthProvider.codeVerifiers.delete(serverId);
@@ -224,7 +224,10 @@ export function createOAuthRouter(state: GatewayState): Router {
       } catch (error) {
         const msg = error instanceof Error ? error.message : "Unknown error";
         console.error("[oauth] Callback error:", msg);
-        res.status(500).send(`OAuth callback error: ${msg}`);
+        res
+          .status(500)
+          .type("text/plain")
+          .send(`OAuth callback error: ${state.safeErrorMessage(error)}`);
       }
     }
   );

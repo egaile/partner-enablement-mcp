@@ -14,7 +14,7 @@ const TAG_LENGTH = 16;
 // env var to a unique, high-entropy value per deployment.
 const SALT = process.env.TOKEN_ENCRYPTION_SALT ?? "mcp-gateway-token-salt";
 
-// Cache the derived key at module scope — scryptSync is intentionally slow
+// Cache the derived key at module scope. scryptSync is intentionally slow
 // (~50-200ms) and the result is deterministic for a given env var + salt.
 let _cachedKey: Buffer | null | undefined;
 

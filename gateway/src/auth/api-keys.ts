@@ -61,7 +61,7 @@ export async function verifyApiKey(
 
   // Update last used timestamp (fire-and-forget)
   updateLastUsed(record.id).catch(() => {
-    // Silently ignore — non-critical update
+    // Silently ignore (non-critical update)
   });
 
   return {

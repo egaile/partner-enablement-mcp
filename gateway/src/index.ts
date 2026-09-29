@@ -7,6 +7,7 @@ import { GatewayProxyEngine } from "./proxy/engine.js";
 import type { AuthenticatedRequest } from "./auth/types.js";
 import { registerRoutes } from "./routes/index.js";
 import type { GatewayState } from "./routes/types.js";
+import { jsonBodyExceptStripeWebhook } from "./billing/json-body.js";
 
 /**
  * Packs loaded into the cloud build at boot. Pack-atlassian is the
@@ -19,7 +20,7 @@ import type { GatewayState } from "./routes/types.js";
  */
 const CLOUD_PACKS: string[] = ["@mcpshield/pack-atlassian"];
 
-/** Sanitize error messages for API responses — strip internal details in production */
+/** Sanitize error messages for API responses. Strip internal details in production */
 function safeErrorMessage(error: unknown): string {
   const msg = error instanceof Error ? error.message : "Unknown error";
   if (process.env.NODE_ENV === "production") {
@@ -60,7 +61,7 @@ process.on("uncaughtException", (error) => {
 async function main(): Promise<void> {
   const config = loadConfig();
 
-  // Load commercial packs before constructing any engine — the pack
+  // Load commercial packs before constructing any engine. The pack
   // loader registers scanner strategies, audit enrichers, and exempt
   // domains into the singletons that the engines consume.
   const packResult = await loadPacks(CLOUD_PACKS);
@@ -80,7 +81,7 @@ async function main(): Promise<void> {
   // Security headers
   app.use(helmet({ contentSecurityPolicy: false }));
 
-  // CORS — configurable via ALLOWED_ORIGINS env var
+  // CORS: configurable via ALLOWED_ORIGINS env var
   const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
     .split(",")
     .map((o) => o.trim())
@@ -104,8 +105,8 @@ async function main(): Promise<void> {
     next();
   });
 
-  // Request size limit
-  app.use(express.json({ limit: "1mb" }));
+  // Request size limit (the Stripe webhook parses its own raw body)
+  app.use(jsonBodyExceptStripeWebhook("1mb"));
 
   // Health check (unauthenticated)
   app.get("/health", (_req, res) => {
@@ -119,7 +120,7 @@ async function main(): Promise<void> {
   const engines = new Map<string, GatewayProxyEngine>();
   const mcpTransports = new Map<string, StreamableHTTPServerTransport>();
   const transportLastActivity = new Map<string, number>();
-  // Rec 4: Engine idle timeout — evict engines with no activity for 60 minutes
+  // Rec 4: Engine idle timeout. Evict engines with no activity for 60 minutes
   const ENGINE_IDLE_TTL_MS = 60 * 60 * 1000;
   const engineLastActivity = new Map<string, number>();
   const pendingShutdowns = new Set<Promise<void>>();
@@ -165,7 +166,7 @@ async function main(): Promise<void> {
     }
   }
 
-  // Stale transport cleanup — evict transports with no activity for 30 minutes
+  // Stale transport cleanup: evict transports with no activity for 30 minutes
   const TRANSPORT_TTL_MS = 30 * 60 * 1000;
 
   setInterval(() => {
@@ -182,7 +183,7 @@ async function main(): Promise<void> {
     }
   }, 60_000);
 
-  // Rec 4: Idle engine eviction — shut down engines with no activity
+  // Rec 4: Idle engine eviction. Shut down engines with no activity
   setInterval(() => {
     const now = Date.now();
     for (const [tenantId, lastActive] of engineLastActivity.entries()) {

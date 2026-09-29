@@ -1,7 +1,7 @@
 {
   "name": "mcp-security-gateway",
   "version": "0.1.0",
-  "description": "MCP Security Gateway — transparent proxy for policy enforcement, threat detection, and audit logging",
+  "description": "MCP Security Gateway: transparent proxy for policy enforcement, threat detection, and audit logging",
   "main": "dist/index.js",
   "type": "module",
   "scripts": {

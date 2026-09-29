@@ -1,5 +1,5 @@
 /**
- * CloudBillingGuard — adapts the cloud's `PlanCache` (which reads plan tier
+ * CloudBillingGuard: adapts the cloud's `PlanCache` (which reads plan tier
  * + current usage from Supabase) to the `BillingGuard` port consumed by
  * gateway-core's tool interceptor.
  *

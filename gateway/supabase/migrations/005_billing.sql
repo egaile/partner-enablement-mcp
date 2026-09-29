@@ -1,5 +1,5 @@
 -- ============================================================================
--- MCP Security Gateway — Billing & Usage Metering
+-- MCP Security Gateway: Billing & Usage Metering
 -- ============================================================================
 
 -- Add billing columns to tenants
@@ -15,7 +15,7 @@ ALTER TABLE tenants
 ALTER TABLE tenants
   ADD CONSTRAINT valid_plan CHECK (plan IN ('starter', 'pro', 'business', 'enterprise'));
 
--- Usage meters — atomic counter per tenant per billing period
+-- Usage meters: atomic counter per tenant per billing period
 CREATE TABLE usage_meters (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

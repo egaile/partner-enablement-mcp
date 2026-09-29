@@ -69,7 +69,8 @@ export async function getApprovalRequest(
     .single();
 
   if (error) {
-    if (error.code === "PGRST116") return null; // not found
+    // 22P02: the id isn't a valid UUID, so no such request exists.
+    if (error.code === "PGRST116" || error.code === "22P02") return null; // not found
     throw error;
   }
   return toRecord(row);
@@ -112,6 +113,9 @@ export async function approveRequest(
     .eq("id", id)
     .eq("tenant_id", tenantId)
     .eq("status", "pending")
+    // An expired request can't be approved; otherwise a stale request would
+    // get a fresh execution window.
+    .gt("expires_at", new Date().toISOString())
     .select()
     .single();
 

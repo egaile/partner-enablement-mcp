@@ -12,6 +12,33 @@ import { RegisterServerSchema, UpdateServerSchema } from "../schemas/index.js";
 import { getServerCount } from "../db/queries/billing.js";
 import { getPlan } from "../billing/plans.js";
 import type { GatewayState } from "./types.js";
+import type { McpServerRecord } from "@mcpshield/gateway-core/storage";
+
+function redactValues(
+  values: Record<string, string> | null
+): Record<string, string> | null {
+  if (!values) return null;
+  return Object.fromEntries(Object.keys(values).map((k) => [k, "[redacted]"]));
+}
+
+// Credentials never leave the gateway. Key names stay visible so the UI can
+// show which headers/env vars are configured.
+export function toPublicServer(server: McpServerRecord) {
+  const {
+    oauthClientSecret: _clientSecret,
+    oauthAccessToken: _accessToken,
+    oauthRefreshToken: _refreshToken,
+    oauthCodeVerifier: _codeVerifier,
+    oauthStateNonce: _stateNonce,
+    ...rest
+  } = server;
+  // Token presence is reported by GET /api/servers/:id/oauth/status.
+  return {
+    ...rest,
+    env: redactValues(server.env),
+    authHeaders: redactValues(server.authHeaders),
+  };
+}
 
 export function createServersRouter(state: GatewayState): Router {
   const router = Router();
@@ -22,7 +49,7 @@ export function createServersRouter(state: GatewayState): Router {
     async (req: AuthenticatedRequest, res) => {
       try {
         const servers = await getServersForTenant(req.tenant!.tenantId);
-        res.json({ servers });
+        res.json({ servers: servers.map(toPublicServer) });
       } catch (error) {
         res.status(500).json({ error: state.safeErrorMessage(error) });
       }
@@ -52,7 +79,7 @@ export function createServersRouter(state: GatewayState): Router {
           return;
         }
         const server = await createServer(req.tenant!.tenantId, parsed.data);
-        res.status(201).json({ server });
+        res.status(201).json({ server: toPublicServer(server) });
       } catch (error) {
         res.status(500).json({ error: state.safeErrorMessage(error) });
       }
@@ -74,7 +101,7 @@ export function createServersRouter(state: GatewayState): Router {
           req.tenant!.tenantId,
           parsed.data
         );
-        res.json({ server });
+        res.json({ server: toPublicServer(server) });
       } catch (error) {
         res.status(500).json({ error: state.safeErrorMessage(error) });
       }

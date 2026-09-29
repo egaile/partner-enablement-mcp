@@ -21,10 +21,10 @@ const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
  * code verifier and pending auth URLs stored during the authorization flow.
  */
 export class ServerOAuthProvider implements OAuthClientProvider {
-  /** Pending authorization URLs — set by SDK, read by /authorize API route */
+  /** Pending authorization URLs. Set by SDK, read by /authorize API route */
   static pendingAuthUrls = new Map<string, URL>();
 
-  /** PKCE code verifiers — set before redirect, read during callback */
+  /** PKCE code verifiers. Set before redirect, read during callback */
   static codeVerifiers = new Map<string, string>();
 
   /** Prevents concurrent refresh attempts for the same server */
@@ -83,7 +83,7 @@ export class ServerOAuthProvider implements OAuthClientProvider {
       if (refreshed) {
         return refreshed;
       }
-      // Refresh failed — return existing token and let SDK handle the 401
+      // Refresh failed. Return existing token and let SDK handle the 401
       console.warn(`[oauth] Token refresh failed for "${this.server.name}", returning stale token`);
     }
 
@@ -198,7 +198,7 @@ export class ServerOAuthProvider implements OAuthClientProvider {
       oauthTokenExpiresAt: expiresAt,
     });
 
-    // Clear the code verifier — no longer needed after token exchange
+    // Clear the code verifier; no longer needed after token exchange
     ServerOAuthProvider.codeVerifiers.delete(this.server.id);
     await updateServerCodeVerifier(this.server.id, this.server.tenantId, null);
 
