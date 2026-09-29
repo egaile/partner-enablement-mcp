@@ -1,5 +1,7 @@
 # Partner Enablement MCP Server - Demo Video Script
 
+> Note: this is the original February 2026 planning doc for the portfolio demo. It predates the MCPShield gateway and parts of it are out of date.
+
 **Duration:** 4-5 minutes  
 **Format:** Loom screen recording with voiceover  
 **Audience:** Anthropic hiring team, technical reviewers
@@ -12,7 +14,7 @@
 
 "Hi, I'm Ed Gaile. I built this project to demonstrate how Anthropic's partner team could help Global System Integrators operationalize Claude deployments faster.
 
-The core idea is simple: GSIs building Claude solutions face the same challenges over and over—translating requirements into compliant architectures, understanding regulatory implications, creating repeatable deployment patterns. What if Claude could help with that workflow directly?"
+The core idea is simple: GSIs building Claude solutions face the same challenges over and over: translating requirements into compliant architectures, understanding regulatory implications, and creating repeatable deployment patterns. What if Claude could help with that workflow directly?"
 
 ---
 
@@ -41,7 +43,7 @@ Currently, this knowledge lives in the heads of experienced architects. This MCP
 Claude calls the `partner_read_project_context` tool, which connects to Jira and extracts:
 - Project metadata and description
 - Recent issues with requirements
-- Labels that indicate compliance needs—see it detected HIPAA and PHI tags
+- Labels that indicate compliance needs (it detected the HIPAA and PHI tags)
 - Integration targets like Epic EHR
 
 **[Show output, pause briefly]**
@@ -55,7 +57,7 @@ Claude analyzes the requirements and recommends the Conversational Agent pattern
 - It needs tool use for EHR integration
 - Real-time responses are required
 
-Notice it's not just picking a pattern—it's mapping specific AWS services, adding HIPAA-specific security considerations, and generating a Mermaid diagram.
+Besides picking a pattern, it maps specific AWS services, adds HIPAA-specific security considerations, and generates a Mermaid diagram.
 
 **[Show architecture output]**
 
@@ -80,7 +82,7 @@ And finally, we get a phased project plan with sprint structure and Jira ticket 
 
 **[Click through Healthcare → Run Full Demo]**
 
-You can see the same workflow—context extraction, architecture generation, compliance assessment, implementation planning—but in a format that's easy to share. Send someone a link, they can experience the value in 30 seconds.
+It's the same workflow (context extraction, architecture generation, compliance assessment, implementation planning) in a format that's easy to share. Send someone a link, they can experience the value in 30 seconds.
 
 **[Show completed state]**"
 
@@ -92,11 +94,11 @@ You can see the same workflow—context extraction, architecture generation, com
 
 "This project demonstrates a few things I think matter for the Partner Solutions Architect role:
 
-First, **I understand the GSI workflow**. I've lived this—helping partners translate customer requirements into technical delivery plans is literally my current job at Appfire.
+First, **I understand the GSI workflow**. I've lived this. Helping partners translate customer requirements into technical delivery plans is literally my current job at Appfire.
 
 Second, **I'm tracking Anthropic's technical direction**. MCP is a bet on how Claude connects to the real world. Building something that makes MCP enterprise-ready shows I'm thinking about where this is going.
 
-Third, **I can ship**. This isn't a slide deck or a concept—it's working code with documentation, demo paths, and production-quality output.
+Third, **I can ship**. It's working code with documentation, demo paths, and production-quality output, not a slide deck.
 
 The full source is on GitHub. I'd love to discuss how this thinking could apply to Anthropic's partner enablement strategy.
 

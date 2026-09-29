@@ -8,7 +8,7 @@ All gateway configuration is managed through environment variables, validated at
 |----------|-------------|---------|
 | `SUPABASE_URL` | Your Supabase project URL. | `https://abcdefgh.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key. Bypasses RLS for gateway operations. | `eyJhbGciOi...` |
-| `CLERK_SECRET_KEY` | Clerk secret key for JWT verification. Set to `"dev"` for dev mode. | `sk_live_...` or `dev` |
+| `CLERK_SECRET_KEY` | Clerk secret key for JWT verification. Set to `"dev"` together with `NODE_ENV=development` for dev mode. | `sk_live_...` or `dev` |
 
 ## Optional variables
 
@@ -22,14 +22,20 @@ All gateway configuration is managed through environment variables, validated at
 | `POLICY_CACHE_TTL_MS` | `30000` | How long policy rules are cached in memory per tenant (in milliseconds). |
 | `STRIPE_SECRET_KEY` | (empty) | Stripe secret key for billing integration. Required for plan upgrades and usage metering. |
 | `STRIPE_WEBHOOK_SECRET` | (empty) | Stripe webhook signing secret for verifying incoming webhook events. |
+| `DEMO_CLERK_USER_IDS` | (empty) | Comma-separated Clerk user IDs that are always treated as read-only `viewer`s. Used for the public demo login. The gateway also reads `DEMO_CLERK_USER_ID` (the dashboard's variable name), so setting either one works. |
 | `USAGE_FLUSH_INTERVAL_MS` | `60000` | How often usage meter data is flushed to Supabase (in milliseconds). |
 
 ## Dev mode
 
-When `CLERK_SECRET_KEY` is set to the literal string `"dev"`:
+Dev mode needs both of these:
+
+- `CLERK_SECRET_KEY` set to the literal string `"dev"`
+- `NODE_ENV=development`
+
+`CLERK_SECRET_KEY=dev` on its own does not enable dev mode; requests without a valid Clerk token or API key still get `401`. When dev mode is on:
 
 - Clerk JWT verification is skipped entirely
-- All requests are mapped to the user ID `dev_user`
+- Requests without an API key are mapped to the user ID `dev_user` (API keys still work as usual)
 - The `dev_user` must exist in the `tenant_users` table (created during seeding)
 
 This is intended for local development only. Never use dev mode in production.
@@ -106,4 +112,5 @@ The admin dashboard (Next.js) uses a separate set of environment variables:
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (client-side, RLS-protected). | `eyJhbGciOi...` |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key (client-side). | `pk_test_...` |
 | `CLERK_SECRET_KEY` | Clerk secret key (server-side). | `sk_test_...` |
-| `GATEWAY_API_URL` | Base URL of the gateway REST API. | `http://localhost:4000` |
+| `NEXT_PUBLIC_GATEWAY_API_URL` | Base URL of the gateway REST API. | `http://localhost:4000` |
+| `DEMO_CLERK_USER_ID` | Optional. Clerk user ID of the read-only demo user. When set, `/sign-in` shows a **Try the demo** button. The gateway must also treat this user as a viewer: set the same ID in the gateway's `DEMO_CLERK_USER_IDS` or `DEMO_CLERK_USER_ID`. | `user_2abc...` |

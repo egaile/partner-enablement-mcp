@@ -74,7 +74,7 @@ A downstream server's tool definition changed since the last approved snapshot.
 
 **Severity: Medium**
 
-A tool call was denied by a policy rule. This is usually informational -- the policy is working as intended.
+A tool call was denied by a policy rule. This is usually informational: the policy is working as intended.
 
 ### When to investigate
 

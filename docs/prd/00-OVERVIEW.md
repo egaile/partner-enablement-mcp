@@ -1,5 +1,7 @@
 # PRD 00: Project Overview
 
+> Note: this is the original February 2026 planning doc for the portfolio demo. It predates the MCPShield gateway and parts of it are out of date.
+
 ## Document Info
 - **Project**: Partner Enablement MCP Server
 - **Author**: Ed Gaile

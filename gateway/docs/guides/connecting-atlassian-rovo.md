@@ -1,6 +1,6 @@
 # Connecting to Atlassian Rovo MCP Server
 
-This guide walks you through connecting the Atlassian Rovo MCP Server to the MCP Security Gateway. Once connected, all AI agent interactions with Jira, Confluence, and Compass flow through the gateway's security pipeline -- injection scanning, policy enforcement, PII detection, and audit logging.
+This guide walks you through connecting the Atlassian Rovo MCP Server to the MCP Security Gateway. Once connected, all AI agent interactions with Jira, Confluence, and Compass flow through the gateway's security pipeline: injection scanning, policy enforcement, PII detection, and audit logging.
 
 ## Architecture
 
@@ -34,7 +34,7 @@ The AI client connects to the gateway. The gateway proxies requests to Atlassian
 1. Go to [Atlassian API Token Management](https://id.atlassian.com/manage-profile/security/api-tokens)
 2. Click **Create API token**
 3. Give it a label (e.g., "MCP Gateway")
-4. Copy the token -- you won't be able to see it again
+4. Copy the token. You won't be able to see it again.
 
 ## Step 2: Encode Your Credentials
 
@@ -211,12 +211,12 @@ Now that Atlassian traffic flows through the gateway, apply security policies. U
 
 Go to **Onboarding** or use the **Policy Templates** section to apply:
 
-- **Read-Only Jira** -- Block all write operations (create, edit, transition)
-- **Protected Projects** -- Block access to sensitive Jira projects (HR, Security)
-- **Approval for Writes** -- Require human approval before any create/update
-- **Confluence View-Only** -- Allow reads, block edits
-- **Audit Everything** -- Log all calls without blocking (good starting point)
-- **PII Shield** -- Scan Jira content for PII before returning to agents
+- **Read-Only Jira**: Block all write operations (create, edit, transition)
+- **Protected Projects**: Block access to sensitive Jira projects (HR, Security)
+- **Approval for Writes**: Require human approval before any create/update
+- **Confluence View-Only**: Allow reads, block edits
+- **Audit Everything**: Log all calls without blocking (good starting point)
+- **PII Shield**: Scan Jira content for PII before returning to agents
 
 ### Via the API
 
@@ -251,11 +251,11 @@ curl "$GATEWAY_URL/api/audit?limit=20" \
 
 The gateway's security pipeline applies to every Atlassian tool call:
 
-1. **Prompt Injection Scanning** -- 20 Atlassian-specific patterns detect malicious instructions embedded in Jira issues and Confluence pages (e.g., "ignore previous instructions" in issue descriptions)
-2. **Policy Enforcement** -- Block or require approval for specific operations, projects, or users
-3. **PII Detection** -- Scan tool call parameters and responses for credit card numbers, SSNs, emails, phone numbers
-4. **Tool Drift Detection** -- SHA-256 hash comparison alerts you if Atlassian changes tool definitions
-5. **Rate Limiting** -- Prevent runaway agents from flooding your Atlassian instance
+1. **Prompt Injection Scanning**: 20 Atlassian-specific patterns detect malicious instructions embedded in Jira issues and Confluence pages (e.g., "ignore previous instructions" in issue descriptions)
+2. **Policy Enforcement**: Block or require approval for specific operations, projects, or users
+3. **PII Detection**: Scan tool call parameters and responses for credit card numbers, SSNs, emails, phone numbers
+4. **Tool Drift Detection**: SHA-256 hash comparison alerts you if Atlassian changes tool definitions
+5. **Rate Limiting**: Prevent runaway agents from flooding your Atlassian instance
 
 ## Troubleshooting
 
@@ -301,17 +301,17 @@ The gateway supports OAuth 2.1 with PKCE for Atlassian Rovo, using the MCP SDK's
 
 The gateway implements the full OAuth 2.1 flow via the MCP SDK:
 
-1. **Discovery** -- The SDK fetches the server's `/.well-known/oauth-authorization-server` metadata
-2. **Dynamic Client Registration** -- Automatically registers as an OAuth client with Atlassian
-3. **PKCE** -- Generates code verifier/challenge pairs for secure authorization
-4. **Token Exchange** -- Exchanges the authorization code for access + refresh tokens
-5. **Auto-Refresh** -- The SDK automatically refreshes expired tokens using the refresh token
+1. **Discovery**: The SDK fetches the server's `/.well-known/oauth-authorization-server` metadata
+2. **Dynamic Client Registration**: Automatically registers as an OAuth client with Atlassian
+3. **PKCE**: Generates code verifier/challenge pairs for secure authorization
+4. **Token Exchange**: Exchanges the authorization code for access + refresh tokens
+5. **Auto-Refresh**: The SDK automatically refreshes expired tokens using the refresh token
 
 ### Setup via Dashboard
 
 1. Go to **Servers > Add Server** or edit an existing Atlassian Rovo server
 2. Set auth type to **OAuth**
-3. Click **Authorize** -- this redirects to Atlassian's consent screen
+3. Click **Authorize**. This redirects to Atlassian's consent screen
 4. Grant the requested permissions (Jira read/write, Confluence read/write, search)
 5. You're redirected back to the dashboard. The connection status shows **Connected**
 

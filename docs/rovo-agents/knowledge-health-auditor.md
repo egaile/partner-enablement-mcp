@@ -1,4 +1,4 @@
-# Rovo Agent — Knowledge Health Auditor
+# Rovo Agent: Knowledge Health Auditor
 
 A conversational counterpart to the Dashboard Hub Pro "Knowledge Health" widget. The agent answers ad-hoc questions about space/page health and can propose (or apply, with approval) low-risk remediations inside Confluence and Jira.
 
@@ -35,13 +35,13 @@ Status buckets: healthy ≥70, needs-attention ≥50, stale ≥30, critical <30.
 When recommending actions, prefer LOW-RISK suggestions (comments, draft edits
 for human review) over direct page rewrites. When the user confirms an action,
 use the appropriate Atlassian tool (createConfluenceFooterComment,
-updateConfluencePage) — these go through the security gateway and may require
+updateConfluencePage). These go through the security gateway and may require
 approval.
 
 Be concise. Cite page titles and scores when you reference pages.
 ```
 
-## 3. Custom HTTP Action — `fetchKnowledgeHealth`
+## 3. Custom HTTP Action: `fetchKnowledgeHealth`
 
 Rovo Studio → Actions → New Action → HTTP.
 
@@ -62,6 +62,12 @@ Response contract:
 {
   "generatedAt": "ISO-8601 timestamp",
   "space": { "key": "HA", "name": "Healthcare AI" },
+  "statusBreakdown": [
+    { "name": "Healthy", "value": 0, "color": "#22C55E" },
+    { "name": "Needs Attention", "value": 2, "color": "#F59E0B" },
+    { "name": "Stale", "value": 5, "color": "#F97316" },
+    { "name": "Critical", "value": 0, "color": "#EF4444" }
+  ],
   "summary": {
     "averageScore": 47,
     "totalPages": 7,
@@ -76,6 +82,8 @@ Response contract:
       "title": "string",
       "score": 0,
       "status": "healthy | needs-attention | stale | critical",
+      "statusColor": "#22C55E | #F59E0B | #F97316 | #EF4444",
+      "statusEmoji": "🟢 | 🟡 | 🟠 | 🔴",
       "staleness": 0,
       "depth": 0,
       "commentActivity": 0,
@@ -87,15 +95,17 @@ Response contract:
 }
 ```
 
+`statusBreakdown` is pre-shaped for the Dashboard Hub Pro pie chart, which can't evaluate templates inside its `data[]` config. `statusColor` and `statusEmoji` follow `status` (unknown statuses fall back to `#9CA3AF` and ⚪).
+
 ## 4. Additional tools to enable
 
 From the already-connected MCP server (the gateway), enable:
 
-- `searchConfluenceUsingCql` — find pages by label, date, text
-- `getConfluencePage` — fetch full page content before proposing edits
-- `createConfluenceFooterComment` — post review-request comments on stale pages (write, policy-gated)
-- `updateConfluencePage` — apply approved updates (write, policy-gated; triggers HITL approval via gateway)
-- `createJiraIssue` — file a tech-debt ticket for critical pages (optional, demo polish)
+- `searchConfluenceUsingCql`: find pages by label, date, text
+- `getConfluencePage`: fetch full page content before proposing edits
+- `createConfluenceFooterComment`: post review-request comments on stale pages (write, policy-gated)
+- `updateConfluencePage`: apply approved updates (write, policy-gated; triggers HITL approval via gateway)
+- `createJiraIssue`: file a tech-debt ticket for critical pages (optional, demo polish)
 
 ## 5. Starter prompts
 
@@ -110,7 +120,7 @@ Enter these in Rovo Studio → Conversation starters:
 
 In the gateway admin dashboard, confirm the following before demoing:
 
-1. **Approval for Writes** template is active for the tenant. This makes `updateConfluencePage` and `createConfluenceFooterComment` enter the HITL approval queue — the audit trail is visibly safe.
+1. **Approval for Writes** template is active for the tenant. This makes `updateConfluencePage` and `createConfluenceFooterComment` enter the HITL approval queue, so every write shows up in the audit trail with an approval.
 2. **PII Shield** template is active (or at least the scanner is running) so any PII the agent might surface is redacted on the response path.
 3. Audit logs for the agent's tool calls appear in the dashboard with `source=rovo-agent` (or similar).
 
@@ -121,7 +131,7 @@ In the gateway admin dashboard, confirm the following before demoing:
 3. Agent calls `fetchKnowledgeHealth?spaceKey=HA`, returns a ranked list with scores and factors.
 4. Prompt: "Draft a comment on the worst page asking the author to review".
 5. Agent calls `createConfluenceFooterComment` → gateway triggers approval → approver in dashboard approves → comment posted in Confluence.
-6. Back in Confluence, open the Dashboard Hub page — the updated `commentActivity` factor shows a higher score for that page on the next refresh (15-minute cache).
+6. Back in Confluence, open the Dashboard Hub page. The updated `commentActivity` factor shows a higher score for that page on the next refresh (15-minute cache).
 
 ## 8. Related files
 

@@ -13,7 +13,7 @@ Invalid gateway configuration:
   clerkSecretKey: Required
 ```
 
-**Fix:** Ensure your `.env` file contains `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `CLERK_SECRET_KEY`. For local development, set `CLERK_SECRET_KEY=dev`.
+**Fix:** Ensure your `.env` file contains `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `CLERK_SECRET_KEY`. For local development, set `CLERK_SECRET_KEY=dev` and `NODE_ENV=development`.
 
 ### Port already in use
 
@@ -28,10 +28,12 @@ Error: listen EADDRINUSE :::4000
 ### "Missing or invalid Authorization header"
 
 The gateway expects either:
-- A `Bearer <token>` header with a valid Clerk JWT, or
-- An `X-API-Key` header with a valid gateway API key
+- `Authorization: Bearer <token>` with a valid Clerk JWT, or
+- `Authorization: Bearer mgw_...` with a valid gateway API key
 
-**Fix in dev mode:** Set `CLERK_SECRET_KEY=dev` in your `.env`. This skips Clerk verification entirely.
+There is no `X-API-Key` header. API keys go in the `Authorization` header.
+
+**Fix in dev mode:** Set both `CLERK_SECRET_KEY=dev` and `NODE_ENV=development` in your `.env`. This skips Clerk verification entirely. `CLERK_SECRET_KEY=dev` without `NODE_ENV=development` does not enable dev mode.
 
 **Fix in production:** Ensure your Clerk token is valid and not expired. Tokens from Clerk have a short TTL (typically 60 seconds) and must be refreshed.
 
@@ -58,10 +60,17 @@ This means the gateway could not establish an MCP connection to a downstream ser
 - Check network connectivity from the gateway to the server
 - Ensure the server responds to MCP's `initialize` handshake
 
-**For stdio servers:**
+**For stdio servers (self-hosted `mcpshield` CLI only):**
 - Verify the command exists and is on PATH
 - Check that `npx` can resolve the package (run the command manually)
-- Review args and env variables for correctness
+- Review `args` and `env` in `mcpshield.yaml`
+- Restart the gateway after changing servers. Only policies hot-reload.
+
+### "uses stdio, which is disabled on this gateway"
+
+The hosted gateway doesn't run stdio servers, so a stdio record created before this rule was added fails to connect with `Server "<name>" uses stdio, which is disabled on this gateway`. New stdio registrations are rejected with `400`: `The hosted gateway only supports HTTP servers. Use the self-hosted mcpshield CLI for stdio servers.`
+
+**Fix:** Delete the stdio record. Either register the server's HTTP endpoint instead, or run it behind the self-hosted `mcpshield` CLI and list it in `mcpshield.yaml` (see [Connecting Servers](./connecting-servers.md#stdio-servers-are-self-host-only)).
 
 ### Tools not appearing
 
@@ -69,7 +78,7 @@ If you registered a server but its tools don't appear in `tools/list`:
 
 1. Check server health: `GET /api/servers/<id>/health`
 2. Check gateway logs for connection errors
-3. Restart the gateway -- engine instances are cached per tenant and may not pick up new servers until restarted
+3. Restart the gateway. Engine instances are cached per tenant and may not pick up new servers until restarted
 
 ### "Bad request: no valid session"
 
@@ -116,13 +125,13 @@ Example: `"startHour": 9, "endHour": 17` means 9:00 through 16:59.
 
 The injection scanner is intentionally aggressive. Some legitimate content may trigger alerts:
 
-- **URLs in parameters** -- the exfiltration strategy flags URLs at medium severity. These are logged but do not block requests (only critical and high severity triggers blocking).
-- **Email addresses** -- flagged at low severity by the exfiltration strategy. Not blocking.
-- **HTML/XML content** -- the structural strategy flags tags like `<script>`, `<system>`, and `<tool_result>`. If your downstream servers legitimately handle HTML, consider wrapping content differently.
+- **URLs in parameters**: the exfiltration strategy flags URLs at medium severity. These are logged but do not block requests (only critical and high severity triggers blocking).
+- **Email addresses**: flagged at low severity by the exfiltration strategy. Not blocking.
+- **HTML/XML content**: the structural strategy flags tags like `<script>`, `<system>`, and `<tool_result>`. If your downstream servers legitimately handle HTML, consider wrapping content differently.
 
 Threat severity levels and their effects:
-- `critical` / `high` -- request is blocked
-- `medium` / `low` / `info` -- logged but request proceeds
+- `critical` / `high`: request is blocked
+- `medium` / `low` / `info`: logged but request proceeds
 
 ### PII detection false positives
 
@@ -145,7 +154,7 @@ If the gateway crashes without a graceful shutdown, buffered entries may be lost
 
 ### Audit entries have wrong tenant
 
-Ensure your Clerk user is associated with the correct tenant in `tenant_users`. In dev mode, all requests map to `dev_user`.
+Ensure your Clerk user is associated with the correct tenant in `tenant_users`. In dev mode, requests without an API key map to `dev_user`.
 
 ## Dashboard issues
 
@@ -171,7 +180,7 @@ Ensure `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` are set correc
 ### High latency on tool calls
 
 Check the audit log for `latencyMs` values. If latency is high:
-- The downstream server may be slow -- check its health endpoint
+- The downstream server may be slow. Check its health endpoint
 - The injection scanner adds a few milliseconds per call (typically <10ms)
 - Policy evaluation is cached and should be <1ms
 

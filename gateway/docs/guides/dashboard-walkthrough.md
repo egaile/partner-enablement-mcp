@@ -34,19 +34,19 @@ The data is fetched from `GET /api/audit/metrics` and `GET /api/audit?limit=10`.
 The servers page lists all registered downstream MCP servers with their connection status.
 
 **Server list view:**
-- Each server shows its name, transport type (HTTP or stdio), enabled/disabled status, and creation date
+- Each server shows its name, transport type, enabled/disabled status, and creation date
 - Click a server card to view details
 
 **Server detail view:**
-- Server configuration (URL, command, args, env)
+- Server configuration (transport, URL, date added; older stdio records also show their command)
 - **Tool inventory**: lists all tools discovered from that server with their names, descriptions, and input schemas
 - **Health status**: current health (healthy/degraded/unreachable), latency, consecutive failures
 - **Tool snapshots**: history of tool definition changes with approve/reject actions for drift
 
 **Adding a server:**
 - Click "Add Server" to open a form
-- Choose transport type (HTTP or stdio)
-- Fill in the required fields (URL for HTTP, command for stdio)
+- Transport is HTTP only. The hosted gateway doesn't run stdio servers; use the self-hosted `mcpshield` CLI for those
+- Fill in the server URL
 - For Atlassian Rovo, the form auto-detects the URL and suggests Basic Auth or OAuth
 - The gateway will automatically connect and discover tools
 
@@ -108,12 +108,12 @@ A paginated table of all tool calls processed by the gateway.
 The alerts page shows security events that require attention.
 
 **Alert types:**
-- `injection_detected` -- prompt injection attempt blocked
-- `tool_drift` -- tool definition changed unexpectedly
-- `policy_violation` -- request denied by policy rule
-- `rate_limit_exceeded` -- user exceeded rate limit
-- `auth_failure` -- authentication failure
-- `server_error` -- downstream server connection or health check failure
+- `injection_detected`: prompt injection attempt blocked
+- `tool_drift`: tool definition changed unexpectedly
+- `policy_violation`: request denied by policy rule
+- `rate_limit_exceeded`: user exceeded rate limit
+- `auth_failure`: authentication failure
+- `server_error`: downstream server connection or health check failure
 
 **Alert feed:**
 - Sorted by creation time (newest first)
@@ -135,7 +135,7 @@ When a policy with `action: "require_approval"` matches a tool call, the gateway
 
 **Approval list:**
 - Shows pending requests with requester, server, tool, and parameters
-- Approve and reject buttons for each request
+- Approve and reject buttons for each request, shown only to owners and admins
 - Expired requests are automatically marked
 
 ### Tools
@@ -148,20 +148,23 @@ A browsable catalog of all discovered tools across connected servers.
 
 ### Settings
 
-The settings page is organized into 6 tabs.
+The settings page is organized into 6 tabs. Read-only (`viewer`) users see 4: the Team and API Keys tabs are hidden for them.
 
 **Account:**
 - Clerk profile management
 
 **Team:**
-- List team members with their roles
-- Invite new members by Clerk user ID
-- Roles: `owner`, `admin`, `member`
+- Lists team members with their roles. This is all the dashboard does today: it doesn't have invite, remove or change-role controls.
+- Roles: `owner`, `admin`, `member`, `viewer`
   - `owner`: full access including team management and deleting members
-  - `admin`: can manage API keys and invite members
-  - `member`: read access to all data, can acknowledge alerts and approve requests
-- Remove members (owner only)
-- Update member roles (owner only)
+  - `admin`: can manage API keys, invite members, and approve or reject requests
+  - `member`: can manage servers, policies, webhooks and alerts, but can't approve or reject requests
+  - `viewer`: read-only. Can browse pages and run the policy simulator, but every change is refused. This is the default role for new sign-ups and for the demo login.
+- Managing members is API-only for now:
+  - Invite a member by Clerk user ID: `POST /api/settings/team/invite` with `{ "clerkUserId": "...", "role": "member" }` (owner or admin)
+  - Remove a member: `DELETE /api/settings/team/:userId` (owner only)
+  - Change a member's role: `PUT /api/settings/team/:userId/role` with `{ "role": "admin" }` (owner only)
+- To give a new sign-up edit access, an owner changes their role from `viewer` to `member` or `admin` with the role endpoint.
 
 **API Keys:**
 - Generate new API keys for programmatic access (format: `mgw_<32 hex chars>`)
@@ -205,9 +208,9 @@ A top bar shows breadcrumb navigation and a notification bell with unacknowledge
 
 New users are guided through a 4-step Atlassian-first onboarding wizard:
 
-1. **Welcome** -- overview of the gateway and its capabilities
-2. **Connect Atlassian** -- add the Rovo MCP Server with API token or OAuth
-3. **Choose Template** -- select and apply Atlassian policy templates
-4. **Get API Key** -- generate an API key for programmatic access
+1. **Welcome**: overview of the gateway and its capabilities
+2. **Connect Atlassian**: add the Rovo MCP Server with API token or OAuth
+3. **Choose Template**: select and apply Atlassian policy templates
+4. **Get API Key**: generate an API key for programmatic access
 
 The onboarding wizard is accessible from `/onboarding` and is automatically shown for new tenants.

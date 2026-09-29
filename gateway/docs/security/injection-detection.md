@@ -66,19 +66,19 @@ Detects embedded markup and code structures that could manipulate the AI's inter
 ### Detection categories
 
 **Critical severity:**
-- `<script>`, `<iframe>` tags -- code execution attempts
-- `<system>` tag -- prompt structure injection
-- `<tool_result>`, `<tool_use>` tags -- MCP response/invocation spoofing
+- `<script>`, `<iframe>` tags: code execution attempts
+- `<system>` tag: prompt structure injection
+- `<tool_result>`, `<tool_use>` tags: MCP response/invocation spoofing
 - Markdown links/images with `javascript:` protocol
 
 **High severity:**
 - `<object>`, `<embed>` tags
-- `<assistant>` tag -- role injection via markup
+- `<assistant>` tag: role injection via markup
 - Code blocks with dangerous operations (`exec()`, `eval()`, `system()`)
 - JSON structures resembling chat messages (`{"role": "...", "content": "..."}`) or tool calls
 
 **Medium severity:**
-- `<user>` tag -- message boundary injection
+- `<user>` tag: message boundary injection
 
 ### Why this matters
 
