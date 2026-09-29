@@ -62,7 +62,7 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         const token = await getToken();
-        if (!token) return;
+        if (!token) throw new Error("No session token");
         const data = await gatewayFetch<Omit<Me, "demo"> & { demo?: boolean }>(
           "/api/me",
           token

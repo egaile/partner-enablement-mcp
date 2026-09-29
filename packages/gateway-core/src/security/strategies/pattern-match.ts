@@ -41,10 +41,11 @@ const INJECTION_PATTERNS: PatternDef[] = [
     description: "Attempts role injection via pretense",
   },
   {
-    // Bounded gap (200 chars, may cross a line) keeps each start constant-cost.
-    // A single `\s` after "to" (the gap covers further spaces) avoids
-    // backtracking over how to split a run of spaces. `mode\b` skips "model".
-    pattern: /switch\s+to\s[\s\S]{0,200}?mode\b/i,
+    // Up to 20 words between "to" and "mode", with any amount of whitespace
+    // (so padding can't push "mode" out of reach). Words (\S+) and gaps (\s+)
+    // can't overlap, so there's nothing to backtrack over and it stays linear.
+    // `\S*?mode\b` also catches "developer-mode" and skips "model".
+    pattern: /switch\s+to\s+(?:\S+\s+){0,20}?\S*?mode\b/i,
     severity: "high",
     description: "Attempts to change operational mode",
   },
