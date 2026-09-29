@@ -18,8 +18,6 @@ interface ServerDetail {
   id: string;
   name: string;
   transport: "stdio" | "http";
-  command: string | null;
-  args: string[] | null;
   url: string | null;
   enabled: boolean;
   createdAt: string;
@@ -289,14 +287,6 @@ export default function ServerDetailPage() {
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">URL</dt>
                   <dd className="font-mono text-xs text-foreground">{server.url}</dd>
-                </div>
-              )}
-              {server.command && (
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Command</dt>
-                  <dd className="font-mono text-xs text-foreground">
-                    {server.command} {server.args?.join(" ")}
-                  </dd>
                 </div>
               )}
               <div className="flex justify-between">

@@ -71,7 +71,7 @@ export function createApprovalsRouter(state: GatewayState): Router {
     requireRole(APPROVER_ROLES),
     async (req: AuthenticatedRequest, res) => {
       try {
-        const refusal = await checkDecidable(req);
+        const refusal = await checkDecidable(req, "approve");
         if (refusal) {
           res.status(refusal.status).json({ error: refusal.error });
           return;
@@ -99,7 +99,7 @@ export function createApprovalsRouter(state: GatewayState): Router {
     requireRole(APPROVER_ROLES),
     async (req: AuthenticatedRequest, res) => {
       try {
-        const refusal = await checkDecidable(req);
+        const refusal = await checkDecidable(req, "reject");
         if (refusal) {
           res.status(refusal.status).json({ error: refusal.error });
           return;
@@ -123,7 +123,8 @@ export function createApprovalsRouter(state: GatewayState): Router {
   // The request must exist in this tenant, and nobody decides a request they
   // made themselves.
   async function checkDecidable(
-    req: AuthenticatedRequest
+    req: AuthenticatedRequest,
+    action: "approve" | "reject"
   ): Promise<{ status: number; error: string } | null> {
     const { userId, tenantId } = req.tenant!;
     const record = await approvalEngine.get(req.params.id, tenantId);
@@ -135,6 +136,14 @@ export function createApprovalsRouter(state: GatewayState): Router {
     const requester = record.userId.startsWith("apikey:")
       ? await getApiKeyCreator(record.userId.slice("apikey:".length), tenantId)
       : record.userId;
+    if (requester === null && action === "approve") {
+      // The key was deleted, so we can't tell who made the request. Refuse
+      // rather than let its creator approve it by deleting the key first.
+      return {
+        status: 409,
+        error: "The API key that made this request no longer exists, so it can't be approved. Reject it instead.",
+      };
+    }
     if (requester === userId) {
       return { status: 403, error: "You can't decide an approval request you made." };
     }

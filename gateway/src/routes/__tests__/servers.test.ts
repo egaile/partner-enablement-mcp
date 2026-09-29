@@ -172,11 +172,19 @@ describe("redactUrl", () => {
   it.each([
     ["https://mcp.example.com/v1/sse", "https://mcp.example.com/v1/sse"],
     ["https://user:secret@mcp.example.com/v1", "https://mcp.example.com/v1"],
-    ["https://mcp.example.com/v1?token=abc&org=x", "https://mcp.example.com/v1?token=%5Bredacted%5D&org=%5Bredacted%5D"],
+    ["https://mcp.example.com/v1?token=abc&org=x", "https://mcp.example.com/v1?[redacted]"],
+    ["https://mcp.example.com/mcp?abc123secret", "https://mcp.example.com/mcp?[redacted]"],
     ["https://mcp.example.com/v1#key=abc", "https://mcp.example.com/v1"],
     ["not a url", "[redacted]"],
+    ["javascript:alert(1)", "[redacted]"],
   ])("%s", (input, expected) => {
     expect(redactUrl(input)).toBe(expected);
+  });
+
+  it("shows viewers only the origin, since a path can carry a secret", () => {
+    expect(redactUrl("https://mcp.example.com/api/mcp/s/SECRETKEY/mcp", { originOnly: true })).toBe(
+      "https://mcp.example.com"
+    );
   });
 
   it("keeps null", () => {
@@ -198,5 +206,20 @@ describe("toPublicServer allowlist", () => {
     expect(pub).not.toHaveProperty("args");
     expect(pub).not.toHaveProperty("futureSecretColumn");
     expect(JSON.stringify(pub)).not.toContain("sk_live");
+  });
+
+  it("redacts OAuth endpoint URLs and shows viewers only origins", () => {
+    const rec = {
+      ...record({}),
+      url: "https://mcp.example.com/api/mcp/s/PATHSECRET/mcp",
+      oauthTokenUrl: "https://u:p@auth.example.com/token?client_secret=abc",
+      oauthAuthorizeUrl: "https://auth.example.com/authorize?key=abc",
+    } as never;
+    const member = toPublicServer(rec) as Record<string, unknown>;
+    expect(member.oauthTokenUrl).toBe("https://auth.example.com/token?[redacted]");
+    const viewer = toPublicServer(rec, { viewer: true }) as Record<string, unknown>;
+    expect(viewer.url).toBe("https://mcp.example.com");
+    expect(viewer.oauthTokenUrl).toBe("https://auth.example.com");
+    expect(JSON.stringify(viewer)).not.toMatch(/PATHSECRET|client_secret|abc/);
   });
 });

@@ -41,21 +41,23 @@ const ViewerContext = createContext<ViewerState>({
 
 export function ViewerProvider({ children }: { children: React.ReactNode }) {
   const { getToken, isLoaded, isSignedIn, userId } = useAuth();
-  const [me, setMe] = useState<Me | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  // Remember which user the loaded permissions belong to, so a render right
+  // after switching accounts never shows the previous user's permissions.
+  const [state, setState] = useState<{ forUser: string | null; me: Me | null; loaded: boolean }>({
+    forUser: null,
+    me: null,
+    loaded: false,
+  });
   const [attempt, setAttempt] = useState(0);
 
   const retry = useCallback(() => {
-    setLoaded(false);
+    setState((s) => ({ ...s, loaded: false }));
     setAttempt((n) => n + 1);
   }, []);
 
   useEffect(() => {
-    // Switching accounts without a reload must not keep the previous user's
-    // permissions: start over, read-only, for the new user.
-    setMe(null);
-    setLoaded(false);
     if (!isLoaded || !isSignedIn) return;
+    const forUser = userId ?? null;
     let cancelled = false;
     (async () => {
       try {
@@ -65,11 +67,12 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
           "/api/me",
           token
         );
-        if (!cancelled) setMe({ ...data, demo: data.demo === true });
+        if (!cancelled) {
+          setState({ forUser, me: { ...data, demo: data.demo === true }, loaded: true });
+        }
       } catch {
         // Leave `me` null. The UI stays read-only and DemoBanner offers a retry.
-      } finally {
-        if (!cancelled) setLoaded(true);
+        if (!cancelled) setState({ forUser, me: null, loaded: true });
       }
     })();
     return () => {
@@ -77,12 +80,15 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
     };
   }, [getToken, isLoaded, isSignedIn, userId, attempt]);
 
+  // Permissions loaded for a different (previous) user count as not loaded.
+  const current = state.forUser === (userId ?? null);
+  const me = current ? state.me : null;
+  const loaded = current && state.loaded;
+
   return (
     // Treat the user as read-only until the gateway says otherwise, and keep
     // it that way if `/api/me` fails, so write controls never show by mistake.
-    <ViewerContext.Provider
-      value={{ me, loaded, readOnly: me ? me.readOnly : true, retry }}
-    >
+    <ViewerContext.Provider value={{ me, loaded, readOnly: me ? me.readOnly : true, retry }}>
       {children}
     </ViewerContext.Provider>
   );

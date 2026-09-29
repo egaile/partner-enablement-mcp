@@ -32,7 +32,7 @@ vi.mock("../../approval/engine.js", () => ({
     reject = reject;
   },
 }));
-const getApiKeyCreator = vi.fn(async (_id: string, _tenant: string) => "user_creator");
+const getApiKeyCreator = vi.fn(async (_id: string, _tenant: string): Promise<string | null> => "user_creator");
 vi.mock("../../db/queries/api-keys.js", () => ({
   getApiKeyCreator: (id: string, tenant: string) => getApiKeyCreator(id, tenant),
 }));
@@ -299,3 +299,25 @@ describe("GET /api/demo/viewer-check", () => {
   });
 });
 
+
+describe("requests made with a deleted API key", () => {
+  it("can't be approved, since nobody can say who made them", async () => {
+    approve.mockClear();
+    getApproval.mockResolvedValue({ ...PENDING.data[0], userId: "apikey:gone" });
+    getApiKeyCreator.mockResolvedValueOnce(null as never);
+    const base = await start(createApprovalsRouter(state));
+    const res = await fetch(`${base}/api/approvals/a1/approve`, { method: "POST" });
+    expect(res.status).toBe(409);
+    expect(approve).not.toHaveBeenCalled();
+  });
+
+  it("can still be rejected", async () => {
+    reject.mockClear();
+    getApproval.mockResolvedValue({ ...PENDING.data[0], userId: "apikey:gone" });
+    getApiKeyCreator.mockResolvedValueOnce(null as never);
+    const base = await start(createApprovalsRouter(state));
+    const res = await fetch(`${base}/api/approvals/a1/reject`, { method: "POST" });
+    expect(res.status).toBe(200);
+    expect(reject).toHaveBeenCalled();
+  });
+});

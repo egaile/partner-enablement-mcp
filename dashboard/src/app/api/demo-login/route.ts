@@ -31,7 +31,7 @@ async function gatewayTreatsAsViewer(userId: string): Promise<boolean> {
   try {
     const res = await fetch(
       `${GATEWAY_URL}/api/demo/viewer-check?userId=${encodeURIComponent(userId)}`,
-      { cache: "no-store" }
+      { cache: "no-store", signal: AbortSignal.timeout(3000) }
     );
     if (!res.ok) return false;
     const body = (await res.json()) as { viewer?: boolean };

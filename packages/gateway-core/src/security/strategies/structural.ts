@@ -77,7 +77,9 @@ const STRUCTURAL_PATTERNS: StructuralPattern[] = [
   // Markdown image/link with javascript. Keep these linear: a leading `\[.*`
   // backtracks quadratically on long runs of "[" and stalls the event loop.
   {
-    pattern: /!\[[^\]\n]{0,200}\]\(\s*javascript:/i,
+    // Alt text can't contain "[" here, so each "![" scans only to the next
+    // bracket. The link rule below also catches any "](javascript:".
+    pattern: /!\[[^[\]\n]{0,200}\]\(\s*javascript:/i,
     severity: "critical",
     description: "Contains markdown image with javascript: protocol",
   },

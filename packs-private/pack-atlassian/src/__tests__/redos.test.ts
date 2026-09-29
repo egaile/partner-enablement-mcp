@@ -15,6 +15,8 @@ const ADVERSARIAL: Record<string, string> = {
   noformat: "{noformat}".repeat(N / 10),
   color: "{color:#ffffff}".repeat(N / 15),
   comments: "<!--".repeat(N / 4),
+  lineSeparators: "\u2028".repeat(N),
+  paragraphSeparators: "\u2029 ".repeat(N / 2),
   // One opener, then many trigger words and no closing tag.
   htmlThenKeywords: "{html}" + "opacity:0 ".repeat(N / 10),
   commentThenKeywords: "<!--" + "ignore ".repeat(N / 7),
@@ -81,7 +83,11 @@ describe("rewritten Atlassian patterns still detect", () => {
 
 describe("@ai directive", () => {
   const strategy = new AtlassianInjectionStrategy();
-  it.each([" @claude: do x", "　@ai - do x", "@claude\n: do x", "  @agent: do x"])(
+  it("doesn't treat a bare mention followed by a list as a directive", () => {
+    expect(strategy.scan("@claude\n- review the list", "p")).toHaveLength(0);
+  });
+
+  it.each(["\u00a0@claude: do x", "\u3000@ai - do x", "  @agent: do x"])(
     "detects %j",
     (input) => {
       expect(strategy.scan(input, "p").length).toBeGreaterThan(0);
