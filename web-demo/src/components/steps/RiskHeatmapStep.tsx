@@ -227,7 +227,7 @@ export function RiskHeatmapStep({ data, isGenerating, requestParams }: RiskHeatm
         )}
       </div>
 
-      {/* Summary Bar — Overall risk per project */}
+      {/* Summary Bar: overall risk per project */}
       <div>
         <div className="flex items-center gap-2 mb-3">
           <BarChart3 className="w-4 h-4 text-gray-500" />

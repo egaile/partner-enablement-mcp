@@ -34,7 +34,7 @@ const SECURITY_FEATURES: FeatureConfig[] = [
   {
     id: 'threat-simulator',
     name: 'Security Threat Simulator',
-    description: 'Interactive red team playground — craft injection attacks and watch the gateway\'s 5-scanner pipeline catch them in real time.',
+    description: 'Interactive red team playground. Craft injection attacks and watch the gateway\'s 5-scanner pipeline catch them in real time.',
     persona: 'CISO',
     icon: <ShieldAlert className="w-5 h-5" />,
     color: 'red',
@@ -166,7 +166,7 @@ export function HeroLanding({ onStart, onSelectFeature, onStartRiskRadar }: Hero
             </button>
           );
         })}
-        {/* Risk Radar — launches directly without scenario selection */}
+        {/* Risk Radar launches directly without scenario selection */}
         {RISK_RADAR_WORKFLOW && (
           <button
             onClick={() => onStartRiskRadar?.()}
@@ -197,7 +197,7 @@ export function HeroLanding({ onStart, onSelectFeature, onStartRiskRadar }: Hero
         )}
       </div>
 
-      {/* Scenario Cards — shown when a step-based workflow is selected */}
+      {/* Scenario Cards: shown when a step-based workflow is selected */}
       {activeWorkflow && activeWorkflow.selectorType !== 'none' && (
         <div className="animate-fade-in mb-10">
           <div className="flex items-center gap-3 mb-4">
@@ -265,7 +265,7 @@ export function HeroLanding({ onStart, onSelectFeature, onStartRiskRadar }: Hero
           </span>
         </div>
         <p className="text-sm text-gray-500 mb-5 max-w-2xl">
-          Explore the gateway&apos;s security capabilities hands-on. No Atlassian connection needed — these features run entirely in your browser.
+          Explore the gateway&apos;s security capabilities hands-on. No Atlassian connection needed. These features run entirely in your browser.
         </p>
         <div className="grid md:grid-cols-2 gap-4">
           {SECURITY_FEATURES.map((feature) => {

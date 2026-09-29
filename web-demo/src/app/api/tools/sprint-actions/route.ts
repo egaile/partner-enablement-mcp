@@ -178,7 +178,7 @@ export async function POST(request: Request) {
               });
             }
           } catch (err) {
-            // jiraWrite may not be available via gateway — handle gracefully
+            // jiraWrite may not be available via gateway, so handle that case
             const errMsg = err instanceof Error ? err.message : 'Tool not available';
             actions.push({
               type: 'create_link',

@@ -71,7 +71,7 @@ const EMPTY_DATA: DemoData = {
   'portfolio-discovery': null, 'compliance-scan': null, 'risk-heatmap': null, 'policy-recommendations': null,
 };
 
-/** Steps that don't auto-generate — user picks actions first */
+/** Steps that don't auto-generate (user picks actions first) */
 const ACTION_STEPS = new Set<string>(['actions', 'knowledge-actions', 'sprint-actions']);
 
 export default function Home() {
@@ -119,7 +119,7 @@ export default function Home() {
     return new Set<string>(steps.filter((s) => data[s] !== null));
   }, [stepDefinitions, data]);
 
-  // Tool call stats — computed from completed steps
+  // Tool call stats, computed from completed steps
   const toolCallStats = useMemo(() => {
     let totalCalls = 0;
     let blocked = 0;
@@ -170,7 +170,7 @@ export default function Home() {
     return { totalCalls, blocked, piiScans: totalCalls, threats: 0 };
   }, [data]);
 
-  // Build request params for each step (used by SecurityPipeline — display only, not for fetching)
+  // Build request params for each step (used by SecurityPipeline for display only, not for fetching)
   const getRequestParams = useCallback(
     (step: Step) => {
       const ctx = data.context;
@@ -219,7 +219,7 @@ export default function Home() {
     [selectedIndustry, projectKey, spaceId, data]
   );
 
-  // Core API caller — uses refs to avoid stale closures when called from handleStart
+  // Core API caller. Uses refs to avoid stale closures when called from handleStart
   const generateStep = useCallback(
     async (step: Step): Promise<void> => {
       setState((prev) => ({ ...prev, isGenerating: true, error: null }));
@@ -416,7 +416,7 @@ export default function Home() {
           const rsData: RiskScoringData = await res.json();
           setState((prev) => ({ ...prev, data: { ...prev.data, 'risk-heatmap': rsData, 'policy-recommendations': rsData } }));
         } else if (step === 'policy-recommendations') {
-          // Data is populated by the risk-heatmap step — skip if not yet available
+          // Data is populated by the risk-heatmap step; skip if not yet available
           if (!dataRef.current['risk-heatmap']) return;
         }
       } catch (err) {
@@ -495,7 +495,7 @@ export default function Home() {
         actions.push({
           type: 'inline_comment', pageId: thinPage.pageId,
           pageTitle: thinPage.title,
-          content: '[Knowledge Audit] This section needs expansion — word count is below minimum threshold.',
+          content: '[Knowledge Audit] This section needs expansion. Word count is below the minimum threshold.',
           textSelection: thinPage.title,
         });
       }
@@ -633,7 +633,7 @@ export default function Home() {
     if (next === 'complete') {
       setState((prev) => ({ ...prev, currentStep: 'complete' }));
     } else if (next === 'policy-recommendations' && data['risk-heatmap']) {
-      // Policy recommendations shares data with risk-heatmap — no fetch needed
+      // Policy recommendations shares data with risk-heatmap, so no fetch needed
       setState((prev) => ({ ...prev, currentStep: next }));
     } else if (ACTION_STEPS.has(next)) {
       setState((prev) => ({ ...prev, currentStep: next }));

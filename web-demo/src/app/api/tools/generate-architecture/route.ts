@@ -236,7 +236,7 @@ export async function POST(request: Request) {
           ? [
               'BAA required with Claude API provider',
               'PHI must be encrypted at rest and in transit',
-              'Comprehensive audit logging required for all PHI access',
+              'Audit logging required for all PHI access',
             ]
           : []),
       ],

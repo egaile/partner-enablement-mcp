@@ -14,7 +14,7 @@
         "privacy": {
           "title": "Privacy Rule Requirements",
           "items": [
-            "Minimum necessary standard - only access/disclose PHI needed for the task",
+            "Minimum necessary standard: only access/disclose the PHI needed for the task",
             "Patient authorization required for most uses beyond treatment/payment/operations",
             "Notice of Privacy Practices must be provided",
             "Patient rights: access, amendment, accounting of disclosures",
@@ -220,7 +220,7 @@
       "recommendedFrameworks": ["soc2"],
       "keyConsiderations": [
         "PHI handling in conversations requires BAA",
-        "Conversation logs are PHI - apply retention and access controls",
+        "Conversation logs are PHI, so apply retention and access controls",
         "Human oversight required for clinical guidance",
         "Clear disclaimers about AI limitations"
       ]

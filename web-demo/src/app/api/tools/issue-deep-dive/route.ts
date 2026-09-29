@@ -128,7 +128,7 @@ async function fetchViaGateway(projectKey: string): Promise<IssueDeepDiveData> {
           });
         }
       } catch {
-        // Remote links not available — continue
+        // Remote links not available; continue
       }
 
       // Build description
@@ -179,7 +179,7 @@ async function fetchViaGateway(projectKey: string): Promise<IssueDeepDiveData> {
       );
     }
   } catch {
-    // jiraRead may not be available — use common defaults
+    // jiraRead may not be available, so use common defaults
     linkTypes = [
       { id: '10000', name: 'Blocks', inward: 'is blocked by', outward: 'blocks' },
       { id: '10001', name: 'Relates', inward: 'relates to', outward: 'relates to' },

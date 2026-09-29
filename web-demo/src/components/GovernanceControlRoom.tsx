@@ -114,7 +114,7 @@ const POLICY_TEMPLATES: PolicyTemplate[] = [
   {
     id: 'audit_everything',
     name: 'Audit Everything',
-    description: 'Maximum visibility — log all calls with no blocking. Ideal for understanding agent behavior.',
+    description: 'Log every call and block nothing. Useful for seeing what agents actually do.',
     category: 'compliance',
     rules: [
       {
@@ -267,7 +267,7 @@ export function GovernanceControlRoom({ onBack }: GovernanceControlRoomProps) {
             </h1>
             <p className="text-sm text-gray-500 max-w-xl leading-relaxed">
               Toggle policy templates on the left and watch how they change the decision
-              for every tool call on the right — deny, approve, or log in real time.
+              for every tool call on the right: deny, approve, or log, in real time.
             </p>
           </div>
           <Badge variant="blue" size="md">VP Engineering / IT Governance</Badge>
@@ -403,8 +403,8 @@ export function GovernanceControlRoom({ onBack }: GovernanceControlRoomProps) {
             <Badge variant="red">PII Shield Active</Badge>
           </div>
           <p className="text-sm text-gray-500 mb-4 max-w-xl">
-            The PII Shield scans all tool responses for sensitive data — SSN, credit cards, emails,
-            phone numbers, IP addresses, dates of birth, and medical record numbers — and redacts
+            The PII Shield scans all tool responses for sensitive data (SSN, credit cards, emails,
+            phone numbers, IP addresses, dates of birth, and medical record numbers) and redacts
             matches before the content reaches the AI agent.
           </p>
 

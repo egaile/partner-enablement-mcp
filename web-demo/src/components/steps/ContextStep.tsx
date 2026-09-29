@@ -64,7 +64,7 @@ export function ContextStep({ data, isGenerating, projectKey, industry, requestP
           setIssueDetails((prev) => ({ ...prev, [issueKey]: detail }));
         }
       } catch {
-        // Silently fail — just show the basic info
+        // Silently fail and just show the basic info
       } finally {
         setLoadingIssue(null);
       }

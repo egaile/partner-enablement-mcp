@@ -65,8 +65,8 @@ function scoreComplianceCoverage(hits: ComplianceHit[], key: string): RiskDimens
     score,
     level: computeLevel(score),
     details: complianceHits.length > 0
-      ? `${complianceHits.length} compliance references found — ${coverage >= 60 ? 'good coverage' : 'needs improvement'}`
-      : 'No compliance documentation detected — high gap risk',
+      ? `${complianceHits.length} compliance references found, ${coverage >= 60 ? 'good coverage' : 'needs improvement'}`
+      : 'No compliance documentation detected. High gap risk',
   };
 }
 
@@ -118,7 +118,7 @@ function getRecommendations(
         projectName: projectScore.name,
         templateId: 'pii_shield',
         templateName: 'PII Shield',
-        reason: `Contains ${projectHits.filter((h) => ['PHI', 'PII', 'patient'].includes(h.keyword)).length} PII/PHI references — redaction recommended`,
+        reason: `Contains ${projectHits.filter((h) => ['PHI', 'PII', 'patient'].includes(h.keyword)).length} PII/PHI references. Redaction recommended`,
         severity: 'high',
       });
     }
@@ -130,7 +130,7 @@ function getRecommendations(
         projectName: projectScore.name,
         templateId: 'approval_for_writes',
         templateName: 'Approval for Writes',
-        reason: `Regulated project (${Array.from(keywords).filter((k) => ['HIPAA', 'PCI', 'FedRAMP', 'SOC2'].includes(k)).join(', ')}) — write operations need human approval`,
+        reason: `Regulated project (${Array.from(keywords).filter((k) => ['HIPAA', 'PCI', 'FedRAMP', 'SOC2'].includes(k)).join(', ')}). Write operations need human approval`,
         severity: 'high',
       });
     }
@@ -143,7 +143,7 @@ function getRecommendations(
         projectName: projectScore.name,
         templateId: 'audit_everything',
         templateName: 'Audit Everything',
-        reason: 'Compliance documentation coverage is critical — enable full audit logging for visibility',
+        reason: 'Compliance documentation coverage is critical. Enable full audit logging for visibility',
         severity: 'medium',
       });
     }
@@ -156,7 +156,7 @@ function getRecommendations(
         projectName: projectScore.name,
         templateId: 'read_only_jira',
         templateName: 'Read-Only Jira',
-        reason: 'High PII exposure risk — restrict to read-only access until data classification is complete',
+        reason: 'High PII exposure risk. Restrict to read-only access until data classification is complete',
         severity: 'high',
       });
     }

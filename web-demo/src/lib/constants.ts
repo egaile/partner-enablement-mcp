@@ -70,7 +70,7 @@ export const WORKFLOWS: WorkflowConfig[] = [
   {
     id: 'knowledge-audit',
     name: 'Knowledge Base Audit',
-    description: 'Audit Confluence documentation for completeness, freshness, and review activity — then annotate gaps directly.',
+    description: 'Audit Confluence documentation for completeness, freshness, and review activity, then annotate gaps directly.',
     persona: 'Knowledge Manager',
     toolCount: 8,
     steps: KNOWLEDGE_AUDIT_STEPS,

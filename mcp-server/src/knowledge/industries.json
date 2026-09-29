@@ -55,7 +55,7 @@
               "description": "AI-assisted symptom assessment and care navigation",
               "recommendedPattern": "human_in_the_loop",
               "complianceNotes": [
-                "Not a diagnostic tool - clear disclaimers required",
+                "Not a diagnostic tool; clear disclaimers required",
                 "Emergency symptoms must trigger immediate escalation",
                 "Clinical oversight and validation required",
                 "Audit trail for all assessments"
@@ -98,7 +98,7 @@
               "description": "AI support for prior auth request preparation and review",
               "recommendedPattern": "human_in_the_loop",
               "complianceNotes": [
-                "Decision support only - human decision required",
+                "Decision support only; a human makes the decision",
                 "Payer-specific requirements must be current",
                 "Appeal preparation assistance",
                 "Audit trail for regulatory review"

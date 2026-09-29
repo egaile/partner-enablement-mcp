@@ -60,7 +60,7 @@ async function runHTTP(): Promise<void> {
   // Per-session McpServer + Transport pairs (SDK requires one Server per transport)
   const sessions = new Map<string, { server: McpServer; transport: StreamableHTTPServerTransport }>();
 
-  // Stale session cleanup — evict sessions with no activity for 30 minutes
+  // Stale session cleanup: evict sessions with no activity for 30 minutes
   const SESSION_TTL_MS = 30 * 60 * 1000;
   const sessionLastActivity = new Map<string, number>();
 
@@ -95,7 +95,7 @@ async function runHTTP(): Promise<void> {
       return;
     }
 
-    // New session — create fresh McpServer + Transport
+    // New session: create a fresh McpServer + Transport
     if (req.method === "POST") {
       try {
         const sessionServer = createMcpServerInstance();

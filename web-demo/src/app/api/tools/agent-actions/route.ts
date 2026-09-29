@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     const actions: ActionResult[] = [];
 
     if (!isConfigured()) {
-      // Mock mode — simulate all enabled actions
+      // Mock mode: simulate all enabled actions
       return NextResponse.json({
         actions: getMockActions(enabledActions, projectKey, issueKey),
       });
