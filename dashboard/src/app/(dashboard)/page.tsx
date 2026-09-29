@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@clerk/nextjs";
-import { Activity, ShieldAlert, Server, Clock, Plus, Shield, ScrollText, AlertTriangle, Zap } from "lucide-react";
+import { Activity, ShieldAlert, Server, Clock, Plus, Shield, ScrollText, AlertTriangle, Zap, ArrowRight, FlaskConical } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import MetricCard from "@/components/dashboard/MetricCard";
@@ -15,6 +15,8 @@ import SecuritySummary from "@/components/dashboard/SecuritySummary";
 import type { AlertSummary } from "@/components/dashboard/SecuritySummary";
 import { DashboardSkeleton } from "@/components/shared/skeletons";
 import { gatewayFetch } from "@/lib/api";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useViewer } from "@/lib/viewer";
 
 interface Metrics {
   totalCalls: number;
@@ -76,14 +78,24 @@ const timeRanges = [
   { label: "7d", value: "7d", ms: 604800000 },
 ];
 
-const quickActions = [
-  { label: "Block a Jira Project", href: "/policies/new", icon: Shield },
-  { label: "Require Approval for Writes", href: "/policies/new", icon: ShieldAlert },
-  { label: "View Audit Log", href: "/audit", icon: ScrollText },
+// `create` items open a form (Plus icon); the rest are navigation (ArrowRight).
+const adminQuickActions = [
+  { label: "Block a Jira Project", href: "/policies/new", icon: Shield, create: true },
+  { label: "Require Approval for Writes", href: "/policies/new", icon: ShieldAlert, create: true },
+  { label: "View Audit Log", href: "/audit", icon: ScrollText, create: false },
+];
+
+// Read-only users can't create anything, so show places worth visiting instead.
+const readOnlyQuickActions = [
+  { label: "View Audit Log", href: "/audit", icon: ScrollText, create: false },
+  { label: "Try the Policy Simulator", href: "/policies/simulator", icon: FlaskConical, create: false },
+  { label: "Review Alerts", href: "/alerts", icon: AlertTriangle, create: false },
 ];
 
 export default function DashboardPage() {
   const { getToken, isLoaded } = useAuth();
+  // `loaded` gates role-dependent UI so admins never see the read-only set first.
+  const { loaded: viewerLoaded, readOnly } = useViewer();
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [recentLogs, setRecentLogs] = useState<AuditLogEntry[]>([]);
   const [timelineLogs, setTimelineLogs] = useState<ChartAuditEntry[]>([]);
@@ -235,12 +247,14 @@ export default function DashboardPage() {
               </>
             )}
           </div>
-          <Link
-            href="/settings?tab=billing"
-            className="text-xs font-medium px-3 py-1.5 rounded-md bg-card border border-border hover:border-cyan-500/30 transition-colors whitespace-nowrap"
-          >
-            Upgrade Plan
-          </Link>
+          {viewerLoaded && !readOnly && (
+            <Link
+              href="/settings?tab=billing"
+              className="text-xs font-medium px-3 py-1.5 rounded-md bg-card border border-border hover:border-cyan-500/30 transition-colors whitespace-nowrap"
+            >
+              Upgrade Plan
+            </Link>
+          )}
         </div>
       )}
 
@@ -300,7 +314,7 @@ export default function DashboardPage() {
       <ServerHealthGrid servers={servers} />
 
       {/* Security Summary */}
-      <SecuritySummary alerts={alerts} onAcknowledge={handleAcknowledgeAlert} />
+      <SecuritySummary alerts={alerts} onAcknowledge={readOnly ? undefined : handleAcknowledgeAlert} />
 
       {/* Atlassian operations breakdown */}
       {(jiraOps > 0 || confluenceOps > 0) && (
@@ -359,19 +373,27 @@ export default function DashboardPage() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {quickActions.map(({ label, href, icon: Icon }) => (
-          <Link
-            key={label}
-            href={href}
-            className="flex items-center gap-3 bg-card rounded-xl border border-border p-4 hover:border-cyan-500/30 hover:shadow-glow-sm transition-all"
-          >
-            <div className="p-2 rounded-lg bg-muted/50">
-              <Icon className="w-4 h-4 text-muted-foreground" />
-            </div>
-            <span className="text-sm font-medium text-foreground">{label}</span>
-            <Plus className="w-4 h-4 text-muted-foreground ml-auto" />
-          </Link>
-        ))}
+        {!viewerLoaded
+          ? Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-[66px] rounded-xl" />
+            ))
+          : (readOnly ? readOnlyQuickActions : adminQuickActions).map(({ label, href, icon: Icon, create }) => (
+              <Link
+                key={label}
+                href={href}
+                className="flex items-center gap-3 bg-card rounded-xl border border-border p-4 hover:border-cyan-500/30 hover:shadow-glow-sm transition-all"
+              >
+                <div className="p-2 rounded-lg bg-muted/50">
+                  <Icon className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <span className="text-sm font-medium text-foreground">{label}</span>
+                {create ? (
+                  <Plus className="w-4 h-4 text-muted-foreground ml-auto" />
+                ) : (
+                  <ArrowRight className="w-4 h-4 text-muted-foreground ml-auto" />
+                )}
+              </Link>
+            ))}
       </div>
 
       <RecentActivity

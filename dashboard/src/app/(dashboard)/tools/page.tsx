@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import EmptyState from "@/components/shared/EmptyState";
 import { gatewayFetch } from "@/lib/api";
+import { useReadOnly } from "@/lib/viewer";
 
 interface ServerRecord {
   id: string;
@@ -82,6 +83,7 @@ function ToolTableSkeleton() {
 
 export default function ToolsPage() {
   const { getToken } = useAuth();
+  const readOnly = useReadOnly();
   const [tools, setTools] = useState<ToolRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [approvingIds, setApprovingIds] = useState<Set<string>>(new Set());
@@ -214,9 +216,11 @@ export default function ToolsPage() {
                   <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">
-                    Action
-                  </th>
+                  {!readOnly && (
+                    <th className="text-left px-4 py-3 text-muted-foreground font-medium text-xs uppercase tracking-wider">
+                      Action
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/50">
@@ -245,18 +249,20 @@ export default function ToolsPage() {
                         Unapproved
                       </Badge>
                     </td>
-                    <td className="px-4 py-3">
-                      <Button
-                        size="sm"
-                        onClick={() => handleApprove(tool)}
-                        disabled={approvingIds.has(tool.snapshotId)}
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                        {approvingIds.has(tool.snapshotId)
-                          ? "Approving..."
-                          : "Approve"}
-                      </Button>
-                    </td>
+                    {!readOnly && (
+                      <td className="px-4 py-3">
+                        <Button
+                          size="sm"
+                          onClick={() => handleApprove(tool)}
+                          disabled={approvingIds.has(tool.snapshotId)}
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          {approvingIds.has(tool.snapshotId)
+                            ? "Approving..."
+                            : "Approve"}
+                        </Button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

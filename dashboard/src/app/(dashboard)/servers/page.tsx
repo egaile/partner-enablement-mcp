@@ -10,6 +10,7 @@ import { ServerCardSkeleton } from "@/components/shared/skeletons";
 import EmptyState from "@/components/shared/EmptyState";
 import SearchInput from "@/components/shared/SearchInput";
 import { gatewayFetch } from "@/lib/api";
+import { useViewer } from "@/lib/viewer";
 
 interface ServerRecord {
   id: string;
@@ -42,6 +43,8 @@ type StatusFilter = "all" | "active" | "disabled";
 
 export default function ServersPage() {
   const { getToken } = useAuth();
+  // Wait for /api/me too, so admins never see the demo empty state.
+  const { loaded: viewerLoaded, readOnly, me } = useViewer();
   const [servers, setServers] = useState<ServerRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -90,7 +93,7 @@ export default function ServersPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-foreground">MCP Servers</h2>
-        {atServerLimit ? (
+        {readOnly ? null : atServerLimit ? (
           <Link
             href="/settings?tab=billing"
             className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-lg text-sm hover:bg-amber-500/20 transition-colors"
@@ -110,7 +113,7 @@ export default function ServersPage() {
       </div>
 
       {/* Server limit banner */}
-      {atServerLimit && (
+      {atServerLimit && !readOnly && (
         <div className="flex items-center gap-3 px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
           <Server className="w-4 h-4 text-amber-400 flex-shrink-0" />
           <p className="text-sm text-amber-400 flex-1">
@@ -154,20 +157,34 @@ export default function ServersPage() {
         </div>
       )}
 
-      {loading ? (
+      {loading || !viewerLoaded ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 3 }).map((_, i) => (
             <ServerCardSkeleton key={i} />
           ))}
         </div>
       ) : servers.length === 0 ? (
-        <EmptyState
-          icon={Server}
-          title="No servers registered"
-          description="Add your first MCP server to start securing tool calls through the gateway."
-          actionLabel="Add Server"
-          actionHref="/servers/new"
-        />
+        readOnly ? (
+          <EmptyState
+            icon={Server}
+            title={me?.demo ? "No servers in the demo tenant yet." : "No servers yet."}
+            description={
+              me?.demo
+                ? "Servers connected to the demo tenant show up here. The documentation explains how a server connects through the gateway."
+                : "Servers connected to this workspace show up here. The documentation explains how a server connects through the gateway."
+            }
+            actionLabel="Read the documentation"
+            actionHref="/docs"
+          />
+        ) : (
+          <EmptyState
+            icon={Server}
+            title="No servers registered"
+            description="Add your first MCP server to start securing tool calls through the gateway."
+            actionLabel="Add Server"
+            actionHref="/servers/new"
+          />
+        )
       ) : filtered.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground text-sm">
           No servers matching your filters

@@ -20,6 +20,7 @@ import {
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { gatewayFetch } from "@/lib/api";
+import { useReadOnly } from "@/lib/viewer";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -30,7 +31,7 @@ const navItems = [
   { href: "/audit", label: "Audit Log", icon: ScrollText },
   { href: "/alerts", label: "Alerts", icon: Bell, showBadge: true },
   { href: "/docs", label: "Documentation", icon: BookOpen },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/settings", label: "Settings", icon: Settings, hideWhenReadOnly: true },
 ];
 
 interface SidebarProps {
@@ -41,6 +42,7 @@ interface SidebarProps {
 export default function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
   const { getToken, isLoaded } = useAuth();
+  const readOnly = useReadOnly();
   const [collapsed, setCollapsed] = useState(false);
   const [alertCount, setAlertCount] = useState(0);
 
@@ -81,7 +83,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
       </div>
 
       <nav className="flex-1 py-4">
-        {navItems.map(({ href, label, icon: Icon, showBadge }) => {
+        {navItems.filter((item) => !(readOnly && item.hideWhenReadOnly)).map(({ href, label, icon: Icon, showBadge }) => {
           const active =
             href === "/" ? pathname === "/" : pathname.startsWith(href);
           return (

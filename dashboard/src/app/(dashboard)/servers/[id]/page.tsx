@@ -11,6 +11,8 @@ import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { ServerDetailSkeleton } from "@/components/shared/skeletons";
 import { Switch } from "@/components/ui/switch";
 import { gatewayFetch } from "@/lib/api";
+import { useReadOnly, useReadOnlyReason } from "@/lib/viewer";
+import { readOnlyControlHint } from "@/components/shared/ReadOnlyNotice";
 
 interface ServerDetail {
   id: string;
@@ -20,9 +22,10 @@ interface ServerDetail {
   args: string[] | null;
   url: string | null;
   enabled: boolean;
-  created_at: string;
-  auth_type?: string;
-  oauth_scopes?: string[];
+  createdAt: string;
+  updatedAt?: string;
+  authType?: string;
+  oauthScopes?: string[] | null;
 }
 
 interface OAuthStatus {
@@ -88,6 +91,8 @@ export default function ServerDetailPage() {
   const [authorizing, setAuthorizing] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const readOnly = useReadOnly();
+  const readOnlyReason = useReadOnlyReason();
 
   const load = useCallback(async () => {
     try {
@@ -131,7 +136,7 @@ export default function ServerDetailPage() {
         );
         setOauthStatus(oauth);
       } catch {
-        // non-critical — server may not use OAuth
+        // non-critical: server may not use OAuth
       }
     } catch (err) {
       console.error("Failed to load server:", err);
@@ -250,9 +255,23 @@ export default function ServerDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
+          <div
+            className="flex items-center gap-2"
+            title={readOnly ? readOnlyControlHint(readOnlyReason) : undefined}
+          >
             <span className="text-sm text-muted-foreground">{server.enabled ? "Enabled" : "Disabled"}</span>
-            <Switch checked={server.enabled} onCheckedChange={handleToggleEnabled} />
+            {readOnly && (
+              <span id="server-read-only-hint" className="sr-only">
+                {readOnlyControlHint(readOnlyReason)}
+              </span>
+            )}
+            <Switch
+              checked={server.enabled}
+              onCheckedChange={handleToggleEnabled}
+              disabled={readOnly}
+              aria-label={`Server ${server.name} enabled`}
+              aria-describedby={readOnly ? "server-read-only-hint" : undefined}
+            />
           </div>
         </div>
       </div>
@@ -282,7 +301,7 @@ export default function ServerDetailPage() {
               )}
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">Added</dt>
-                <dd className="text-foreground">{new Date(server.created_at).toLocaleDateString()}</dd>
+                <dd className="text-foreground">{new Date(server.createdAt).toLocaleDateString()}</dd>
               </div>
               {health.latencyMs !== undefined && (
                 <div className="flex justify-between">
@@ -318,26 +337,30 @@ export default function ServerDetailPage() {
                     Token expires: {new Date(oauthStatus.expiresAt).toLocaleString()}
                   </p>
                 )}
-                <button
-                  onClick={handleReauthorize}
-                  disabled={authorizing}
-                  className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 disabled:opacity-50"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  {authorizing ? "Starting..." : oauthStatus.hasToken ? "Re-authorize" : "Authorize"}
-                </button>
+                {!readOnly && (
+                  <button
+                    onClick={handleReauthorize}
+                    disabled={authorizing}
+                    className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 disabled:opacity-50"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    {authorizing ? "Starting..." : oauthStatus.hasToken ? "Re-authorize" : "Authorize"}
+                  </button>
+                )}
               </div>
             )}
 
-            <div className="pt-3 border-t border-border/50">
-              <button
-                onClick={() => setDeleteOpen(true)}
-                className="flex items-center gap-2 text-sm text-red-400 hover:text-red-300"
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete Server
-              </button>
-            </div>
+            {!readOnly && (
+              <div className="pt-3 border-t border-border/50">
+                <button
+                  onClick={() => setDeleteOpen(true)}
+                  className="flex items-center gap-2 text-sm text-red-400 hover:text-red-300"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete Server
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Recent Audit Entries */}
@@ -378,7 +401,7 @@ export default function ServerDetailPage() {
             approved: s.approved,
             updatedAt: s.updated_at ?? s.updatedAt,
           }))}
-          onApprove={handleApproveSnapshot}
+          onApprove={readOnly ? undefined : handleApproveSnapshot}
         />
       </div>
 

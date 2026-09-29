@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   CheckCircle,
   ChevronRight,
@@ -26,6 +27,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { gatewayFetch } from "@/lib/api";
+import { PermissionsLoading } from "@/components/shared/skeletons";
+import { useReadOnlyReason, useViewer } from "@/lib/viewer";
+import { readOnlyMessage } from "@/components/shared/ReadOnlyNotice";
 
 const STEPS = [
   { label: "Welcome", icon: Sparkles },
@@ -74,7 +78,7 @@ const ATLASSIAN_TEMPLATES: AtlassianTemplate[] = [
     id: "audit_everything",
     name: "Audit Everything",
     description:
-      "Maximum visibility mode — log all calls with no blocking. Great as a compliance starter.",
+      "Maximum visibility mode: log all calls with no blocking. A good compliance starter.",
     category: "compliance",
   },
   {
@@ -89,6 +93,8 @@ const ATLASSIAN_TEMPLATES: AtlassianTemplate[] = [
 export default function OnboardingPage() {
   const { getToken } = useAuth();
   const router = useRouter();
+  const { loaded, readOnly, retry } = useViewer();
+  const readOnlyReason = useReadOnlyReason();
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
@@ -227,6 +233,44 @@ export default function OnboardingPage() {
     }
   };
 
+  if (!loaded) {
+    return (
+      <div className="flex justify-center">
+        <PermissionsLoading />
+      </div>
+    );
+  }
+
+  if (readOnly) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            {readOnlyReason === "demo"
+              ? "Setup is turned off in the demo"
+              : readOnlyReason === "account"
+                ? "Setup needs edit access"
+                : "Couldn't load your permissions"}
+          </CardTitle>
+          <CardDescription>
+            {readOnlyMessage(readOnlyReason, "connect servers or apply templates")}
+            {readOnlyReason === "demo" && " The demo tenant is already set up."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          {readOnlyReason === "unknown" && (
+            <Button variant="outline" onClick={retry}>
+              Retry
+            </Button>
+          )}
+          <Button asChild>
+            <Link href="/">Go to the dashboard</Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-8">
       {/* Step indicator */}
@@ -270,7 +314,7 @@ export default function OnboardingPage() {
             </CardTitle>
             <CardDescription className="text-base">
               MCP Shield sits between your AI agents (Claude, Cursor, Copilot)
-              and your Atlassian Rovo MCP Server — scanning every tool call for
+              and your Atlassian Rovo MCP Server. It scans every tool call for
               prompt injection, enforcing policies, and logging a complete audit
               trail.
             </CardDescription>
@@ -309,7 +353,7 @@ export default function OnboardingPage() {
             </div>
             <p className="text-sm text-muted-foreground text-center">
               Connect your Atlassian Rovo MCP Server in 3 minutes. Zero code
-              changes — just a URL swap.
+              changes, just a URL swap.
             </p>
           </CardContent>
         </Card>
@@ -334,7 +378,7 @@ export default function OnboardingPage() {
                   Copy your Atlassian Rovo MCP Server URL from your Atlassian
                   admin settings
                 </li>
-                <li>Paste it below — the gateway will proxy to Atlassian</li>
+                <li>Paste it below. The gateway will proxy to Atlassian</li>
                 <li>
                   Update your AI client config to point to{" "}
                   <code className="bg-muted px-1 rounded">{GATEWAY_URL}/mcp</code>{" "}
@@ -470,7 +514,7 @@ export default function OnboardingPage() {
               <div className="space-y-4">
                 <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
                   <p className="text-xs text-emerald-400 mb-1 font-medium">
-                    API key generated. Copy it now — it won&apos;t be shown
+                    API key generated. Copy it now. It won&apos;t be shown
                     again.
                   </p>
                   <div className="flex items-center gap-2">

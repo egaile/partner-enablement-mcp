@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import EmptyState from "@/components/shared/EmptyState";
 import { AlertFeedSkeleton } from "@/components/shared/skeletons";
 import { gatewayFetch } from "@/lib/api";
+import { useViewer } from "@/lib/viewer";
 
 interface ApprovalRecord {
   id: string;
@@ -26,6 +27,11 @@ interface ApprovalRecord {
 
 export default function ApprovalsPage() {
   const { getToken } = useAuth();
+  // The gateway only lets owners and admins decide approvals, and never the
+  // user who made the request.
+  const { me } = useViewer();
+  const isDecider = me?.role === "owner" || me?.role === "admin";
+  const canDecide = (a: ApprovalRecord) => isDecider && a.userId !== me?.userId;
   const [approvals, setApprovals] = useState<ApprovalRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -145,7 +151,12 @@ export default function ApprovalsPage() {
                     )}
                   </div>
 
-                  {a.status === "pending" && !expired && (
+                  {a.status === "pending" && !expired && isDecider && !canDecide(a) && (
+                    <p className="text-xs text-muted-foreground">
+                      You made this request, so another admin has to decide it.
+                    </p>
+                  )}
+                  {a.status === "pending" && !expired && canDecide(a) && (
                     <div className="flex items-center gap-2">
                       <Button
                         size="sm"

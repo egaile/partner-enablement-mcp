@@ -57,7 +57,8 @@ const pillColors: Record<string, string> = {
 
 interface SecuritySummaryProps {
   alerts: AlertSummary[];
-  onAcknowledge: (id: string) => void;
+  /** Omit to hide the Acknowledge button (read-only users). */
+  onAcknowledge?: (id: string) => void;
 }
 
 export default function SecuritySummary({ alerts, onAcknowledge }: SecuritySummaryProps) {
@@ -125,12 +126,14 @@ export default function SecuritySummary({ alerts, onAcknowledge }: SecuritySumma
                     </span>
                   </div>
                 </div>
-                <button
-                  onClick={() => onAcknowledge(mostCritical.id)}
-                  className="text-xs px-2 py-1 border border-border rounded hover:bg-muted transition-colors shrink-0"
-                >
-                  Acknowledge
-                </button>
+                {onAcknowledge && (
+                  <button
+                    onClick={() => onAcknowledge(mostCritical.id)}
+                    className="text-xs px-2 py-1 border border-border rounded hover:bg-muted transition-colors shrink-0"
+                  >
+                    Acknowledge
+                  </button>
+                )}
               </div>
             </div>
           )}

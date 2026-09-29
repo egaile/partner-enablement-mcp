@@ -7,12 +7,12 @@ export const faqData: FaqItem[] = [
   {
     question: "What is the MCP Security Gateway?",
     answer:
-      "The MCP Security Gateway is a transparent proxy that sits between AI agents and downstream MCP servers. It intercepts every tool call to enforce security policies, scan for prompt injection attacks, detect tool definition drift, and produce a full audit trail — all without modifying the downstream servers themselves.",
+      "The MCP Security Gateway is a transparent proxy that sits between AI agents and downstream MCP servers. It intercepts every tool call to enforce security policies, scan for prompt injection attacks, detect tool definition drift, and produce a full audit trail, all without modifying the downstream servers.",
   },
   {
     question: "Do I need Supabase and Clerk to run the gateway?",
     answer:
-      "Yes, both are required for the full deployment. Supabase provides the Postgres database (with Row-Level Security) for storing tenants, policies, audit logs, alerts, and approval requests. Clerk handles authentication — either via JWT tokens from the dashboard or API keys for programmatic access. Both offer generous free tiers suitable for development and small deployments.",
+      "Yes, both are required for the full deployment. Supabase provides the Postgres database (with Row-Level Security) for storing tenants, policies, audit logs, alerts, and approval requests. Clerk handles authentication, either via JWT tokens from the dashboard or API keys for programmatic access. Both offer generous free tiers suitable for development and small deployments.",
   },
   {
     question: "What happens if no policy rules match a tool call?",
@@ -27,7 +27,7 @@ export const faqData: FaqItem[] = [
   {
     question: "What is tool drift detection?",
     answer:
-      "Tool drift detection ensures that the tools exposed by a downstream MCP server haven't changed unexpectedly. When the gateway first discovers a server's tools, it computes a SHA-256 hash of each tool's schema (name, description, input schema). On subsequent connections, it compares the current hash against the stored snapshot. If they differ, an alert fires — this could indicate a compromised server or an unannounced breaking change.",
+      "Tool drift detection ensures that the tools exposed by a downstream MCP server haven't changed unexpectedly. When the gateway first discovers a server's tools, it computes a SHA-256 hash of each tool's schema (name, description, input schema). On subsequent connections, it compares the current hash against the stored snapshot. If they differ, an alert fires. This could indicate a compromised server or an unannounced breaking change.",
   },
   {
     question: "Can I use API keys instead of Clerk JWTs?",
@@ -37,7 +37,7 @@ export const faqData: FaqItem[] = [
   {
     question: "How do I connect a stdio-transport MCP server?",
     answer:
-      "When adding a server in the dashboard, select 'stdio' as the transport type and provide the command to start the server (e.g., `node dist/index.js` or `python server.py`). The gateway will spawn the process and communicate with it over stdin/stdout using the MCP protocol. Make sure the server binary is accessible from the gateway's working directory or provide an absolute path.",
+      "The hosted gateway only connects to HTTP servers. A stdio server would run a command inside the shared gateway, so it is turned off here. To use a stdio server, run the self-hosted gateway with the mcpshield CLI (`mcpshield init`, then add the server to mcpshield.yaml with `transport: stdio`).",
   },
   {
     question: "What is the HITL approval workflow?",
@@ -52,7 +52,7 @@ export const faqData: FaqItem[] = [
   {
     question: "Can the gateway proxy to multiple downstream servers?",
     answer:
-      "Yes. Each tenant can register multiple downstream MCP servers. The gateway aggregates tools from all connected servers and namespaces them as `serverName__toolName` to avoid collisions. When an agent calls a namespaced tool, the gateway routes the call to the correct downstream server. Each server can have its own transport type (stdio or HTTP) and independent policy rules.",
+      "Yes. Each tenant can register multiple downstream MCP servers. The gateway aggregates tools from all connected servers and namespaces them as `serverName__toolName` to avoid collisions. When an agent calls a namespaced tool, the gateway routes the call to the correct downstream server. Each server has its own independent policy rules.",
   },
   {
     question: "How do I connect the Atlassian Rovo MCP Server?",
@@ -62,12 +62,12 @@ export const faqData: FaqItem[] = [
   {
     question: "What are the Atlassian policy templates?",
     answer:
-      "The gateway ships with 6 pre-built policy templates designed for Atlassian Rovo: (1) Read-Only Jira — blocks all write operations; (2) Protected Projects — blocks access to sensitive projects like HR or Security; (3) Approval for Writes — requires human approval before any create/update; (4) Confluence View-Only — allows reads but blocks edits; (5) Audit Everything — logs all calls without blocking; (6) PII Shield — scans Jira/Confluence content for PII. Apply templates from the Onboarding wizard or via the API.",
+      "The gateway ships with 6 pre-built policy templates designed for Atlassian Rovo: (1) Read-Only Jira: blocks all write operations; (2) Protected Projects: blocks access to sensitive projects like HR or Security; (3) Approval for Writes: requires human approval before any create/update; (4) Confluence View-Only: allows reads but blocks edits; (5) Audit Everything: logs all calls without blocking; (6) PII Shield: scans Jira/Confluence content for PII. Apply templates from the Onboarding wizard or via the API.",
   },
   {
     question: "How does OAuth 2.1 work for downstream servers?",
     answer:
-      "The gateway uses the MCP SDK's built-in OAuthClientProvider to implement OAuth 2.1 with PKCE. When you authorize a server, the gateway automatically discovers the OAuth metadata, registers as a client, generates PKCE challenge pairs, and handles token exchange. Access tokens are refreshed automatically when they expire. For Atlassian Rovo, your admin must add your gateway's domain to the Rovo MCP Server allowlist in Atlassian Admin (Apps > AI settings > Rovo MCP Server > Your domains) — include the `/**` path wildcard.",
+      "The gateway uses the MCP SDK's built-in OAuthClientProvider to implement OAuth 2.1 with PKCE. When you authorize a server, the gateway automatically discovers the OAuth metadata, registers as a client, generates PKCE challenge pairs, and handles token exchange. Access tokens are refreshed automatically when they expire. For Atlassian Rovo, your admin must add your gateway's domain to the Rovo MCP Server allowlist in Atlassian Admin (Apps > AI settings > Rovo MCP Server > Your domains). Include the `/**` path wildcard.",
   },
   {
     question: "How does billing and usage metering work?",

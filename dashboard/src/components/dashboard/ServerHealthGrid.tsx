@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Server } from "lucide-react";
 import { relativeTime } from "@/lib/format-time";
+import { useReadOnly } from "@/lib/viewer";
 
 export interface ServerHealth {
   id: string;
@@ -32,6 +33,7 @@ interface ServerHealthGridProps {
 }
 
 export default function ServerHealthGrid({ servers }: ServerHealthGridProps) {
+  const readOnly = useReadOnly();
   if (servers.length === 0) {
     return (
       <div className="bg-card rounded-xl border border-border p-5">
@@ -39,9 +41,11 @@ export default function ServerHealthGrid({ servers }: ServerHealthGridProps) {
         <div className="flex flex-col items-center justify-center py-6 text-muted-foreground text-sm">
           <Server className="w-8 h-8 mb-2 opacity-40" />
           <p>No servers connected</p>
-          <Link href="/servers/new" className="text-cyan-400 hover:text-cyan-300 mt-1 text-xs">
-            Add a server
-          </Link>
+          {!readOnly && (
+            <Link href="/servers/new" className="text-cyan-400 hover:text-cyan-300 mt-1 text-xs">
+              Add a server
+            </Link>
+          )}
         </div>
       </div>
     );

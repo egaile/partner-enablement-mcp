@@ -6,7 +6,7 @@ import MarkdownRenderer from "@/components/docs/MarkdownRenderer";
 import DocPagination from "@/components/docs/DocPagination";
 import { faqData } from "@/lib/faq-data";
 
-// Dynamic rendering (not SSG) — matches the rest of the authenticated dashboard
+// Dynamic rendering (not SSG), which matches the rest of the authenticated dashboard
 // and avoids hydration mismatches from Clerk auth in the parent layout
 export const dynamic = "force-dynamic";
 

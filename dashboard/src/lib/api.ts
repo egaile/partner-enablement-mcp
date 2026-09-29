@@ -16,10 +16,14 @@ export async function gatewayFetch<T>(
   });
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(
-      (body as { error?: string }).error || `Gateway error: ${res.status}`
-    );
+    const body = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      code?: string;
+    };
+    if (body.code === "read_only") {
+      throw new Error("Your account is read-only, so this change wasn't saved.");
+    }
+    throw new Error(body.error || `Gateway error: ${res.status}`);
   }
 
   return res.json() as Promise<T>;

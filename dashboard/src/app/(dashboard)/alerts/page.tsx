@@ -9,6 +9,7 @@ import { AlertFeedSkeleton } from "@/components/shared/skeletons";
 import EmptyState from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
 import { gatewayFetch } from "@/lib/api";
+import { useReadOnly } from "@/lib/viewer";
 
 interface AlertRecord {
   id: string;
@@ -27,6 +28,7 @@ const alertTypes = ["all", "injection_detected", "policy_violation", "tool_drift
 
 export default function AlertsPage() {
   const { getToken } = useAuth();
+  const readOnly = useReadOnly();
   const [alerts, setAlerts] = useState<AlertRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "open">("open");
@@ -176,7 +178,7 @@ export default function AlertsPage() {
           ))}
         </select>
 
-        {selected.size > 0 && (
+        {selected.size > 0 && !readOnly && (
           <Button
             size="sm"
             variant="outline"
@@ -205,21 +207,23 @@ export default function AlertsPage() {
       ) : (
         <>
           {/* Select all checkbox */}
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={selected.size > 0 && selected.size === alerts.filter((a) => !a.acknowledged).length}
-              onChange={toggleSelectAll}
-              className="rounded border-border"
-            />
-            <span className="text-xs text-muted-foreground">Select all unacknowledged</span>
-          </div>
+          {!readOnly && (
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={selected.size > 0 && selected.size === alerts.filter((a) => !a.acknowledged).length}
+                onChange={toggleSelectAll}
+                className="rounded border-border"
+              />
+              <span className="text-xs text-muted-foreground">Select all unacknowledged</span>
+            </div>
+          )}
 
           <AlertFeed
             alerts={alerts}
-            onAcknowledge={handleAcknowledge}
+            onAcknowledge={readOnly ? undefined : handleAcknowledge}
             selected={selected}
-            onToggleSelect={toggleSelect}
+            onToggleSelect={readOnly ? undefined : toggleSelect}
           />
 
           {/* Pagination */}

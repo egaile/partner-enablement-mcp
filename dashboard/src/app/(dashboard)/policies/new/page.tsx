@@ -7,11 +7,16 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import RuleBuilder from "@/components/policies/RuleBuilder";
+import ReadOnlyNotice, { readOnlyMessage } from "@/components/shared/ReadOnlyNotice";
+import { PermissionsLoading } from "@/components/shared/skeletons";
 import { gatewayFetch } from "@/lib/api";
+import { useReadOnlyReason, useViewer } from "@/lib/viewer";
 
 export default function NewPolicyPage() {
   const { getToken } = useAuth();
   const router = useRouter();
+  const { loaded, readOnly } = useViewer();
+  const readOnlyReason = useReadOnlyReason();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -46,9 +51,27 @@ export default function NewPolicyPage() {
         <h2 className="text-xl font-semibold text-foreground">Create Policy Rule</h2>
       </div>
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {!loaded ? (
+        <PermissionsLoading />
+      ) : readOnly ? (
+        <ReadOnlyNotice>
+          {readOnlyMessage(readOnlyReason, "create policies")} Browse the existing ones on the{" "}
+          <Link href="/policies" className="font-medium underline hover:text-cyan-100">
+            Policies
+          </Link>{" "}
+          page, or try the{" "}
+          <Link href="/policies/simulator" className="font-medium underline hover:text-cyan-100">
+            policy simulator
+          </Link>
+          .
+        </ReadOnlyNotice>
+      ) : (
+        <>
+          {error && <p className="text-sm text-red-400">{error}</p>}
 
-      <RuleBuilder onSubmit={handleSubmit} submitting={submitting} />
+          <RuleBuilder onSubmit={handleSubmit} submitting={submitting} />
+        </>
+      )}
     </div>
   );
 }

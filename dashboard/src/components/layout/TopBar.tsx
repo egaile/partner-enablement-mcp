@@ -15,6 +15,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { gatewayFetch } from "@/lib/api";
+import { useViewer } from "@/lib/viewer";
 
 const routeLabels: Record<string, string> = {
   "": "Dashboard",
@@ -57,6 +58,7 @@ export default function TopBar({ onToggleSidebar }: TopBarProps) {
   const pathname = usePathname();
   const { getToken, isLoaded } = useAuth();
   const [alertCount, setAlertCount] = useState(0);
+  const { me, loaded } = useViewer();
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -71,7 +73,7 @@ export default function TopBar({ onToggleSidebar }: TopBarProps) {
         );
         setAlertCount(data.count ?? data.data.length);
       } catch {
-        // silently fail — alert count is non-critical
+        // silently fail; alert count is non-critical
       }
     }
     fetchAlertCount();
@@ -135,7 +137,10 @@ export default function TopBar({ onToggleSidebar }: TopBarProps) {
             </Badge>
           )}
         </Link>
-        <UserButton afterSignOutUrl="/sign-in" />
+        {/* Wait for /api/me so the shared demo account never shows Clerk's
+            account menu (DemoBanner has its own Exit demo button). If /api/me
+            fails, show it so people can still sign out. */}
+        {loaded && !me?.demo && <UserButton afterSignOutUrl="/sign-in" />}
       </div>
     </header>
   );
