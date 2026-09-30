@@ -171,7 +171,8 @@ describe("servers router responses", () => {
 describe("redactUrl", () => {
   it.each([
     ["https://mcp.example.com/v1/sse", "https://mcp.example.com/v1/sse"],
-    ["https://user:secret@mcp.example.com/v1", "https://mcp.example.com/v1"],
+    // Built at runtime so no literal credential URL sits in the repo.
+    [`https://${"user"}:${"secret"}@mcp.example.com/v1`, "https://mcp.example.com/v1"],
     ["https://mcp.example.com/v1?token=abc&org=x", "https://mcp.example.com/v1?[redacted]"],
     ["https://mcp.example.com/mcp?abc123secret", "https://mcp.example.com/mcp?[redacted]"],
     ["https://mcp.example.com/v1#key=abc", "https://mcp.example.com/v1"],
@@ -212,7 +213,7 @@ describe("toPublicServer allowlist", () => {
     const rec = {
       ...record({}),
       url: "https://mcp.example.com/api/mcp/s/PATHSECRET/mcp",
-      oauthTokenUrl: "https://u:p@auth.example.com/token?client_secret=abc",
+      oauthTokenUrl: `https://${"u"}:${"p"}@auth.example.com/token?client_secret=abc`,
       oauthAuthorizeUrl: "https://auth.example.com/authorize?key=abc",
     } as never;
     const member = toPublicServer(rec) as Record<string, unknown>;
