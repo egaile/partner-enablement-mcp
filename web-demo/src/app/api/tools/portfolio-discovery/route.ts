@@ -23,7 +23,7 @@ function getMockData(): PortfolioDiscoveryData {
 }
 
 async function fetchViaGateway(): Promise<PortfolioDiscoveryData> {
-  // Step 1: Get user info (atlassianUserInfo — 30th tool)
+  // Step 1: Get user info (atlassianUserInfo, the 30th tool)
   let user: PortfolioUser = { accountId: 'unknown', displayName: 'Unknown', active: true };
   try {
     const userResult = await callTool(rovo('atlassianUserInfo'), { cloudId: ATLASSIAN_CLOUD_ID });
@@ -38,7 +38,7 @@ async function fetchViaGateway(): Promise<PortfolioDiscoveryData> {
       };
     }
   } catch {
-    // Fall through — user info is optional
+    // Fall through; user info is optional
   }
 
   // Step 2: Get all visible Jira projects

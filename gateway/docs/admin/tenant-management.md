@@ -59,12 +59,13 @@ Users are identified by their Clerk user ID. A user can belong to multiple tenan
 
 | Role | Permissions |
 |------|-------------|
-| `owner` | Full access. Can manage team members, delete members, change roles, create API keys, and manage all resources. |
-| `admin` | Can manage API keys, invite team members, and manage all resources except deleting team members or changing roles. |
-| `member` | Read access to all data. Can acknowledge alerts and approve/reject HITL requests. |
+| `owner` | Full access. Can manage team members, delete members, change roles, create API keys, approve or reject requests, and manage all resources. |
+| `admin` | Can manage API keys, invite team members, approve or reject requests, and manage all resources except deleting team members or changing roles. |
+| `member` | Can manage servers, policies, webhooks and alerts, but can't approve or reject requests. Can't manage API keys or the team. |
+| `viewer` | Read-only. Can browse servers, tools, policies, the audit log, alerts and approvals (tool arguments hidden), and run the policy simulator. Can't see API keys, team members or billing history, and can't call `/mcp`. |
 
 Role enforcement happens at two levels:
-1. **REST API middleware**: The `requireRole()` middleware checks `req.tenant.userRole` against the allowed roles for sensitive endpoints.
+1. **REST API middleware**: `requireAuth` rejects any request from a `viewer` that isn't an allowed read (see `gateway/src/auth/viewer-access.ts`), and `requireRole()` guards team, API-key, and approve/reject endpoints.
 2. **Database RLS**: Row-level security policies filter data based on the Clerk user's tenant memberships.
 
 ## Auto-provisioning
@@ -72,9 +73,29 @@ Role enforcement happens at two levels:
 When a Clerk user authenticates for the first time and has no `tenant_users` entry, the gateway automatically provisions them:
 
 1. Creates a `tenant_users` record mapping them to the default tenant (`00000000-0000-0000-0000-000000000001`)
-2. Assigns the `owner` role
+2. Assigns the `viewer` role
 
-This ensures that the first user can immediately start using the gateway without manual database setup.
+Anyone can sign up through Clerk, so new users start read-only. There is no role-change control in the dashboard yet (**Settings > Team** only shows each member's role). An owner promotes a user with `PUT /api/settings/team/<clerk-user-id>/role` (owner only, see [Update a member's role](#update-a-members-role)), or by updating `tenant_users` in SQL:
+
+```sql
+UPDATE tenant_users
+SET role = 'member'
+WHERE tenant_id = '00000000-0000-0000-0000-000000000001'
+  AND clerk_user_id = 'user_from_clerk';
+```
+
+To bootstrap the first owner, set their role in `tenant_users` directly the same way.
+
+## Public demo login
+
+The dashboard's sign-in page can show a **Try the demo** button that signs visitors in as a shared read-only user, without sharing a password.
+
+1. In the Clerk dashboard, create a user for the demo (for example `demo@yourdomain.com`). It doesn't need a password.
+2. Copy its user ID (`user_...`).
+3. On the gateway, set `DEMO_CLERK_USER_IDS=<user id>`. The gateway always treats these users as `viewer`, whatever `tenant_users` says.
+4. On the dashboard, set `DEMO_CLERK_USER_ID=<user id>` and redeploy. The button appears on `/sign-in`.
+
+Clicking the button calls `/api/demo-login`. It first asks the gateway (`GET /api/demo/viewer-check`) whether it forces this user to `viewer`. If step 3 was skipped, the answer is no and the dashboard sends the visitor back to `/sign-in?demo=unavailable` instead of handing out a session with write access. Otherwise it turns off self-deletion and organization creation for the demo user in Clerk, creates a Clerk sign-in token that expires after 2 minutes, and redirects to `/demo`, which redeems it. The demo user lands in the default tenant with a read-only banner and an **Exit demo** button. Clerk's account menu is hidden for this user so visitors can't change its email or security settings.
 
 ## Team management API
 
@@ -160,7 +181,8 @@ CREATE POLICY "tenant_isolation_mcp_servers" ON mcp_servers
 ```
 
 This means:
-- Dashboard queries (using the Supabase anon key with Clerk JWT) are automatically scoped to the user's tenants.
+- The dashboard never queries Supabase directly. It goes through the gateway's REST API.
+- Migration `010_revoke_client_access.sql` removes all table and function access from the `anon` and `authenticated` roles, so a client holding a Supabase key or JWT can't read or write rows at all. These policies are a backstop, not the main control.
 - Gateway queries (using the Supabase service role key) bypass RLS and can access all tenants. The gateway adds tenant scoping in its own query logic.
 
 ### Cross-tenant isolation
@@ -201,9 +223,11 @@ The response includes the raw key (shown once):
 
 API keys are stored as SHA-256 hashes. The raw key cannot be retrieved after creation.
 
-Use the key via the `X-API-Key` header:
+Send the key as a bearer token in the `Authorization` header. The gateway treats any bearer value that starts with `mgw_` as an API key:
 
 ```bash
 curl http://localhost:4000/api/servers \
-  -H "X-API-Key: mgw_a1b2c3d4e5f6..."
+  -H "Authorization: Bearer mgw_a1b2c3d4e5f6..."
 ```
+
+Requests made with an API key run with the `member` role, so they can't approve or reject approval requests.

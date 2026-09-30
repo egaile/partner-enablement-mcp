@@ -1,6 +1,6 @@
 # Connecting MCP Servers
 
-The gateway acts as a transparent proxy between AI agents and one or more downstream MCP servers. It supports both HTTP and stdio transports.
+The gateway acts as a transparent proxy between AI agents and one or more downstream MCP servers. The hosted gateway only connects to HTTP (Streamable HTTP) servers. The self-hosted `mcpshield` CLI also supports stdio servers; see [stdio servers are self-host only](#stdio-servers-are-self-host-only).
 
 ## How connections work
 
@@ -74,53 +74,42 @@ The `authHeaders` object is stored in the database and included in every request
 
 > **See also:** [Connecting to Atlassian Rovo MCP Server](./connecting-atlassian-rovo.md) for a complete walkthrough.
 
-## Registering a stdio server
+## stdio servers are self-host only
 
-Stdio-transport servers are launched as child processes. The gateway spawns the process, communicates over stdin/stdout, and manages the process lifecycle.
+The hosted gateway does not accept stdio servers. A stdio server is a command the gateway runs as a child process, and on a shared multi-tenant gateway that command would run next to every other tenant's data and the gateway's own secrets.
 
-```bash
-curl -X POST http://localhost:4000/api/servers \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <token>" \
-  -d '{
-    "name": "filesystem",
-    "transport": "stdio",
-    "command": "npx",
-    "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/documents"],
-    "enabled": true
-  }'
+- `POST /api/servers` with `"transport": "stdio"` returns `400`, and the validation error reads `The hosted gateway only supports HTTP servers. Use the self-hosted mcpshield CLI for stdio servers.` The same applies to `PUT /api/servers/:id`.
+- `command` and `args` are not accepted fields, so a request that includes them is rejected as having unknown fields.
+- A stdio record created before this change stays in the list but fails to connect with `Server "<name>" uses stdio, which is disabled on this gateway`. Delete it, or replace it with an HTTP server.
+
+To proxy a stdio server, run the self-hosted gateway and declare the server in `mcpshield.yaml`:
+
+```yaml
+servers:
+  - id: filesystem
+    name: "Filesystem"
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/home/user/documents"]
+  - id: github
+    transport: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    env:
+      GITHUB_TOKEN: "ghp_xxxxxxxxxxxx"
 ```
-
-**Fields:**
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | Yes | Unique name within the tenant. |
+| `id` | string | Yes | Stable identifier, used as the upsert key. |
+| `name` | string | No | Display name. Defaults to `id`. |
 | `transport` | `"stdio"` | Yes | Transport type. |
-| `command` | string | Yes (for stdio) | The command to run (e.g., `node`, `npx`, `python`). |
+| `command` | string | Yes (for stdio) | The command to run (for example `node`, `npx`, `python`). |
 | `args` | string[] | No | Command-line arguments. |
-| `env` | object | No | Additional environment variables passed to the child process. Merged with the gateway's own environment. |
+| `env` | object | No | Extra environment variables for the child process, merged with the gateway's own environment. |
 | `enabled` | boolean | No | Defaults to `true`. |
 
-### Passing environment variables
-
-If the downstream server needs API keys or configuration:
-
-```bash
-curl -X POST http://localhost:4000/api/servers \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <token>" \
-  -d '{
-    "name": "github",
-    "transport": "stdio",
-    "command": "npx",
-    "args": ["-y", "@modelcontextprotocol/server-github"],
-    "env": {
-      "GITHUB_TOKEN": "ghp_xxxxxxxxxxxx"
-    },
-    "enabled": true
-  }'
-```
+Then start the gateway with `mcpshield start` (or `node packages/cli/dist/index.js start` from source). Server changes in `mcpshield.yaml` need a restart; only policies hot-reload.
 
 ## Listing registered servers
 
@@ -206,9 +195,9 @@ Response:
 ```
 
 Health statuses:
-- **healthy** -- responding within 5 seconds
-- **degraded** -- responding but latency exceeds 5 seconds, or fewer than 3 consecutive failures
-- **unreachable** -- 3 or more consecutive health check failures (triggers a `server_error` alert)
+- **healthy**: responding within 5 seconds
+- **degraded**: responding but latency exceeds 5 seconds, or fewer than 3 consecutive failures
+- **unreachable**: 3 or more consecutive health check failures (triggers a `server_error` alert)
 
 ## Updating a server
 

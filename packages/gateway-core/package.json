@@ -1,7 +1,7 @@
 {
   "name": "@mcpshield/gateway-core",
   "version": "0.1.0",
-  "description": "MCPShield Gateway Core — open-source MCP security proxy. Scanners, policy engine, audit, drift detection.",
+  "description": "MCPShield Gateway Core: open-source MCP security proxy. Scanners, policy engine, audit, drift detection.",
   "license": "MIT",
   "author": "Ed Gaile",
   "repository": {

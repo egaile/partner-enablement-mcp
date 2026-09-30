@@ -1,7 +1,7 @@
 import type { PageInfo, CommentInfo, PageHealthScore, HealthScoringData } from '@/types/api';
 
 /**
- * Knowledge-health scoring — pure, deterministic. Shared between the
+ * Knowledge-health scoring. Pure and deterministic. Shared between the
  * in-workflow POST route and the Dashboard Hub REST endpoint.
  *
  * Score formula (100 total):

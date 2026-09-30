@@ -1,5 +1,7 @@
 # PRD 03: Knowledge Base Specifications
 
+> Note: this is the original February 2026 planning doc for the portfolio demo. It predates the MCPShield gateway and parts of it are out of date.
+
 ## Document Info
 - **Component**: Knowledge Layer
 - **Format**: Static JSON Files

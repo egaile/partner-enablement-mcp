@@ -1,6 +1,6 @@
 /**
  * Lightweight MCP JSON-RPC client for calling the gateway's /mcp endpoint.
- * Uses raw fetch — no MCP SDK dependency needed.
+ * Uses raw fetch, so no MCP SDK dependency is needed.
  *
  * Rec 3: Converted from module-scoped mutable state to a factory pattern.
  * Each createGatewaySession() returns an isolated session with its own

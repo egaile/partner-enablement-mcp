@@ -1,5 +1,5 @@
 /**
- * BaseAuditLogger — buffered, batch-flushed audit log writer.
+ * BaseAuditLogger: buffered, batch-flushed audit log writer.
  *
  * Writes are accumulated in an in-memory CircularBuffer and flushed in
  * batches either when the buffer reaches `batchSize` or every
@@ -10,7 +10,7 @@
  * logger works with SQLite (OSS) and Supabase (cloud) without changes.
  *
  * Cloud-specific concerns (Atlassian metadata enrichment, billing usage
- * metering) layer on top via subclassing — see gateway/src/audit/logger.ts.
+ * metering) layer on top via subclassing (see gateway/src/audit/logger.ts).
  */
 
 import { CircularBuffer } from "./circular-buffer.js";

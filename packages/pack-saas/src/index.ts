@@ -13,7 +13,7 @@ export default definePack({
   id: "saas",
   name: "SaaS / Technology",
   description:
-    "SOC2-aligned baseline for B2B SaaS, technology, and developer-tools companies. Conservative defaults; pair with the secrets scanner for full coverage.",
+    "SOC2-aligned baseline for B2B SaaS, technology, and developer-tools companies. Conservative defaults: an audit-everything template plus a placeholder secrets template.",
   pii: [],
   policyTemplates: [
     {
@@ -36,13 +36,13 @@ export default definePack({
       id: "saas_secrets_shield",
       name: "Secrets Shield",
       description:
-        "Block tool calls that contain leaked API keys, tokens, or private keys in their arguments or responses.",
+        "Placeholder: sets redactSecrets on every tool call, which the gateway does not enforce yet. No secrets are blocked or redacted today.",
       category: "security",
       rules: [
         {
           name: "Redact secrets in I/O",
           description:
-            "Scan and redact API keys, tokens, and private-key headers from all tool I/O",
+            "Placeholder: sets redactSecrets, which the gateway does not enforce yet",
           priority: 100,
           conditions: { tools: ["*"] },
           action: "allow",
@@ -54,10 +54,10 @@ export default definePack({
   compliance: [{ id: "soc2", name: "SOC 2" }],
   defaultClassification: "internal",
   onboardingCopy: {
-    headline: "SaaS baseline — SOC2-aligned defaults",
+    headline: "SaaS baseline: SOC2-aligned defaults",
     bullets: [
       "Log every tool call as audit evidence",
-      "Block leaked API keys from tool inputs and responses",
+      "Secrets redaction placeholder (redactSecrets is not enforced yet)",
       "Conservative redaction labels for safe shareable transcripts",
     ],
   },

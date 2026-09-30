@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/.next
+.git
+.context
+web-demo
+dashboard
+mcp-server
+**/*.log
+**/.env
+**/.env.*

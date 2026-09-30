@@ -43,7 +43,7 @@ export class PromptInjectionScanner {
 
   /**
    * Return the current strategy list. Exposed for introspection (CLI
-   * `packs list`, tests). The returned array is a copy — mutate the
+   * `packs list`, tests). The returned array is a copy; mutate the
    * scanner via `addStrategy()`.
    */
   listStrategies(): ScanStrategy[] {

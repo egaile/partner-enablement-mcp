@@ -7,16 +7,16 @@ The open packages (everything under `packages/`) are MIT and welcome external co
 ## Layout
 
 ```
-packages/                # MIT — open source
-  gateway-core/          # @mcpshield/gateway-core — the OSS gateway
-  cli/                   # @mcpshield/cli — `mcpshield` binary
-  sdk/                   # @mcpshield/sdk — IndustryPack contract
-  pack-saas/             # @mcpshield/pack-saas — reference pack
-  pack-healthcare/       # @mcpshield/pack-healthcare — HIPAA pack
+packages/                # MIT, open source
+  gateway-core/          # @mcpshield/gateway-core: the OSS gateway
+  cli/                   # @mcpshield/cli: `mcpshield` binary
+  sdk/                   # @mcpshield/sdk: IndustryPack contract
+  pack-saas/             # @mcpshield/pack-saas: reference pack
+  pack-healthcare/       # @mcpshield/pack-healthcare: HIPAA pack
 packs-private/           # commercial
-  pack-atlassian/        # @mcpshield/pack-atlassian — Jira + Confluence
-gateway/                 # commercial — cloud control plane
-dashboard/               # commercial — admin UI
+  pack-atlassian/        # @mcpshield/pack-atlassian: Jira + Confluence
+gateway/                 # commercial: cloud control plane
+dashboard/               # commercial: admin UI
 mcp-server/, web-demo/   # portfolio demo apps (separate product)
 ```
 
@@ -34,9 +34,9 @@ npm run build
 npm test
 ```
 
-> The root `build` script sequences `sdk → gateway-core → packs → cli + gateway`. `npm run --workspaces --if-present build` does NOT respect topological order — it iterates alphabetically — so a consumer (e.g. `@mcpshield/cli`) may try to type-check before its dependency's `.d.ts` exists. Always go through `npm run build` at the root from a fresh checkout.
+> The root `build` script sequences `sdk → gateway-core → packs → cli + gateway`. `npm run --workspaces --if-present build` does NOT respect topological order (it iterates alphabetically), so a consumer (e.g. `@mcpshield/cli`) may try to type-check before its dependency's `.d.ts` exists. Always go through `npm run build` at the root from a fresh checkout.
 
-Node ≥ 20 is required (CI runs against 20 + 22).
+Use Node 20 or newer. CI runs on Node 20 and 22. The `engines` fields in `packages/*/package.json` still say `>=18`, but Node 18 is not tested.
 
 ## Running the gateway from source
 
@@ -51,17 +51,17 @@ node /path/to/this/repo/packages/cli/dist/index.js start
 
 Everything the proxy needs at request time is in **`@mcpshield/gateway-core`**:
 
-- `proxy/` — `GatewayProxyEngine`, `ConnectionManager`, `ToolInterceptor`, `HealthChecker`
-- `security/` — scanner pipeline (4 generic strategies + PII registry + rate limiter)
-- `policy/` — policy engine with glob matching + cache
-- `audit/` — buffered batch writer + correlation IDs + enricher registry
-- `monitor/` — drift detector with SHA-256 tool snapshots
-- `approval/` — HITL approval queue (engine + storage port)
-- `webhooks/` — HMAC-signed delivery with SSRF allowlist + `AlertSink` adapter
-- `packs/` — runtime loader for industry packs
-- `storage/` — `StorageBackend` interface + SQLite reference impl
-- `auth/` — `AuthProvider` interface + API-key reference impl
-- `config/` — YAML config loader with hot-reload
+- `proxy/`: `GatewayProxyEngine`, `ConnectionManager`, `ToolInterceptor`, `HealthChecker`
+- `security/`: scanner pipeline (4 generic strategies + PII registry + rate limiter)
+- `policy/`: policy engine with glob matching + cache
+- `audit/`: buffered batch writer + correlation IDs + enricher registry
+- `monitor/`: drift detector with SHA-256 tool snapshots
+- `approval/`: HITL approval queue (engine + storage port)
+- `webhooks/`: HMAC-signed delivery with an SSRF guard that rejects loopback/private/metadata addresses + `AlertSink` adapter
+- `packs/`: runtime loader for industry packs
+- `storage/`: `StorageBackend` interface + SQLite reference impl
+- `auth/`: `AuthProvider` interface + API-key reference impl
+- `config/`: YAML config loader with hot-reload
 
 The cloud build (`gateway/`) extends this via four small ports defined in `packages/gateway-core/src/proxy/ports.ts`: `AlertSink`, `BillingGuard`, `OAuthProviderFactory`, `AuditRecorder`. Self-host runs with no-op defaults.
 
@@ -118,7 +118,7 @@ The gateway loads it at boot, registers everything, and exposes templates via `m
 
 ## Workflow
 
-1. Open an issue first for non-trivial work — saves a PR cycle when scope is contested.
+1. Open an issue first for non-trivial work. It saves a PR cycle when scope is contested.
 2. Fork + branch off `main`.
 3. Make your change. Keep commits focused.
 4. Run `npm run --workspaces --if-present test` locally before pushing.
@@ -130,16 +130,16 @@ The gateway loads it at boot, registers everything, and exposes templates via `m
 - TypeScript strict mode. No `any`.
 - All MCP tool responses return `{ content: [{ type: "text", text }], structuredContent }` or `{ isError: true, content }` on failure.
 - Zod for runtime validation on inputs at the system boundary; don't re-validate trusted internal types.
-- Default to writing no comments. Add one only when the *why* is non-obvious (a hidden constraint, a subtle invariant, a workaround for a specific bug). Don't explain *what* the code does — well-named identifiers already do that.
+- Default to writing no comments. Add one only when the *why* is non-obvious (a hidden constraint, a subtle invariant, a workaround for a specific bug). Don't explain *what* the code does; well-named identifiers already do that.
 
 ## What to expect from review
 
 A reviewer (probably the project maintainer) will look at:
 
-- **Test coverage** — new behavior gets new tests. Aim for the smallest test that proves the behavior.
-- **Public API stability** — additions are fine; signature changes to anything exported from `@mcpshield/gateway-core` or `@mcpshield/sdk` need rationale.
-- **Cloud port discipline** — `gateway-core` must not import from `gateway/` or `dashboard/`. Cloud-specific concerns plug in via ports.
-- **Pack scope** — packs should contribute *data + small focused logic* (PII regexes, audit enrichment functions). They shouldn't reach into gateway-core internals.
+- **Test coverage**: new behavior gets new tests. Aim for the smallest test that proves the behavior.
+- **Public API stability**: additions are fine; signature changes to anything exported from `@mcpshield/gateway-core` or `@mcpshield/sdk` need rationale.
+- **Cloud port discipline**: `gateway-core` must not import from `gateway/` or `dashboard/`. Cloud-specific concerns plug in via ports.
+- **Pack scope**: packs should contribute *data + small focused logic* (PII regexes, audit enrichment functions). They shouldn't reach into gateway-core internals.
 
 ## License
 

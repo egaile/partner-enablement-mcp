@@ -71,7 +71,7 @@ function renderPie(slices: Slice[], totalLabel: string, spaceName: string): stri
       if (s.value <= 0) continue;
       const start = (cursor / total) * 2 * Math.PI;
       const end = ((cursor + s.value) / total) * 2 * Math.PI;
-      // Full-circle case (only one slice covers everything) — split into two halves so the arc is well-defined.
+      // Full-circle case (only one slice covers everything): split into two halves so the arc is well-defined.
       if (end - start >= 2 * Math.PI - 0.001) {
         const mid = start + Math.PI;
         arcs += `<path d="${arcPath(cx, cy, rOuter, rInner, start, mid)}" fill="${s.color}" stroke="white" stroke-width="2" />`;
@@ -87,7 +87,7 @@ function renderPie(slices: Slice[], totalLabel: string, spaceName: string): stri
   const centerText = `<text x="${cx}" y="${cy - 6}" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" font-weight="bold" fill="#111827">${total}</text>
                       <text x="${cx}" y="${cy + 18}" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#6B7280">${escapeXml(totalLabel)}</text>`;
 
-  // Legend on the right — explicit columns: swatch | name | count
+  // Legend on the right, explicit columns: swatch | name | count
   const swatchX = 310;
   const nameX = 330;
   const countX = width - 16;
@@ -127,7 +127,7 @@ export async function GET(request: Request) {
     return new Response('Invalid spaceKey', { status: 400 });
   }
 
-  // Reuse the JSON endpoint to get current data — keeps scoring logic in one place.
+  // Reuse the JSON endpoint to get current data. Keeps scoring logic in one place.
   const origin = url.origin;
   const headers: HeadersInit = {};
   if (TOKEN) headers['Authorization'] = `Bearer ${TOKEN}`;

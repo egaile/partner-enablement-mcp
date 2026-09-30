@@ -1,5 +1,5 @@
 /**
- * ApiKeyAuthProvider — OSS default AuthProvider.
+ * ApiKeyAuthProvider: OSS default AuthProvider.
  *
  * Accepts `Authorization: Bearer mgw_<32 hex>`. Hashes the key with SHA-256,
  * looks it up via the StorageBackend, validates expiry, returns a Principal

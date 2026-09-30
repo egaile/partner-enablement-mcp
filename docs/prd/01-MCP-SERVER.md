@@ -1,5 +1,7 @@
 # PRD 01: MCP Server Specifications
 
+> Note: this is the original February 2026 planning doc for the portfolio demo. It predates the MCPShield gateway and parts of it are out of date.
+
 ## Document Info
 - **Component**: partner-enablement-mcp-server
 - **Type**: Model Context Protocol Server

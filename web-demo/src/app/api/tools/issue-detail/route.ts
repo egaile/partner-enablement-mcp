@@ -155,7 +155,7 @@ function getMockIssueDetail(issueKey: string): IssueDetailResponse {
     'FINSERV-2': {
       key: 'FINSERV-2',
       summary: 'Build SOC2-compliant audit trail for AI decisions',
-      description: 'Implement comprehensive audit logging for all AI-powered decisions in the loan processing workflow. Must meet SOC2 Type II evidence requirements.',
+      description: 'Implement audit logging for all AI-driven decisions in the loan processing workflow. Must meet SOC2 Type II evidence requirements.',
       type: 'Story',
       status: 'To Do',
       priority: 'High',

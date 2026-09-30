@@ -141,7 +141,7 @@ export const CreateImplementationPlanInputSchema = z.object({
     .min(4)
     .max(52)
     .optional()
-    .describe("Target timeline in weeks (optional - will estimate if not provided)"),
+    .describe("Target timeline in weeks (optional; estimated if not provided)"),
   includeJiraTickets: z.boolean()
     .default(true)
     .describe("Whether to generate Jira ticket templates"),

@@ -17,7 +17,7 @@ export interface DocSection {
 const DOCS_DIR = path.join(process.cwd(), "content", "docs");
 
 /**
- * Static manifest — controls ordering, display names, and section grouping.
+ * Static manifest. Controls ordering, display names, and section grouping.
  */
 const manifest: { section: string; sectionSlug: string; pages: { slug: string; title: string; file: string }[] }[] = [
   {

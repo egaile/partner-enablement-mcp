@@ -1,11 +1,11 @@
 /**
- * ApprovalEngine — manages human-in-the-loop approval requests for tool
+ * ApprovalEngine: manages human-in-the-loop approval requests for tool
  * calls flagged by a `require_approval` policy.
  *
  * Storage is injected via an `ApprovalsPort` (a `StorageBackend.approvals`
  * implementation in practice). Self-host gets SQLite; cloud gets Supabase.
  *
- * The engine itself only persists state — it does NOT block / unblock the
+ * The engine itself only persists state. It does NOT block / unblock the
  * proxy hot path. The interceptor's `require_approval` integration is
  * deliberately separate so callers can choose synchronous-block,
  * fire-and-record, or some retry pattern based on their needs.

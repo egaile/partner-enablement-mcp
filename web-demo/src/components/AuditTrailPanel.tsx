@@ -75,7 +75,7 @@ export function AuditTrailPanel({ isOpen, onClose, isRunning }: AuditTrailPanelP
         setTotalCount(data.count ?? 0);
       }
     } catch {
-      // Silently fail — panel just shows empty
+      // Silently fail; panel just shows empty
     } finally {
       setIsLoading(false);
     }

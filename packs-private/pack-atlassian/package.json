@@ -1,7 +1,7 @@
 {
   "name": "@mcpshield/pack-atlassian",
   "version": "0.1.0",
-  "description": "MCPShield Atlassian pack — Jira + Confluence injection scanner, audit metadata enrichment, and curated policy templates. Commercial license required.",
+  "description": "MCPShield Atlassian pack: Jira + Confluence injection scanner, audit metadata enrichment, and curated policy templates. Commercial license required.",
   "license": "SEE LICENSE IN LICENSE",
   "private": true,
   "author": "Ed Gaile",

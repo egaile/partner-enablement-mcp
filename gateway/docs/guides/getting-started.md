@@ -27,13 +27,16 @@ supabase db push
 
 Or paste each file from `gateway/supabase/migrations/` into the SQL editor in order:
 
-1. `001_initial_schema.sql` -- core tables, RLS policies
-2. `002_approval_requests.sql` -- HITL approval workflow
-3. `003_webhooks.sql` -- webhook notification channels
-4. `004_api_keys.sql` -- programmatic API key access
-5. `005_billing.sql` -- billing plans, usage metering, Stripe integration
-6. `006_server_auth_headers.sql` -- auth headers for downstream servers
-7. `007_server_oauth.sql` -- OAuth 2.1 token storage for downstream servers
+1. `001_initial_schema.sql`: core tables, RLS policies
+2. `002_approval_requests.sql`: HITL approval workflow
+3. `003_webhooks.sql`: webhook notification channels
+4. `004_api_keys.sql`: programmatic API key access
+5. `005_billing.sql`: billing plans, usage metering, Stripe integration
+6. `006_server_auth_headers.sql`: auth headers for downstream servers
+7. `007_server_oauth.sql`: OAuth 2.1 token storage for downstream servers
+8. `008_oauth_state_nonce.sql`: persisted OAuth state nonce, so a flow survives a gateway restart
+9. `009_oauth_code_verifier.sql`: PKCE code verifier column
+10. `010_revoke_client_access.sql`: removes all table and function access from the `anon` and `authenticated` roles, so only the gateway's service role can use the database
 
 After running migrations, seed a default tenant:
 
@@ -53,11 +56,12 @@ Create a `.env` file in the `gateway/` directory:
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=eyJ...your-service-role-key
 CLERK_SECRET_KEY=dev
+NODE_ENV=development
 PORT=4000
 LOG_LEVEL=info
 ```
 
-Setting `CLERK_SECRET_KEY=dev` enables dev mode, which skips Clerk token verification and maps all requests to the `dev_user` seeded above. This is the fastest way to get started locally.
+Setting `CLERK_SECRET_KEY=dev` together with `NODE_ENV=development` enables dev mode, which skips Clerk token verification and maps all requests to the `dev_user` seeded above. Both are required: with `CLERK_SECRET_KEY=dev` alone, the gateway still expects a Clerk token and returns `401`. This is the fastest way to get started locally.
 
 ## 4. Start the gateway
 
@@ -96,19 +100,7 @@ curl -X POST http://localhost:4000/api/servers \
   }'
 ```
 
-For a stdio-transport server:
-
-```bash
-curl -X POST http://localhost:4000/api/servers \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "filesystem-server",
-    "transport": "stdio",
-    "command": "npx",
-    "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
-    "enabled": true
-  }'
-```
+The hosted gateway only accepts HTTP servers. A request with `"transport": "stdio"` is rejected with `400`. To proxy a stdio server, run the self-hosted `mcpshield` CLI and list the server in `mcpshield.yaml` (see [stdio servers are self-host only](./connecting-servers.md#stdio-servers-are-self-host-only)).
 
 The gateway automatically connects to enabled servers, discovers their tools, and namespaces them as `serverName__toolName`.
 
@@ -172,8 +164,8 @@ curl http://localhost:4000/api/audit?limit=10
 
 ## What's next
 
-- [Connecting Servers](./connecting-servers.md) -- detailed guide for HTTP and stdio servers
-- [Connecting Atlassian Rovo](./connecting-atlassian-rovo.md) -- connect Jira and Confluence via the Rovo MCP Server
-- [Policy Rules](./policy-rules.md) -- full policy DSL reference with examples
-- [Dashboard Walkthrough](./dashboard-walkthrough.md) -- visual management via the admin UI
-- [Deployment](../admin/deployment.md) -- deploy to Railway and Vercel
+- [Connecting Servers](./connecting-servers.md): detailed guide for HTTP servers, plus stdio servers on the self-hosted CLI
+- [Connecting Atlassian Rovo](./connecting-atlassian-rovo.md): connect Jira and Confluence via the Rovo MCP Server
+- [Policy Rules](./policy-rules.md): full policy DSL reference with examples
+- [Dashboard Walkthrough](./dashboard-walkthrough.md): visual management via the admin UI
+- [Deployment](../admin/deployment.md): deploy to Railway and Vercel

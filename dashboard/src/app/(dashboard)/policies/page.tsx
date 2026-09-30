@@ -11,6 +11,8 @@ import EmptyState from "@/components/shared/EmptyState";
 import SearchInput from "@/components/shared/SearchInput";
 import { Switch } from "@/components/ui/switch";
 import { gatewayFetch } from "@/lib/api";
+import { useReadOnlyReason, useViewer } from "@/lib/viewer";
+import { readOnlyControlHint } from "@/components/shared/ReadOnlyNotice";
 
 interface PolicyRecord {
   id: string;
@@ -26,6 +28,9 @@ const actionOptions = ["all", "allow", "deny", "require_approval", "log_only"];
 
 export default function PoliciesPage() {
   const { getToken } = useAuth();
+  // Wait for /api/me too, so admins never see the demo empty state.
+  const { loaded: viewerLoaded, readOnly, me } = useViewer();
+  const readOnlyReason = useReadOnlyReason();
   const [policies, setPolicies] = useState<PolicyRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -76,7 +81,7 @@ export default function PoliciesPage() {
 
   async function handleToggleEnabled(policy: PolicyRecord) {
     const newEnabled = !policy.enabled;
-    // Optimistic update — use functional setState to avoid stale closure
+    // Optimistic update. Use functional setState to avoid stale closure
     setPolicies((prev) => prev.map((p) => (p.id === policy.id ? { ...p, enabled: newEnabled } : p)));
     try {
       const token = await getToken();
@@ -119,13 +124,15 @@ export default function PoliciesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-foreground">Policy Rules</h2>
-        <Link
-          href="/policies/new"
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm hover:bg-primary/90"
-        >
-          <Plus className="w-4 h-4" />
-          Create Rule
-        </Link>
+        {!readOnly && (
+          <Link
+            href="/policies/new"
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm hover:bg-primary/90"
+          >
+            <Plus className="w-4 h-4" />
+            Create Rule
+          </Link>
+        )}
       </div>
 
       {!loading && policies.length > 0 && (
@@ -150,32 +157,55 @@ export default function PoliciesPage() {
         </div>
       )}
 
-      {loading ? (
+      {loading || !viewerLoaded ? (
         <PolicyListSkeleton />
       ) : policies.length === 0 ? (
-        <EmptyState
-          icon={Shield}
-          title="No policy rules configured"
-          description="All requests are allowed by default. Create your first policy to start controlling access."
-          actionLabel="Create Rule"
-          actionHref="/policies/new"
-        />
+        readOnly ? (
+          <EmptyState
+            icon={Shield}
+            title={me?.demo ? "No policies in the demo tenant yet." : "No policies yet."}
+            description="With no rules, every request is allowed. Use the Policy Simulator to see how a rule would decide a tool call."
+            actionLabel="Open Policy Simulator"
+            actionHref="/policies/simulator"
+          />
+        ) : (
+          <EmptyState
+            icon={Shield}
+            title="No policy rules configured"
+            description="All requests are allowed by default. Create your first policy to start controlling access."
+            actionLabel="Create Rule"
+            actionHref="/policies/new"
+          />
+        )
       ) : filtered.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground text-sm">
           No policies matching your filters
         </div>
       ) : (
         <div className="bg-card rounded-xl border border-border divide-y divide-border/50">
+          {readOnly && (
+            <span id="policies-read-only-hint" className="sr-only">
+              {readOnlyControlHint(readOnlyReason)}
+            </span>
+          )}
           {filtered.map((p) => (
             <div
               key={p.id}
               className={`px-5 py-4 flex items-center justify-between ${!p.enabled ? "opacity-50" : ""}`}
             >
               <div className="flex items-center gap-4 flex-1 min-w-0">
-                <Switch
-                  checked={p.enabled}
-                  onCheckedChange={() => handleToggleEnabled(p)}
-                />
+                <span
+                  className="inline-flex"
+                  title={readOnly ? readOnlyControlHint(readOnlyReason) : undefined}
+                >
+                  <Switch
+                    checked={p.enabled}
+                    onCheckedChange={() => handleToggleEnabled(p)}
+                    disabled={readOnly}
+                    aria-label={`Policy ${p.name} enabled`}
+                    aria-describedby={readOnly ? "policies-read-only-hint" : undefined}
+                  />
+                </span>
                 <div className="min-w-0">
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-muted-foreground font-mono w-8">
@@ -195,12 +225,14 @@ export default function PoliciesPage() {
                   )}
                 </div>
               </div>
-              <button
-                onClick={() => setDeleteTarget(p)}
-                className="text-muted-foreground hover:text-red-400 ml-3"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+              {!readOnly && (
+                <button
+                  onClick={() => setDeleteTarget(p)}
+                  className="text-muted-foreground hover:text-red-400 ml-3"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
             </div>
           ))}
         </div>

@@ -1,5 +1,5 @@
 /**
- * PolicyEngine — evaluates a tenant's policy rules against an incoming
+ * PolicyEngine: evaluates a tenant's policy rules against an incoming
  * tool-call context (server, tool, user, time of day) and returns a decision
  * (allow / deny / require_approval / log_only).
  *

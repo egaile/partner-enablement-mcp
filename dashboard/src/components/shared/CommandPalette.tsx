@@ -23,22 +23,26 @@ import {
   CommandItem,
   CommandSeparator,
 } from "@/components/ui/command";
+import { useReadOnly } from "@/lib/viewer";
 
 const quickActions = [
   {
     label: "Add Server",
     href: "/servers/new",
     icon: Plus,
+    hideWhenReadOnly: true,
   },
   {
     label: "Create Policy",
     href: "/policies/new",
     icon: Plus,
+    hideWhenReadOnly: true,
   },
   {
     label: "Policy Simulator",
     href: "/policies/simulator",
     icon: FlaskConical,
+    hideWhenReadOnly: false,
   },
 ];
 
@@ -50,7 +54,7 @@ const pages = [
   { label: "Tool Approvals", href: "/tools", icon: CheckCircle },
   { label: "Audit Log", href: "/audit", icon: ScrollText },
   { label: "Alerts", href: "/alerts", icon: Bell },
-  { label: "Settings", href: "/settings", icon: Settings },
+  { label: "Settings", href: "/settings", icon: Settings, hideWhenReadOnly: true },
   { label: "Documentation", href: "/docs", icon: BookOpen },
   { label: "Docs: Getting Started", href: "/docs/guides/getting-started", icon: BookOpen },
   { label: "Docs: Policy Rules", href: "/docs/guides/policy-rules", icon: BookOpen },
@@ -62,6 +66,7 @@ const pages = [
 export default function CommandPalette() {
   const [open, setOpen] = useState(false);
   const router = useRouter();
+  const readOnly = useReadOnly();
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -86,7 +91,7 @@ export default function CommandPalette() {
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
         <CommandGroup heading="Quick Actions">
-          {quickActions.map((action) => (
+          {quickActions.filter((a) => !(readOnly && a.hideWhenReadOnly)).map((action) => (
             <CommandItem
               key={action.href}
               onSelect={() => navigate(action.href)}
@@ -98,7 +103,7 @@ export default function CommandPalette() {
         </CommandGroup>
         <CommandSeparator />
         <CommandGroup heading="Pages">
-          {pages.map((page) => (
+          {pages.filter((p) => !(readOnly && "hideWhenReadOnly" in p && p.hideWhenReadOnly)).map((page) => (
             <CommandItem
               key={page.href}
               onSelect={() => navigate(page.href)}

@@ -1,5 +1,5 @@
 /**
- * CloudOAuthProviderFactory — adapts the cloud's `ServerOAuthProvider`
+ * CloudOAuthProviderFactory: adapts the cloud's `ServerOAuthProvider`
  * (DB-backed token persistence + the SDK's PKCE flow) to the
  * `OAuthProviderFactory` port used by gateway-core's ConnectionManager.
  *

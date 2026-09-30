@@ -17,7 +17,7 @@ async function fetchViaGateway(projectKey: string): Promise<SprintContextData> {
     cloudId = ATLASSIAN_CLOUD_ID;
   }
 
-  // Step 2: Get visible projects — search for the requested key
+  // Step 2: Get visible projects and search for the requested key
   const projectsResult = await callTool(rovo('getVisibleJiraProjects'), {
     cloudId,
     searchString: projectKey,
@@ -54,7 +54,7 @@ async function fetchViaGateway(projectKey: string): Promise<SprintContextData> {
         );
       }
     } catch {
-      // Issue types not available — continue with empty array
+      // Issue types not available; continue with empty array
     }
 
     // Step 4: Get field schemas for the first issue type
@@ -93,7 +93,7 @@ async function fetchViaGateway(projectKey: string): Promise<SprintContextData> {
           }
         }
       } catch {
-        // Field schemas not available — continue with empty array
+        // Field schemas not available; continue with empty array
       }
     }
 

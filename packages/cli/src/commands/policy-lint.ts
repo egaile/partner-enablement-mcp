@@ -1,5 +1,5 @@
 /**
- * `mcpshield policy lint` — validate the config file against the schema.
+ * `mcpshield policy lint`: validate the config file against the schema.
  *
  * Exits 0 with "OK" if the config parses cleanly. On failure, prints the
  * zod issue list and exits 1.

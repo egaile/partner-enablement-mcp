@@ -1,5 +1,5 @@
 /**
- * Cloud ApprovalEngine — thin wrapper around gateway-core's engine,
+ * Cloud ApprovalEngine: thin wrapper around gateway-core's engine,
  * wired to the SupabaseStorageBackend.
  *
  * Re-exports `ApprovalContext` and `ApprovalRequestRecord` (renamed from

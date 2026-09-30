@@ -1,11 +1,11 @@
 /**
- * SqliteStorageBackend — OSS default implementation of StorageBackend.
+ * SqliteStorageBackend: OSS default implementation of StorageBackend.
  *
  * Uses better-sqlite3 (synchronous, fast). Wraps every method in async to
  * conform to the interface; the synchronous nature is an implementation
  * detail.
  *
- * Schema is bootstrapped on init() — no separate migration tool needed for
+ * Schema is bootstrapped on init(). No separate migration tool needed for
  * the OSS path.
  */
 
@@ -1352,17 +1352,19 @@ export class SqliteStorageBackend implements StorageBackend {
   ): Promise<ApprovalRequestRecord> {
     const db = this.requireDb();
     const now = nowIso();
+    // An expired request can still be rejected, but not approved.
     const result = db
       .prepare(
         `UPDATE approval_requests
          SET status = ?, decided_by = ?, decided_at = ?
-         WHERE id = ? AND tenant_id = ? AND status = 'pending'`
+         WHERE id = ? AND tenant_id = ? AND status = 'pending'
+           AND (? = 'rejected' OR expires_at > ?)`
       )
-      .run(status, decidedBy, now, id, tenantId);
+      .run(status, decidedBy, now, id, tenantId, status, now);
 
     if (result.changes === 0) {
       throw new StorageError(
-        `Approval request ${id} not found or already decided`
+        `Approval request ${id} not found, already decided, or expired`
       );
     }
 

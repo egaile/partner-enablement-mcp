@@ -1,5 +1,7 @@
 # PRD 04: Deployment & Distribution
 
+> Note: this is the original February 2026 planning doc for the portfolio demo. It predates the MCPShield gateway and parts of it are out of date.
+
 ## Document Info
 - **Component**: Deployment Strategy
 - **Platforms**: GitHub, Vercel, Claude Desktop, Loom
@@ -283,7 +285,7 @@ npm-debug.log*
 ```
 🚀 I built something to demonstrate how AI can accelerate enterprise deployments.
 
-The Partner Enablement MCP Server shows how Claude can help GSIs translate project requirements into compliant reference architectures—automatically.
+The Partner Enablement MCP Server shows how Claude can help GSIs translate project requirements into compliant reference architectures automatically.
 
 Here's what it does:
 📋 Reads project context from Jira
@@ -330,8 +332,8 @@ I've built a working prototype to demonstrate my thinking: the Partner
 Enablement MCP Server (github.com/egaile/partner-enablement-mcp). 
 
 This MCP server shows how Claude can help GSIs translate project requirements 
-into compliant reference architectures—essentially using Claude to build tools 
-that help partners deploy Claude faster.
+into compliant reference architectures. In other words, it uses Claude to build 
+tools that help partners deploy Claude faster.
 
 You can see a 4-minute walkthrough at [Loom link] or try the web demo at 
 [Vercel link].
@@ -342,7 +344,7 @@ You can see a 4-minute walkthrough at [Loom link] or try the web demo at
 ```
 Hi [Referral Name],
 
-I've completed that project I mentioned—here's a quick summary:
+I've completed that project I mentioned. Here's a quick summary:
 
 📋 Partner Enablement MCP Server
 - MCP server with 4 tools for GSI enablement

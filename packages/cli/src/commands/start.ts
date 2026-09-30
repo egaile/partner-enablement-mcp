@@ -1,12 +1,12 @@
 /**
- * `mcpshield start` — boot the self-hosted gateway.
+ * `mcpshield start`: boot the self-hosted gateway.
  *
  * Pipeline:
  *   1. Load `mcpshield.yaml`
  *   2. Open SQLite storage at the configured path
  *   3. Upsert servers + policies from YAML
  *   4. Construct PolicyEngine + DriftDetector + BaseAuditLogger
- *   5. Construct GatewayProxyEngine (no cloud ports — self-host defaults)
+ *   5. Construct GatewayProxyEngine (no cloud ports; self-host defaults)
  *   6. Connect downstream MCP servers
  *   7. Bootstrap Express + Streamable HTTP MCP transport
  *   8. Wait for SIGTERM / SIGINT; shut down cleanly
@@ -144,7 +144,7 @@ export async function runStart(options: StartOptions = {}): Promise<void> {
   // Hot-reload: watch the config file for changes. On valid reload, apply
   // servers + policies and clear the policy cache so new rules take effect
   // immediately. Server reconnects and pack changes still require a
-  // restart — those are noted in the reload log line.
+  // restart. Those are noted in the reload log line.
   const watcher = options.noWatch
     ? null
     : watchConfig({ path: configPath }, (next, err) => {

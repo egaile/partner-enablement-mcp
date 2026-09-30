@@ -1,5 +1,5 @@
 /**
- * `mcpshield webhooks add | list | remove` — manage webhook subscribers
+ * `mcpshield webhooks add | list | remove`: manage webhook subscribers
  * for the local SQLite backend.
  *
  * Webhook events are the canonical alert names:
@@ -74,7 +74,7 @@ export async function runWebhookAdd(
     console.log(`  Events: ${wh.events.join(", ")}`);
     if (!options.secret) {
       console.log("");
-      console.log("Shared secret (shown only once — store it now):");
+      console.log("Shared secret (shown only once, store it now):");
       console.log(`  ${secret}`);
       console.log("");
       console.log(

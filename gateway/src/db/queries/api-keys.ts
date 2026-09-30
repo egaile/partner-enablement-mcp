@@ -119,6 +119,27 @@ export async function getApiKeyByHash(
 }
 
 /**
+ * The Clerk user who created an API key, or null if the key doesn't exist.
+ */
+export async function getApiKeyCreator(
+  id: string,
+  tenantId: string
+): Promise<string | null> {
+  const { data: row, error } = await getSupabaseClient()
+    .from("api_keys")
+    .select("created_by")
+    .eq("id", id)
+    .eq("tenant_id", tenantId)
+    .single();
+
+  if (error) {
+    if (error.code === "PGRST116" || error.code === "22P02") return null;
+    throw error;
+  }
+  return (row as { created_by: string }).created_by;
+}
+
+/**
  * Update last_used_at timestamp for an API key.
  */
 export async function updateLastUsed(id: string): Promise<void> {

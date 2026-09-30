@@ -54,7 +54,7 @@ export function evaluatePolicy(
   }
   allRules.sort((a, b) => a.rule.priority - b.rule.priority);
 
-  // Evaluate in priority order — first match wins
+  // Evaluate in priority order; first match wins
   for (const { rule, templateName } of allRules) {
     if (matchesConditions(rule, toolName, serverName)) {
       return {

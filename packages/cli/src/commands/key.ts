@@ -1,5 +1,5 @@
 /**
- * `mcpshield key create [--name <name>]` — mint a new API key for the
+ * `mcpshield key create [--name <name>]`: mint a new API key for the
  * default self-host tenant. Prints the raw key once (and only once); after
  * that only the hash is recoverable from the DB.
  *
@@ -40,7 +40,7 @@ export async function runKeyCreate(
     });
 
     console.log("");
-    console.log("Your new API key (shown only once — store it now):");
+    console.log("Your new API key (shown only once, store it now):");
     console.log("");
     console.log(`  ${generated.key}`);
     console.log("");

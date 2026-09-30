@@ -29,7 +29,7 @@ async function fetchViaGateway(projectKey: string, includeIssues: boolean, issue
     throw new Error(`Tool error: ${extractText(resourcesResult)}`);
   }
   const resourcesText = extractText(resourcesResult);
-  // Response is JSON — may be an array or wrapped object
+  // Response is JSON. It may be an array or wrapped object
   const resources = safeJsonParse(resourcesText) as Record<string, unknown> | unknown[] | null;
   if (!resources) throw new Error('Failed to parse Atlassian resources response');
   // Rovo returns: array of { id, url, name, ... } where id is the cloudId

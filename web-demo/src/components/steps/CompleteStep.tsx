@@ -291,7 +291,7 @@ export function CompleteStep({ data, workflowId, onStartOver }: CompleteStepProp
             <div>
               <p className="text-sm font-medium text-gray-800">Least-Privilege Policies</p>
               <p className="text-xs text-gray-600 mt-0.5">
-                The gateway enforces per-tool policies — read operations pass while writes require approval.
+                The gateway enforces per-tool policies: read operations pass while writes require approval.
               </p>
             </div>
           </div>
@@ -300,7 +300,7 @@ export function CompleteStep({ data, workflowId, onStartOver }: CompleteStepProp
             <div>
               <p className="text-sm font-medium text-gray-800">Full Audit Trail</p>
               <p className="text-xs text-gray-600 mt-0.5">
-                Every operation is logged with Atlassian-specific metadata — project keys, space keys, operation types.
+                Every operation is logged with Atlassian-specific metadata: project keys, space keys, operation types.
               </p>
             </div>
           </div>

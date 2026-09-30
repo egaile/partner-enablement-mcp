@@ -71,7 +71,7 @@ describe("ApprovalEngine", () => {
       await engine.approve(r.id, tenantId, "admin");
       await expect(
         engine.approve(r.id, tenantId, "someone-else")
-      ).rejects.toThrow(/not found or already decided/i);
+      ).rejects.toThrow(/already decided/i);
     });
 
     it("throws on reject-after-approve", async () => {

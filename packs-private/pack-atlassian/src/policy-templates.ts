@@ -158,7 +158,7 @@ export const ATLASSIAN_POLICY_TEMPLATES: AtlassianPolicyTemplate[] = [
     id: "audit_everything",
     name: "Audit Everything",
     description:
-      "Maximum visibility mode — log all calls with no blocking. Ideal as a compliance starter to understand agent behavior before adding restrictions.",
+      "Maximum visibility mode: log all calls with no blocking. A compliance starter for understanding agent behavior before adding restrictions.",
     category: "compliance",
     rules: [
       {

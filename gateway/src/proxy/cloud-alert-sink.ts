@@ -1,5 +1,5 @@
 /**
- * CloudAlertSink — adapts the cloud's `AlertEngine` (which writes to Supabase
+ * CloudAlertSink: adapts the cloud's `AlertEngine` (which writes to Supabase
  * + dispatches webhooks) to the `AlertSink` port consumed by gateway-core's
  * proxy subsystem.
  *

@@ -46,12 +46,12 @@ Determines when the rule applies. All specified conditions must match (AND logic
 Array of glob patterns matched against the server name using [picomatch](https://github.com/micromatch/picomatch). An empty array or omitted field matches all servers.
 
 Supported patterns:
-- `"jira"` -- exact match
-- `"*"` -- match everything
-- `"prod-*"` -- prefix match
-- `"*-internal"` -- suffix match
-- `"{jira,github}"` -- match either
-- `"!staging-*"` -- negation (match everything except)
+- `"jira"`: exact match
+- `"*"`: match everything
+- `"prod-*"`: prefix match
+- `"*-internal"`: suffix match
+- `"{jira,github}"`: match either
+- `"!staging-*"`: negation (match everything except)
 
 #### `conditions.tools`
 Array of glob patterns matched against the tool name (without the server namespace prefix).
@@ -74,7 +74,7 @@ What to do when this rule matches:
 | `allow` | Let the call through (with optional modifiers). |
 | `deny` | Block the call. Returns an error to the agent. Fires a `policy_violation` alert. |
 | `require_approval` | Pause the call and create an approval request. An admin must approve or reject via the dashboard or API. |
-| `log_only` | Allow the call but ensure it is prominently logged. Useful for monitoring before enforcing. |
+| `log_only` | Allow the call and log it. Useful for monitoring before enforcing. |
 
 ### `modifiers`
 Optional behavioral modifiers applied when the action is `allow` or `log_only`:
@@ -292,7 +292,7 @@ Combined with a lower-priority catch-all deny:
 }
 ```
 
-### 15. Negation pattern -- allow everything except one server
+### 15. Negation pattern: allow everything except one server
 
 ```json
 {
@@ -303,7 +303,7 @@ Combined with a lower-priority catch-all deny:
 }
 ```
 
-### 16. Strict mode -- deny by default, allowlist specific tools
+### 16. Strict mode: deny by default, allowlist specific tools
 
 Create a high-priority allow rule for approved tools:
 

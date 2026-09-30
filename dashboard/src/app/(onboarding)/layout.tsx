@@ -1,4 +1,5 @@
 import { Shield } from "lucide-react";
+import { ViewerProvider } from "@/lib/viewer";
 
 export default function OnboardingLayout({
   children,
@@ -12,7 +13,7 @@ export default function OnboardingLayout({
           <Shield className="w-6 h-6 text-orange-400" />
           <h1 className="text-xl font-bold text-gray-900">MCP Gateway</h1>
         </div>
-        {children}
+        <ViewerProvider>{children}</ViewerProvider>
       </div>
     </div>
   );

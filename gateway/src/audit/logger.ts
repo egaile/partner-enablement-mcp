@@ -1,5 +1,5 @@
 /**
- * AuditLogger — cloud-flavored extension of @mcpshield/gateway-core's
+ * AuditLogger: cloud-flavored extension of @mcpshield/gateway-core's
  * BaseAuditLogger. Adds usage-meter billing hooks and runs every
  * registered audit enricher (e.g. the Atlassian enricher contributed by
  * @mcpshield/pack-atlassian) on top of the generic batched flush.
@@ -75,7 +75,7 @@ export class AuditLogger extends BaseAuditLogger {
   }
 
   /**
-   * AuditRecorder port override — routes proxy writes through the
+   * AuditRecorder port override. Routes proxy writes through the
    * enricher pipeline.
    */
   override record(

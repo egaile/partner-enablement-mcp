@@ -277,7 +277,7 @@ function getMockProject(projectKey: string): JiraProject {
     CLAIMS: {
       key: "CLAIMS",
       name: "Claims Processing Automation",
-      description: "Intelligent claims review and processing system with human-in-the-loop validation",
+      description: "Claims review and processing system with human-in-the-loop validation",
       projectTypeKey: "software",
       lead: {
         displayName: "Michael Torres",
@@ -362,7 +362,7 @@ function getMockIssues(projectKey: string): JiraIssue[] {
       key: "HEALTH-5",
       fields: {
         summary: "Human Handoff Workflow",
-        description: "Design workflow for seamless handoff from AI to human agents. Include context transfer, urgency detection, and escalation triggers for medical concerns.",
+        description: "Design the workflow for handing off from AI to human agents. Include context transfer, urgency detection, and escalation triggers for medical concerns.",
         issuetype: { name: "Story" },
         status: { name: "In Progress" },
         labels: ["patient-facing", "human-in-loop", "workflow"],
@@ -377,7 +377,7 @@ function getMockIssues(projectKey: string): JiraIssue[] {
     {
       key: "CLAIMS-1",
       fields: {
-        summary: "Intelligent Claims Review Pipeline",
+        summary: "Claims Review Pipeline",
         description: "Build batch processing pipeline for AI-assisted claims review. Must handle high volumes (50k+ claims/day) with human review queue for edge cases and exceptions.",
         issuetype: { name: "Epic" },
         status: { name: "In Progress" },
@@ -461,6 +461,6 @@ export function createJiraClient(config?: Partial<JiraClientConfig>): JiraClient
   if (client.isConfigured()) {
     return client;
   }
-  console.error("Jira not configured - using mock data for demo");
+  console.error("Jira not configured, using mock data for demo");
   return new MockJiraClient();
 }

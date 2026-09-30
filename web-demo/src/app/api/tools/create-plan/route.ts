@@ -46,7 +46,7 @@ export async function POST(request: Request) {
 
     const totalSprints = Math.ceil(totalWeeks / sprintLengthWeeks);
 
-    // Define phases — assign last phase as remainder to avoid ceiling overshoot
+    // Define phases. Assign last phase as remainder to avoid ceiling overshoot
     const discoveryWeeks = Math.ceil(totalWeeks * 0.2);
     const foundationWeeks = Math.ceil(totalWeeks * 0.25);
     const coreDevWeeks = Math.ceil(totalWeeks * 0.35);
@@ -116,7 +116,7 @@ export async function POST(request: Request) {
       {
         name: 'Testing & Hardening',
         description:
-          'Comprehensive testing, security audit, performance optimization',
+          'End-to-end testing, security audit, performance tuning',
         durationWeeks: testingWeeks,
         sprints: [] as Array<{
           number: number;
@@ -205,7 +205,7 @@ export async function POST(request: Request) {
             type: 'story' as const,
             summary: 'Implement audit logging',
             description:
-              'Set up comprehensive audit logging for all data access and LLM interactions',
+              'Set up audit logging for all data access and LLM interactions',
             labels: ['security', 'compliance', 'logging'],
             estimateHours: 16,
           },

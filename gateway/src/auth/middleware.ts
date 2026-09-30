@@ -5,6 +5,7 @@ import { getTenantForUser, getTenantById, type Tenant } from "../db/queries/tena
 import { getApiKeyByHash, updateLastUsed } from "../db/queries/api-keys.js";
 import { getSupabaseClient } from "../db/client.js";
 import type { AuthenticatedRequest } from "./types.js";
+import { VIEWER_ROLE, demoUserIds, isViewerAllowed } from "./viewer-access.js";
 
 const DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -13,11 +14,12 @@ async function autoProvisionUser(
 ): Promise<{ tenant: Tenant; role: string } | null> {
   const db = getSupabaseClient();
 
-  // Add user to default tenant
+  // Anyone can sign up, so new users get read-only access. An owner promotes
+  // them with PUT /api/settings/team/:userId/role (there's no UI for it yet).
   const { error } = await db.from("tenant_users").insert({
     tenant_id: DEFAULT_TENANT_ID,
     clerk_user_id: clerkUserId,
-    role: "member",
+    role: VIEWER_ROLE,
   });
 
   if (error) {
@@ -90,7 +92,7 @@ export async function requireAuth(
   let userId: string;
 
   if (isDevMode()) {
-    // Dev mode — accept any request, map to dev_user
+    // Dev mode: accept any request, map to dev_user
     userId = "dev_user";
   } else {
     if (!authHeader?.startsWith("Bearer ")) {
@@ -127,9 +129,20 @@ export async function requireAuth(
     tenantId: tenantResult.tenant.id,
     tenantName: tenantResult.tenant.name,
     userId,
-    userRole: tenantResult.role,
+    userRole: demoUserIds().has(userId) ? VIEWER_ROLE : tenantResult.role,
     plan: tenantResult.tenant.plan ?? "starter",
   };
+
+  if (
+    req.tenant.userRole === VIEWER_ROLE &&
+    !isViewerAllowed(req.method, req.baseUrl + req.path)
+  ) {
+    res.status(403).json({
+      error: "This account is read-only.",
+      code: "read_only",
+    });
+    return;
+  }
 
   next();
 }

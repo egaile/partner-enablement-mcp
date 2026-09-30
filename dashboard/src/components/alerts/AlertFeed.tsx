@@ -16,7 +16,8 @@ interface Alert {
 
 interface AlertFeedProps {
   alerts: Alert[];
-  onAcknowledge: (id: string) => void;
+  /** Omit to hide the Acknowledge buttons (read-only users). */
+  onAcknowledge?: (id: string) => void;
   selected?: Set<string>;
   onToggleSelect?: (id: string) => void;
 }
@@ -103,7 +104,7 @@ export default function AlertFeed({ alerts, onAcknowledge, selected, onToggleSel
                       </div>
                     </div>
                   </div>
-                  {!alert.acknowledged && (
+                  {onAcknowledge && !alert.acknowledged && (
                     <button
                       onClick={() => onAcknowledge(alert.id)}
                       className="text-xs px-2 py-1 border border-border rounded hover:bg-muted"

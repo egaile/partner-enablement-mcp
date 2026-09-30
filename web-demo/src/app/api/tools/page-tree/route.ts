@@ -118,7 +118,7 @@ async function fetchViaGateway(spaceId: string, pageIds: string[]): Promise<Page
     }
   }
 
-  // If no pages were collected, the gateway responses couldn't be parsed — throw to trigger mock fallback
+  // If no pages were collected, the gateway responses couldn't be parsed. Throw to trigger mock fallback
   if (allPages.size === 0) {
     throw new Error('Gateway returned no parseable page data');
   }
@@ -187,7 +187,7 @@ function buildTree(
 function getMockData(spaceId: string, _pageIds: string[]): PageTreeData {
   const pages = new Map<string, PageInfo>();
 
-  // Homepage — always the mock root regardless of input pageIds
+  // Homepage: always the mock root regardless of input pageIds
   const rootId = 'page-001';
 
   pages.set(rootId, {
@@ -290,7 +290,7 @@ function getMockData(spaceId: string, _pageIds: string[]): PageTreeData {
     };
   }
 
-  // Always use mock's own root — caller's pageIds are real Confluence IDs that don't match mock data
+  // Always use mock's own root. The caller's pageIds are real Confluence IDs that don't match mock data
   return buildTree([rootId], pages, pageDetails, spaceId, 'mock');
 }
 

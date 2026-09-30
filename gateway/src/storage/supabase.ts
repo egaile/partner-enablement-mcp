@@ -1,14 +1,10 @@
 /**
- * SupabaseStorageBackend — cloud implementation of StorageBackend.
+ * SupabaseStorageBackend: cloud implementation of StorageBackend.
  *
  * Thin facade over the existing `db/queries/*` modules so the proxy hot path
  * can speak to a single, version-stable interface no matter which backend is
  * wired up. The underlying queries (with their RLS, multi-tenant scoping,
  * billing-aware columns, etc.) are unchanged.
- *
- * Will move to `apps/cloud-control-plane/src/storage/supabase.ts` when the
- * `apps/` restructure lands; for now it lives alongside the existing gateway
- * code to avoid breaking imports.
  */
 
 import type {
@@ -61,7 +57,7 @@ import {
 
 async function notSupported(op: string): Promise<never> {
   throw new StorageError(
-    `${op} is not supported by SupabaseStorageBackend — cloud deployments manage CRUD through dashboard routes, not config-as-code.`
+    `${op} is not supported by SupabaseStorageBackend. Cloud deployments manage CRUD through dashboard routes, not config-as-code.`
   );
 }
 
@@ -89,7 +85,7 @@ export class SupabaseStorageBackend implements StorageBackend {
 
     getOrCreateDefault: async (): Promise<TenantRecord> => {
       throw new StorageError(
-        "getOrCreateDefault is not supported by SupabaseStorageBackend — cloud deployments require explicit tenant resolution via Clerk auth."
+        "getOrCreateDefault is not supported by SupabaseStorageBackend. Cloud deployments require explicit tenant resolution via Clerk auth."
       );
     },
   };

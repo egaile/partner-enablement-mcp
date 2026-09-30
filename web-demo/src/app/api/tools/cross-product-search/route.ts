@@ -79,7 +79,7 @@ function filterConfluenceBySpace(results: SearchResult[], projectKey: string): S
 }
 
 /**
- * Parse Rovo search results — may be JSON or markdown.
+ * Parse Rovo search results, which may be JSON or markdown.
  */
 function parseRovoResults(text: string, projectKey: string): SearchResult[] {
   // Try JSON first
@@ -113,7 +113,7 @@ function parseRovoResults(text: string, projectKey: string): SearchResult[] {
 
     if (results.length > 0) return results;
   } catch {
-    // Not JSON — try to extract from markdown/text
+    // Not JSON, so try to extract from markdown/text
   }
 
   // Parse markdown-formatted results (Rovo sometimes returns markdown)

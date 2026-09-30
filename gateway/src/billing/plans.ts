@@ -7,7 +7,7 @@ export interface PlanDefinition {
   name: string;
   maxServers: number;
   maxCallsPerMonth: number;
-  /** 10% grace buffer — soft limit before hard cutoff */
+  /** 10% grace buffer: soft limit before hard cutoff */
   graceBuffer: number;
   features: {
     piiRedaction: boolean;

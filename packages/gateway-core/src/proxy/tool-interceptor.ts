@@ -1,10 +1,12 @@
 /**
- * ToolInterceptor — runs every `tools/call` request through the security
+ * ToolInterceptor: runs every `tools/call` request through the security
  * pipeline before (and after) forwarding it to the downstream MCP server.
  *
  * Pipeline order:
  *   0. Billing guard (cloud usage limits)
  *   1. Policy evaluation
+ *   1.2. Approval gate (require_approval). `__approvalId` is always stripped
+ *        before forwarding, whatever the policy says.
  *   1.5. Rate limiting (when policy rule sets maxCallsPerMinute)
  *   2. Request injection scan
  *   2.5. Request PII detection
@@ -15,10 +17,11 @@
  *   6. Audit log
  *
  * Every step writes to the in-flight `AuditEntry` so the eventual log entry
- * captures the full decision path. Alerts are fire-and-forget — an alert
+ * captures the full decision path. Alerts are fire-and-forget. An alert
  * sink failure must never block a tool call.
  */
 
+import { isDeepStrictEqual } from "node:util";
 import { generateCorrelationId } from "../audit/correlation.js";
 import { redactPii, scanForPii } from "../security/pii-scanner.js";
 import { RateLimiter } from "../security/rate-limiter.js";
@@ -47,6 +50,24 @@ import type { DownstreamConnection, InterceptResult, TenantContext } from "./typ
  */
 export const APPROVAL_ID_FIELD = "__approvalId";
 
+/** How long a caller has to use an approval after an admin grants it. */
+export const APPROVAL_EXECUTION_WINDOW_MS = 60 * 60 * 1000;
+
+// The request TTL (`expiresAt`) bounds how long a request can sit pending.
+// Once approved, the caller gets a fresh window from the decision time so a
+// slow reviewer doesn't leave them with an already-expired approval.
+function approvalExecutionDeadline(detail: {
+  decidedAt: string | null;
+  expiresAt: string;
+}): number {
+  const expiresAt = new Date(detail.expiresAt).getTime();
+  if (!detail.decidedAt) return expiresAt;
+  const decidedAt = new Date(detail.decidedAt).getTime();
+  // Approved after the request had already expired: no window at all.
+  if (decidedAt > expiresAt) return 0;
+  return decidedAt + APPROVAL_EXECUTION_WINDOW_MS;
+}
+
 export interface ToolInterceptorOptions {
   policyEngine: PolicyEngine;
   driftDetector: DriftDetector;
@@ -59,7 +80,8 @@ export interface ToolInterceptorOptions {
    * Optional. When provided, `decision.action === "require_approval"`
    * triggers a real approval flow: create a pending request and block
    * the call with the new id. Clients re-call with `__approvalId` in
-   * arguments to consume an approved request. Omit on self-host configs
+   * arguments to use an approved request (reusable with the same arguments
+   * for APPROVAL_EXECUTION_WINDOW_MS after the decision). Omit on self-host configs
    * that don't use require_approval policies.
    */
   approvalEngine?: ApprovalEngine;
@@ -157,7 +179,7 @@ export class ToolInterceptor {
           };
         }
       } catch (err) {
-        // Don't block on billing check failure — log and continue.
+        // Don't block on billing check failure. Log and continue.
         console.error("[billing] Check failed, proceeding:", err);
       }
 
@@ -209,15 +231,17 @@ export class ToolInterceptor {
         };
       }
 
-      // Step 1.2: Human-in-the-loop approval gate.
-      // If policy says require_approval, either consume a previously-issued
-      // approval id (allow) or create a new pending request (block).
+      // Step 1.2: Human-in-the-loop approval gate. The marker is stripped
+      // whatever the policy says, so the downstream tool never sees it.
+      const { [APPROVAL_ID_FIELD]: claimedApprovalId, ...cleanParams } = params;
+      params = cleanParams;
       if (decision.action === "require_approval") {
         const approvalResult = await this.handleApprovalGate(
           tenant,
           connection,
           toolName,
           params,
+          claimedApprovalId,
           correlationId
         );
         if (approvalResult.blocked) {
@@ -238,8 +262,6 @@ export class ToolInterceptor {
             },
           };
         }
-        // Approved — strip the marker so the downstream tool never sees it.
-        params = approvalResult.params;
       }
 
       // Step 1.5: Rate limiting (if policy specifies maxCallsPerMinute)
@@ -514,12 +536,14 @@ export class ToolInterceptor {
   /**
    * Resolve a `require_approval` policy decision.
    *
-   * - If client passed `__approvalId` and it points to an approved request
-   *   belonging to this tenant/user/tool: returns `{ blocked: false, params }`
-   *   with the marker stripped.
-   * - Otherwise: creates a new pending approval request and returns
-   *   `{ blocked: true, message, reason }` describing why the call was
-   *   denied and what id to re-submit with.
+   * - A claimed `__approvalId` passes only if the request is approved, belongs
+   *   to the same user, server and tool, was approved for these exact
+   *   arguments, and is inside the execution window. Returns
+   *   `{ blocked: false }`. The caller has already stripped the marker.
+   * - A claimed id that fails any of those checks (unknown, pending, rejected,
+   *   expired, mismatched) is blocked with a reason. No new request is created.
+   * - With no claimed id, a new pending request is created and the call is
+   *   blocked with the id to re-submit with.
    *
    * When no `approvalEngine` is wired up, falls back to "block, log
    * reason" so misconfigured deployments fail closed instead of silently
@@ -530,12 +554,12 @@ export class ToolInterceptor {
     connection: DownstreamConnection,
     toolName: string,
     params: Record<string, unknown>,
+    claimedApprovalId: unknown,
     correlationId: string
   ): Promise<
-    | { blocked: false; params: Record<string, unknown> }
+    | { blocked: false }
     | { blocked: true; message: string; reason: string }
   > {
-    const claimedApprovalId = params[APPROVAL_ID_FIELD];
 
     if (!this.approvalEngine) {
       return {
@@ -558,7 +582,8 @@ export class ToolInterceptor {
         };
       }
 
-      // Even if marked approved, reject if it's past its TTL.
+      // Pending requests past their TTL count as expired. Approved requests use
+      // approvalExecutionDeadline() below instead.
       const expired =
         detail.status === "expired" ||
         (detail.status === "pending" &&
@@ -576,9 +601,22 @@ export class ToolInterceptor {
             reason: "approval id mismatch (user/tool/server)",
           };
         }
-        const cleaned = { ...params };
-        delete cleaned[APPROVAL_ID_FIELD];
-        return { blocked: false, params: cleaned };
+        // The admin approved specific arguments, not a blanket pass for the tool.
+        if (!isDeepStrictEqual(detail.params, params)) {
+          return {
+            blocked: true,
+            message: `Approval ${claimedApprovalId} was granted for different arguments. Submit a new request.`,
+            reason: "approval id mismatch (arguments)",
+          };
+        }
+        if (approvalExecutionDeadline(detail) < Date.now()) {
+          return {
+            blocked: true,
+            message: `Approval ${claimedApprovalId} has expired. Submit a new request.`,
+            reason: `approval ${claimedApprovalId} expired`,
+          };
+        }
+        return { blocked: false };
       }
 
       if (expired) {
@@ -602,15 +640,13 @@ export class ToolInterceptor {
       };
     }
 
-    // No approval id claimed — create a new pending request.
-    const cleaned = { ...params };
-    delete cleaned[APPROVAL_ID_FIELD];
+    // No approval id claimed: create a new pending request.
     const req = await this.approvalEngine.requestApproval(tenant.tenantId, {
       correlationId,
       userId: tenant.userId,
       serverName: connection.serverName,
       toolName,
-      params: cleaned,
+      params,
     });
     return {
       blocked: true,

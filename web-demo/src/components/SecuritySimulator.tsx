@@ -133,7 +133,7 @@ export function SecuritySimulator({ onBack }: SecuritySimulatorProps) {
               Security Threat Simulator
             </h1>
             <p className="text-sm text-gray-500 max-w-xl leading-relaxed">
-              Red team playground — pick an attack scenario and watch the MCP Security Gateway
+              Red team playground. Pick an attack scenario and watch the MCP Security Gateway
               scanner dissect, classify, and block the payload in real time.
             </p>
           </div>

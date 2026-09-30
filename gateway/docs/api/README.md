@@ -19,14 +19,49 @@ Clerk JWTs are short-lived (typically 60 seconds). The dashboard handles token r
 ### API Key
 
 ```
-X-API-Key: mgw_<32 hex chars>
+Authorization: Bearer mgw_<32 hex chars>
 ```
 
-API keys are created via `POST /api/settings/api-keys`. The raw key is shown once at creation time and cannot be retrieved again. Keys are stored as SHA-256 hashes.
+API keys use the same `Authorization: Bearer` header as Clerk tokens. The gateway treats any bearer value that starts with `mgw_` as an API key. There is no `X-API-Key` header.
+
+API keys are created via `POST /api/settings/api-keys`. The raw key is shown once at creation time and cannot be retrieved again. Keys are stored as SHA-256 hashes. Requests made with an API key run with the `member` role and a user ID of `apikey:<key id>`.
 
 ### Dev Mode
 
-When `CLERK_SECRET_KEY=dev`, authentication is bypassed. All requests are mapped to `dev_user` in the default tenant. Do not use in production.
+When `CLERK_SECRET_KEY=dev` **and** `NODE_ENV=development`, Clerk verification is skipped. Requests without an API key are mapped to `dev_user` in the default tenant. `CLERK_SECRET_KEY=dev` on its own does not enable dev mode. Do not use in production.
+
+### Roles and read-only access
+
+Each Clerk user has a role in their tenant: `owner`, `admin`, `member` or `viewer`.
+
+The `viewer` role is read-only. It is enforced inside `requireAuth` (see `gateway/src/auth/viewer-access.ts`), so it applies to every route. A viewer can only call:
+
+- `GET /api/me`
+- `GET /api/dashboard/overview`
+- `GET /api/servers`
+- `GET /api/servers/:id/health`, `GET /api/servers/:id/snapshots`, `GET /api/servers/:id/oauth/status`
+- `GET /api/policies`
+- `GET /api/audit`, `GET /api/audit/metrics`
+- `GET /api/alerts`
+- `GET /api/approvals` (with `params` emptied, see below)
+- `GET /api/billing/usage`, `GET /api/billing/plans`
+- `GET /api/templates/atlassian`
+- `POST /api/policies/simulate` (it changes nothing; `params` is capped at 16KB)
+
+`HEAD` requests to the same paths are also allowed. Every other request from a viewer, including `/mcp`, returns `403`:
+
+```json
+{ "error": "This account is read-only.", "code": "read_only" }
+```
+
+The list is an allowlist, so a new route is closed to viewers until it is added there.
+
+Who gets `viewer`:
+
+- New Clerk users with no `tenant_users` row are auto-provisioned into the default tenant as `viewer`. An owner can promote them with `PUT /api/settings/team/:userId/role`.
+- Clerk user IDs listed in `DEMO_CLERK_USER_IDS` or `DEMO_CLERK_USER_ID` (comma-separated, either variable works) are always `viewer`, whatever `tenant_users` says. This is the public demo login.
+
+API keys are never `viewer`; they always run as `member`.
 
 ## Response format
 
@@ -63,6 +98,33 @@ Unauthenticated. Returns gateway health status.
 
 ---
 
+## Current user
+
+### GET /api/demo/viewer-check
+
+Unauthenticated. `?userId=<clerk user id>` returns `{ "viewer": true }` only if this gateway forces that user to the `viewer` role (it's listed in `DEMO_CLERK_USER_IDS` or `DEMO_CLERK_USER_ID`). The dashboard calls it before issuing a demo session and refuses if the answer is `false`.
+
+### GET /api/me
+
+Returns the caller's tenant, user ID and role. The dashboard uses `readOnly` to hide write controls. Allowed for viewers.
+
+**Response:**
+```json
+{
+  "tenantId": "00000000-0000-0000-0000-000000000001",
+  "tenantName": "Default",
+  "userId": "user_abc",
+  "role": "viewer",
+  "plan": "starter",
+  "readOnly": true,
+  "demo": false
+}
+```
+
+`readOnly` is `true` when `role` is `viewer`. `demo` is `true` only for the shared demo login (user IDs listed in `DEMO_CLERK_USER_IDS` or `DEMO_CLERK_USER_ID`); other viewers, such as new sign-ups, get `false`. For API-key callers, `userId` is `apikey:<key id>` and `role` is `member`.
+
+---
+
 ## MCP Proxy
 
 ### ALL /mcp
@@ -74,10 +136,14 @@ The MCP proxy endpoint. Accepts JSON-RPC requests conforming to the Model Contex
 2. Include `mcp-session-id: <id>` in all subsequent requests to reuse the session.
 3. Sessions are cleaned up after 30 minutes of inactivity.
 
+A session is bound to the tenant and user that opened it. A session ID is not a credential: if a different caller (another user, or another API key) sends a request with that `mcp-session-id`, the gateway returns `403 { "error": "Session belongs to a different caller" }`. A `GET` or `DELETE` without a known session ID returns `400`.
+
+Viewers can't call `/mcp`; they get the `403 read_only` response described above.
+
 **Supported methods:**
-- `initialize` -- start a new session
-- `tools/list` -- list all tools from connected downstream servers (namespaced as `serverName__toolName`)
-- `tools/call` -- call a tool through the security pipeline
+- `initialize`: start a new session
+- `tools/list`: list all tools from connected downstream servers (namespaced as `serverName__toolName`)
+- `tools/call`: call a tool through the security pipeline
 
 ---
 
@@ -93,19 +159,33 @@ List all registered MCP servers for the authenticated tenant.
   "servers": [
     {
       "id": "uuid",
+      "tenantId": "uuid",
       "name": "my-server",
       "transport": "http",
       "url": "https://example.com/mcp",
-      "command": null,
-      "args": null,
       "env": null,
+      "authHeaders": { "Authorization": "[redacted]" },
       "enabled": true,
-      "created_at": "2025-01-15T10:00:00Z",
-      "updated_at": "2025-01-15T10:00:00Z"
+      "createdAt": "2025-01-15T10:00:00Z",
+      "updatedAt": "2025-01-15T10:00:00Z",
+      "authType": "static",
+      "oauthClientId": null,
+      "oauthTokenExpiresAt": null,
+      "oauthTokenUrl": null,
+      "oauthAuthorizeUrl": null,
+      "oauthScopes": null
     }
   ]
 }
 ```
+
+Fields are camelCase. Every server response (`GET`, `POST` and `PUT`) goes through the same filter:
+
+- The response is an allowlist of fields. `oauthClientSecret`, `oauthAccessToken`, `oauthRefreshToken`, `oauthCodeVerifier`, `oauthStateNonce`, `command` and `args` are never returned.
+- `url`, `oauthTokenUrl` and `oauthAuthorizeUrl` have credentials removed. Members, admins and owners see scheme, host and path, with no `user:pass@`, no fragment, and any query string replaced by `?[redacted]`. Viewers (including the public demo) see only scheme and host, because a path can carry a secret too.
+- `env` and `authHeaders` keep their keys, but every value is replaced with `"[redacted]"`, so you can see which variables and headers are set without seeing their values. Both are `null` when nothing is set.
+
+To check whether a server has OAuth tokens, use `GET /api/servers/:id/oauth/status`.
 
 ### POST /api/servers
 
@@ -121,21 +201,36 @@ Register a new downstream MCP server.
 }
 ```
 
-Or for stdio:
+**Validation:** `name` (1-100 chars, required, can't contain `__`), `transport` (must be `"http"`, required), `url` (valid URL, required). Optional: `authHeaders` (string map), `authType` (`"static"` or `"oauth2"`, default `"static"`), `oauthClientId`, `oauthClientSecret`, `oauthTokenUrl`, `oauthAuthorizeUrl`, `oauthScopes`. Unknown fields are rejected, including `command` and `args`.
+
+The hosted gateway only proxies HTTP servers. `"transport": "stdio"` returns `400` with the message `The hosted gateway only supports HTTP servers. Use the self-hosted mcpshield CLI for stdio servers.` A stdio server runs a command inside the gateway process, which a shared multi-tenant gateway can't allow. Stdio records created before this change fail to connect with `Server "<name>" uses stdio, which is disabled on this gateway`. To proxy stdio servers, use the self-hosted `mcpshield` CLI and declare them in `mcpshield.yaml`.
+
+**Response:** `201 Created` with `{ "server": { ... } }`. The server object has the same shape as in `GET /api/servers`, so secrets you just sent are not echoed back:
+
 ```json
 {
-  "name": "my-server",
-  "transport": "stdio",
-  "command": "npx",
-  "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
-  "env": { "KEY": "value" },
-  "enabled": true
+  "server": {
+    "id": "uuid",
+    "tenantId": "uuid",
+    "name": "my-server",
+    "transport": "http",
+    "url": "https://example.com/mcp",
+    "env": null,
+    "authHeaders": { "Authorization": "[redacted]" },
+    "enabled": true,
+    "createdAt": "2025-01-15T10:00:00Z",
+    "updatedAt": "2025-01-15T10:00:00Z",
+    "authType": "static",
+    "oauthClientId": null,
+    "oauthTokenExpiresAt": null,
+    "oauthTokenUrl": null,
+    "oauthAuthorizeUrl": null,
+    "oauthScopes": null
+  }
 }
 ```
 
-**Validation:** `name` (1-100 chars, required), `transport` (`"http"` or `"stdio"`, required), `url` (valid URL, required for HTTP), `command` (required for stdio).
-
-**Response:** `201 Created` with `{ "server": { ... } }`
+Returns `402` if the tenant is at its plan's server limit.
 
 ### PUT /api/servers/:id
 
@@ -143,7 +238,7 @@ Update a server's configuration.
 
 **Body:** Any subset of the fields from `POST /api/servers`.
 
-**Response:** `{ "server": { ... } }`
+**Response:** `{ "server": { ... } }`, with the same redaction as `GET /api/servers`.
 
 ### DELETE /api/servers/:id
 
@@ -288,6 +383,10 @@ Simulate policy evaluation and injection scanning without making a real tool cal
   "params": { "issueKey": "PROJ-42" }
 }
 ```
+
+**Validation:** `serverName` and `toolName` required. `userId` and `params` optional (`userId` defaults to the caller). `params` must be 16384 bytes (UTF-8) or less when serialized with `JSON.stringify`; larger values return `400`. Unknown fields are rejected.
+
+Viewers can call this endpoint because it doesn't change anything.
 
 **Response:**
 ```json
@@ -464,15 +563,30 @@ List pending approval requests.
 }
 ```
 
+For `viewer` callers, every entry's `params` is `{}`. Pending requests carry raw tool arguments, so read-only users don't see them.
+
 ### POST /api/approvals/:id/approve
 
-Approve a pending request.
+Approve a pending request. Only `owner` and `admin` users can approve or reject.
 
 **Response:** `{ "approval": { ... } }`
 
+Returns `403` when:
+
+- The caller is a `viewer` (`code: "read_only"`).
+- The caller used an API key: `{ "error": "API keys can't approve or reject requests. Sign in to the dashboard." }`. MCP clients use API keys, so a client can't approve its own blocked call. This check runs before the role check.
+- The caller's role is not `owner` or `admin`: `{ "error": "Insufficient permissions", "required": ["owner", "admin"], "current": "member" }`.
+- The caller is the user who made the request: `{ "error": "You can't decide an approval request you made." }`. Requests made over `/mcp` with an API key count as made by the key's creator, so in a workspace with one admin, that admin can't approve calls made with their own keys; another owner or admin has to. If the key has since been deleted, the request can't be approved (`409`), only rejected.
+
+Returns `404` (`{ "error": "Approval request not found." }`) when the ID doesn't exist in your tenant.
+
+Returns `409` when the request is no longer pending (already decided) or, for approve, has expired: `{ "error": "This request is no longer pending. It was already decided, or it expired." }`. An expired request can still be rejected.
+
+After approval, the client retries the tool call with `arguments.__approvalId = <id>` and the same arguments that were approved. The approval works for the same user, server, tool and arguments, for 1 hour after the decision. It is not single-use yet, so it can be replayed within that hour.
+
 ### POST /api/approvals/:id/reject
 
-Reject a pending request.
+Reject a pending request. The same `403`, `404` and `409` rules as approve apply, except that an expired request can be rejected.
 
 **Response:** `{ "approval": { ... } }`
 

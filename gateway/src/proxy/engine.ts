@@ -6,7 +6,7 @@
  * and OAuth provider, and re-exposes the helpers the existing routes /
  * shutdown handlers depend on.
  *
- * Keep this layer thin — anything that isn't tenant-multiplexed or
+ * Keep this layer thin. Anything that isn't tenant-multiplexed or
  * cloud-billed should live in the core engine.
  */
 
@@ -91,6 +91,8 @@ export class GatewayProxyEngine {
       billingGuard: new CloudBillingGuard(this.planCache),
       oauthFactory: new CloudOAuthProviderFactory(),
       approvalEngine,
+      // Tenants must never be able to run commands inside the shared gateway.
+      allowStdio: false,
     });
   }
 
@@ -122,8 +124,8 @@ export class GatewayProxyEngine {
     this.core.clearPolicyCache(tenantId);
   }
 
-  createSessionServer(): Server {
-    return this.core.createSessionServer();
+  createSessionServer(sessionContext?: TenantContext): Server {
+    return this.core.createSessionServer(sessionContext);
   }
 
   async connectDownstreamServers(tenantId: string): Promise<void> {

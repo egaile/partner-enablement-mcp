@@ -79,8 +79,8 @@ railway up
 
 1. Create a new project on [railway.app](https://railway.app).
 2. Connect your GitHub repository.
-3. Set the root directory to `gateway`.
-4. Railway will detect `railway.json` in the gateway directory for build configuration.
+3. Leave the root directory as the repo root. The gateway depends on the `@mcpshield/*` workspace packages, so the Docker build needs the whole monorepo as context.
+4. Set the config file path to `gateway/railway.json`.
 5. Add environment variables:
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
@@ -88,26 +88,39 @@ railway up
    - `PORT` = `4000`
    - `LOG_LEVEL` = `info`
    - `ALLOWED_ORIGINS` = your dashboard URL
+   - `TOKEN_ENCRYPTION_KEY` (OAuth tokens are stored in plaintext without it)
+   - `OAUTH_CALLBACK_BASE_URL` = the public gateway URL
+   - Stripe: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRO_PRICE_ID`, `STRIPE_BUSINESS_PRICE_ID`
 
 ### Railway build configuration
 
-The gateway includes a `railway.json` file:
+`gateway/railway.json` builds with `gateway/Dockerfile`:
 
 ```json
 {
-  "$schema": "https://railway.app/railway.schema.json",
+  "$schema": "https://railway.com/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS"
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "gateway/Dockerfile",
+    "watchPatterns": [
+      "gateway/**",
+      "packages/sdk/**",
+      "packages/gateway-core/**",
+      "packs-private/pack-atlassian/**",
+      "package.json",
+      "package-lock.json",
+      ".dockerignore"
+    ]
   },
   "deploy": {
-    "startCommand": "npm start",
     "healthcheckPath": "/health",
-    "healthcheckTimeout": 30
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
   }
 }
 ```
 
-Railway uses Nixpacks to detect Node.js, runs `npm install` and `npm run build` (tsc), then starts with `npm start` (`node dist/index.js`).
+The Dockerfile installs and builds `@mcpshield/sdk`, `@mcpshield/gateway-core`, `@mcpshield/pack-atlassian` and the gateway in order, prunes dev dependencies, and starts `node dist/index.js` from `gateway/` as the unprivileged `node` user. The app files stay owned by root, so the process can read its code but not rewrite it.
 
 ### Verify deployment
 
@@ -122,35 +135,20 @@ curl https://gateway-production-b077.up.railway.app/health
 2. Set the **Root Directory** to `dashboard`.
 3. Set the **Build Command** to `npm run build`.
 4. Add environment variables:
-   - `NEXT_PUBLIC_SUPABASE_URL` = your Supabase URL
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = your Supabase anon key
    - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` = your Clerk publishable key
    - `CLERK_SECRET_KEY` = your Clerk secret key
-   - `GATEWAY_API_URL` = your Railway gateway URL (e.g., `https://gateway-production-b077.up.railway.app`)
+   - `NEXT_PUBLIC_GATEWAY_API_URL` = your Railway gateway URL (e.g., `https://gateway-production-b077.up.railway.app`)
+   - `DEMO_CLERK_USER_ID` (optional) = the read-only demo user, see [Tenant management](tenant-management.md#public-demo-login)
 5. Deploy.
 
 ## Self-hosted deployment
 
 ### Docker
 
-Create a `Dockerfile` in the gateway directory:
-
-```dockerfile
-FROM node:20-slim
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --production=false
-COPY . .
-RUN npm run build
-RUN npm prune --production
-EXPOSE 4000
-CMD ["node", "dist/index.js"]
-```
-
-Build and run:
+Build from the repo root (the gateway needs the workspace packages):
 
 ```bash
-docker build -t mcp-gateway .
+docker build -f gateway/Dockerfile -t mcp-gateway .
 docker run -p 4000:4000 \
   -e SUPABASE_URL=https://your-project.supabase.co \
   -e SUPABASE_SERVICE_ROLE_KEY=eyJ... \
@@ -163,9 +161,9 @@ docker run -p 4000:4000 \
 ### Bare metal / VM
 
 ```bash
+npm install          # from the repo root
+npm run build        # builds sdk, gateway-core, packs, cli, gateway in order
 cd gateway
-npm install
-npm run build
 NODE_ENV=production node dist/index.js
 ```
 

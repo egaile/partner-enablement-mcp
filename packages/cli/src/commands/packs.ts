@@ -1,5 +1,5 @@
 /**
- * `mcpshield packs list` — show packs configured in mcpshield.yaml and
+ * `mcpshield packs list`: show packs configured in mcpshield.yaml and
  * attempt to load each one to surface install / shape errors at admin
  * time rather than at gateway-start time.
  */
@@ -29,7 +29,7 @@ export async function runPacksList(
   for (const ok of result.loaded) {
     console.log(`✓ ${ok.source}`);
     console.log(
-      `    ${ok.pack.name} — ${ok.pack.pii.length} PII patterns, ${ok.pack.policyTemplates.length} templates, compliance: ${ok.pack.compliance.map((c) => c.id).join(", ") || "(none)"}`
+      `    ${ok.pack.name}: ${ok.pack.pii.length} PII patterns, ${ok.pack.policyTemplates.length} templates, compliance: ${ok.pack.compliance.map((c) => c.id).join(", ") || "(none)"}`
     );
   }
   for (const fail of result.failed) {

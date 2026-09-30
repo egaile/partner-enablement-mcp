@@ -1,11 +1,11 @@
 /**
- * HealthChecker — periodic `tools/list` ping against every downstream
+ * HealthChecker: periodic `tools/list` ping against every downstream
  * connection. Fires `server_error` alerts once a server crosses the
  * consecutive-failure threshold.
  *
  * Owns no storage; status is in-memory only and rebuilt on engine restart.
  * Cloud overlays a richer status surface on top of this via its dashboard
- * route — the routes read `getAllStatuses()`.
+ * route; the routes read `getAllStatuses()`.
  */
 
 import type { ConnectionManager } from "./connection-manager.js";

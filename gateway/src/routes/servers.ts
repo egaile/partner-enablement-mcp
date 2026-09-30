@@ -12,6 +12,66 @@ import { RegisterServerSchema, UpdateServerSchema } from "../schemas/index.js";
 import { getServerCount } from "../db/queries/billing.js";
 import { getPlan } from "../billing/plans.js";
 import type { GatewayState } from "./types.js";
+import { VIEWER_ROLE } from "../auth/viewer-access.js";
+import type { McpServerRecord } from "@mcpshield/gateway-core/storage";
+
+function redactValues(
+  values: Record<string, string> | null
+): Record<string, string> | null {
+  if (!values) return null;
+  return Object.fromEntries(Object.keys(values).map((k) => [k, "[redacted]"]));
+}
+
+/**
+ * Some providers put credentials in the URL (`user:pass@host`, `?token=...`,
+ * `/mcp/<secret>`). Members see scheme, host and path, with any query string
+ * replaced by `?[redacted]`. Viewers (the public demo, new sign-ups) see only
+ * scheme and host, since a path can carry a secret too.
+ */
+export function redactUrl(
+  raw: string | null,
+  options: { originOnly?: boolean } = {}
+): string | null {
+  if (!raw) return raw;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return "[redacted]";
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return "[redacted]";
+  if (options.originOnly) return url.origin;
+  return `${url.origin}${url.pathname}${url.search ? "?[redacted]" : ""}`;
+}
+
+// Credentials never leave the gateway. This is an explicit allowlist, so a new
+// column on McpServerRecord stays private until someone adds it here. Key
+// names of headers/env stay visible so the UI can show what's configured.
+// Token presence is reported by GET /api/servers/:id/oauth/status.
+export function toPublicServer(
+  server: McpServerRecord,
+  options: { viewer?: boolean } = {}
+) {
+  const urlOptions = { originOnly: options.viewer === true };
+  return {
+    id: server.id,
+    tenantId: server.tenantId,
+    name: server.name,
+    transport: server.transport,
+    url: redactUrl(server.url, urlOptions),
+    env: redactValues(server.env),
+    authHeaders: redactValues(server.authHeaders),
+    enabled: server.enabled,
+    createdAt: server.createdAt,
+    updatedAt: server.updatedAt,
+    authType: server.authType,
+    oauthClientId: server.oauthClientId,
+    oauthTokenExpiresAt: server.oauthTokenExpiresAt,
+    oauthTokenUrl: redactUrl(server.oauthTokenUrl, urlOptions),
+    oauthAuthorizeUrl: redactUrl(server.oauthAuthorizeUrl, urlOptions),
+    oauthScopes: server.oauthScopes,
+  };
+}
 
 export function createServersRouter(state: GatewayState): Router {
   const router = Router();
@@ -22,7 +82,8 @@ export function createServersRouter(state: GatewayState): Router {
     async (req: AuthenticatedRequest, res) => {
       try {
         const servers = await getServersForTenant(req.tenant!.tenantId);
-        res.json({ servers });
+        const viewer = req.tenant!.userRole === VIEWER_ROLE;
+        res.json({ servers: servers.map((s) => toPublicServer(s, { viewer })) });
       } catch (error) {
         res.status(500).json({ error: state.safeErrorMessage(error) });
       }
@@ -52,7 +113,7 @@ export function createServersRouter(state: GatewayState): Router {
           return;
         }
         const server = await createServer(req.tenant!.tenantId, parsed.data);
-        res.status(201).json({ server });
+        res.status(201).json({ server: toPublicServer(server) });
       } catch (error) {
         res.status(500).json({ error: state.safeErrorMessage(error) });
       }
@@ -74,7 +135,7 @@ export function createServersRouter(state: GatewayState): Router {
           req.tenant!.tenantId,
           parsed.data
         );
-        res.json({ server });
+        res.json({ server: toPublicServer(server) });
       } catch (error) {
         res.status(500).json({ error: state.safeErrorMessage(error) });
       }

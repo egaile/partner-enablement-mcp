@@ -27,9 +27,9 @@ export default function EmptyState({
       <h3 className="text-sm font-medium text-foreground mb-1">{title}</h3>
       <p className="text-sm text-muted-foreground max-w-sm mb-6">{description}</p>
       {actionLabel && actionHref && (
-        <Link href={actionHref}>
-          <Button size="sm">{actionLabel}</Button>
-        </Link>
+        <Button size="sm" asChild>
+          <Link href={actionHref}>{actionLabel}</Link>
+        </Button>
       )}
       {actionLabel && onAction && !actionHref && (
         <Button size="sm" onClick={onAction}>

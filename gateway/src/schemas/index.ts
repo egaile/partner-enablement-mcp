@@ -48,11 +48,16 @@ export const RegisterServerSchema = z
     name: z.string().min(1).max(100).refine((n) => !n.includes("__"), {
       message: 'Server name cannot contain "__" (reserved as namespace separator)',
     }),
-    transport: ServerTransportType,
-    command: z.string().optional().describe("Command for stdio transport"),
-    args: z.array(z.string()).optional().describe("Args for stdio transport"),
-    url: z.string().url().optional().describe("URL for HTTP transport"),
-    env: z.record(z.string()).optional().describe("Environment variables"),
+    // The hosted gateway is multi-tenant, so it only proxies HTTP servers. A
+    // stdio record would run an arbitrary command inside the gateway. Use the
+    // self-hosted CLI for stdio servers.
+    transport: z.literal("http", {
+      errorMap: () => ({
+        message:
+          "The hosted gateway only supports HTTP servers. Use the self-hosted mcpshield CLI for stdio servers.",
+      }),
+    }),
+    url: z.string().url().describe("URL of the downstream MCP server"),
     authHeaders: z
       .record(z.string())
       .optional()
@@ -70,7 +75,7 @@ export const RegisterServerSchema = z
 
 export type RegisterServerInput = z.infer<typeof RegisterServerSchema>;
 
-/** Partial schema for PATCH/PUT updates — all fields optional */
+/** Partial schema for PATCH/PUT updates (all fields optional) */
 export const UpdateServerSchema = RegisterServerSchema.partial();
 export type UpdateServerInput = z.infer<typeof UpdateServerSchema>;
 
@@ -111,7 +116,7 @@ export const PolicyRuleSchema = z
 
 export type PolicyRuleInput = z.infer<typeof PolicyRuleSchema>;
 
-/** Partial schema for PATCH/PUT updates — all fields optional */
+/** Partial schema for PATCH/PUT updates (all fields optional) */
 export const UpdatePolicySchema = PolicyRuleSchema.partial();
 export type UpdatePolicyInput = z.infer<typeof UpdatePolicySchema>;
 
@@ -192,11 +197,19 @@ export const PortalSchema = z.object({
 
 export type PortalInput = z.infer<typeof PortalSchema>;
 
+export const SIMULATE_MAX_PARAMS_BYTES = 16 * 1024;
+
 export const SimulatePolicySchema = z.object({
   serverName: z.string().min(1),
   toolName: z.string().min(1),
   userId: z.string().optional(),
-  params: z.record(z.unknown()).optional(),
+  // Viewers (the public demo) can call the simulator, so bound what it scans.
+  params: z
+    .record(z.unknown())
+    .refine((p) => Buffer.byteLength(JSON.stringify(p)) <= SIMULATE_MAX_PARAMS_BYTES, {
+      message: `params must be ${SIMULATE_MAX_PARAMS_BYTES} bytes or less`,
+    })
+    .optional(),
 }).strict();
 
 export type SimulatePolicyInput = z.infer<typeof SimulatePolicySchema>;

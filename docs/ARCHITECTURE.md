@@ -1,5 +1,7 @@
 # Architecture Documentation
 
+> Note: this is the original February 2026 planning doc for the portfolio demo. It predates the MCPShield gateway and parts of it are out of date.
+
 ## System Overview
 
 The Partner Enablement MCP Server is designed to demonstrate how Anthropic's partner team could help GSIs operationalize Claude deployments. It consists of three main components working together to provide a complete demonstration experience.
@@ -170,8 +172,8 @@ TRANSPORT=http PORT=3000 npm start
 ### Adding New Tools
 
 1. Create Zod schema in `src/schemas/index.ts`
-2. Implement tool handler in `src/index.ts`
-3. Register with `server.registerTool()`
+2. Add `src/tools/<tool-name>.ts` exporting a `register<ToolName>(server, ...)` function that calls `server.registerTool()`
+3. Re-export it from `src/tools/index.ts` and call it from `registerTools()` in `src/index.ts`
 
 ### Adding Industry Verticals
 

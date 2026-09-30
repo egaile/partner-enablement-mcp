@@ -72,7 +72,12 @@ const CORE_PATTERNS: PiiPatternEntry[] = [
   },
   {
     type: "email",
-    pattern: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
+    // Linear on long runs of letters (the unbounded version took ~20s on
+    // 200KB): a match can only start at the beginning of a run, and the local
+    // part is capped at 64 (RFC 5321). Trade-off: an address whose run of
+    // local-part characters is longer than 64 isn't matched. Dropping the
+    // lookbehind fixes that but costs ~2s per MB.
+    pattern: /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}\b/g,
     classification: "internal",
   },
   {
@@ -92,7 +97,9 @@ const CORE_PATTERNS: PiiPatternEntry[] = [
   },
   // The MRN pattern is retained as a "core" baseline so existing behaviour
   // is byte-identical for self-hosted deployments without the healthcare
-  // pack. Industry packs may override the redaction label (e.g. [PHI:MRN]).
+  // pack. Packs cannot override it: core patterns run before registered
+  // pack patterns, so a pack pattern for the same text (e.g. the healthcare
+  // pack's [PHI:MRN]) never sees the original match.
   {
     type: "medical_record",
     pattern: /\bMRN[:\s#-]*\d{4,12}\b/gi,
@@ -105,7 +112,9 @@ const REGISTERED_PATTERNS: PiiPatternEntry[] = [];
 
 /**
  * Register a PII pattern from an industry pack.
- * Patterns are appended; later registrations win for redactionLabel collisions.
+ * Patterns are appended and run after the core patterns, in registration
+ * order. When two patterns match the same text, the earlier one redacts it
+ * first, so later registrations cannot change its redactionLabel.
  */
 export function registerPiiPattern(entry: PiiPatternEntry): void {
   REGISTERED_PATTERNS.push(entry);

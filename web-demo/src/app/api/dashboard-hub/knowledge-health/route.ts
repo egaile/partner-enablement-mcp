@@ -11,7 +11,7 @@ export const maxDuration = 300;
 const MAX_PAGES = 12;
 const PAGE_DETAIL_CONCURRENCY = 3;
 const TOKEN = process.env.DASHBOARD_HUB_API_TOKEN ?? '';
-// Set DASHBOARD_HUB_PUBLIC=true on Vercel to bypass Bearer auth — useful when
+// Set DASHBOARD_HUB_PUBLIC=true on Vercel to bypass Bearer auth. Useful when
 // connecting Dashboard Hub Pro for the first time. Always restore once the
 // integration is working.
 const PUBLIC_MODE = process.env.DASHBOARD_HUB_PUBLIC === 'true';
@@ -55,7 +55,7 @@ interface SliceEntry {
 interface DashboardHealthPayload {
   generatedAt: string;
   space: { key: string; name: string };
-  // Pre-shaped arrays for chart consumption — Dashboard Hub Pro's piechart
+  // Pre-shaped arrays for chart consumption. Dashboard Hub Pro's piechart
   // node treats `data[]` as static config and won't evaluate templates inside,
   // so we have to land the data in array form already.
   statusBreakdown: SliceEntry[];
@@ -162,7 +162,7 @@ async function fetchViaGateway(spaceKey: string): Promise<DashboardHealthPayload
   }
 
   // 3) Hydrate body/word-count + refresh lastModified per page
-  // Bounded concurrency — full Promise.all of 25 fanouts overwhelmed the gateway.
+  // Bounded concurrency: a full Promise.all of 25 fanouts overwhelmed the gateway.
   const pageDetails: Record<string, { wordCount: number; lastModified?: string }> = {};
   const hydrate = async (page: PageInfo) => {
     try {

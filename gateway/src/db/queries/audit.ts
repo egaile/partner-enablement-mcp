@@ -87,7 +87,7 @@ export async function getAuditMetrics(
     });
 
   if (error) {
-    // Fallback if RPC not available — do client-side aggregation
+    // Fallback if RPC not available: do client-side aggregation
     const { data: logs } = await getSupabaseClient()
       .from("audit_logs")
       .select("policy_decision, threats_detected, latency_ms")

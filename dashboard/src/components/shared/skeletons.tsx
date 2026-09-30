@@ -1,4 +1,15 @@
+import { Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+
+/** Neutral placeholder while `/api/me` decides whether the user can edit. */
+export function PermissionsLoading({ label = "Loading..." }: { label?: string }) {
+  return (
+    <div role="status" className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+      <span>{label}</span>
+    </div>
+  );
+}
 
 export function MetricCardSkeleton() {
   return (

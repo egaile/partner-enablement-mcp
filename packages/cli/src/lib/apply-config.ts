@@ -65,7 +65,7 @@ export interface ApplyResult {
 /**
  * Apply a parsed config to the storage backend.
  *
- * Idempotent — running twice with the same config yields the same end state.
+ * Idempotent: running twice with the same config yields the same end state.
  * Removing a server/policy from YAML and re-running deletes it from storage.
  */
 export async function applyConfig(

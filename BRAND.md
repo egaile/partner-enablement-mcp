@@ -6,7 +6,7 @@ Used throughout the codebase as a placeholder during the open-core pivot.
 Final name TBD before public launch.
 
 - npm scope: `@mcpshield/*` (working)
-- domain: `mcpshield.dev` (working — verify availability before any public README commit)
+- domain: `mcpshield.dev` (working; verify availability before any public README commit)
 - CLI binary: `mcpshield`
 - Config file: `mcpshield.yaml`
 - Database file (OSS default): `mcpshield.db`

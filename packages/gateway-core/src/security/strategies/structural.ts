@@ -58,7 +58,11 @@ const STRUCTURAL_PATTERNS: StructuralPattern[] = [
 
   // Embedded code blocks that could be executed
   {
-    pattern: /```(?:python|javascript|js|bash|sh|sql|powershell)\s*\n.*(?:import\s+os|require\s*\(|exec\s*\(|eval\s*\(|system\s*\()/is,
+    // The gap stops at a closing fence (a line that is only ```) or at the
+    // next fence opener, so repeated openers cost linear time. `.*` with the s
+    // flag here was quadratic. A ``` mid-line or with an info string after it
+    // doesn't end the block.
+    pattern: /```(?:python|javascript|js|bash|sh|sql|powershell)[ \t]*\r?\n(?:(?!^[ \t]{0,3}`{3,}[ \t]*\r?$|```(?:python|javascript|js|bash|sh|sql|powershell)[ \t]*\r?\n)[\s\S])*?(?:import\s+os|require\s*\(|exec\s*\(|eval\s*\(|system\s*\()/im,
     severity: "high",
     description: "Contains code block with potentially dangerous operations",
   },
@@ -70,14 +74,17 @@ const STRUCTURAL_PATTERNS: StructuralPattern[] = [
     description: "Contains JSON structure resembling chat message or tool call",
   },
 
-  // Markdown image/link with javascript
+  // Markdown image/link with javascript. Keep these linear: a leading `\[.*`
+  // backtracks quadratically on long runs of "[" and stalls the event loop.
   {
-    pattern: /!\[.*\]\(javascript:/i,
+    // Alt text can't contain "[" here, so each "![" scans only to the next
+    // bracket. The link rule below also catches any "](javascript:".
+    pattern: /!\[[^[\]\n]{0,200}\]\(\s*javascript:/i,
     severity: "critical",
     description: "Contains markdown image with javascript: protocol",
   },
   {
-    pattern: /\[.*\]\(javascript:/i,
+    pattern: /\]\(\s*javascript:/i,
     severity: "critical",
     description: "Contains markdown link with javascript: protocol",
   },

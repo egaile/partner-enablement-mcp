@@ -5,6 +5,14 @@ import { requireAuth } from "../auth/middleware.js";
 import type { AuthenticatedRequest } from "../auth/types.js";
 import type { GatewayState } from "./types.js";
 
+// A session id is not a credential. Remember who opened each session and
+// refuse to let anyone else drive it.
+const sessionOwners = new WeakMap<StreamableHTTPServerTransport, string>();
+
+function ownerKey(tenant: { tenantId: string; userId: string }): string {
+  return `${tenant.tenantId}:${tenant.userId}`;
+}
+
 export function createMcpProxyRouter(state: GatewayState): Router {
   const router = Router();
 
@@ -17,14 +25,19 @@ export function createMcpProxyRouter(state: GatewayState): Router {
 
       const sessionId = req.headers["mcp-session-id"] as string | undefined;
       if (sessionId && state.mcpTransports.has(sessionId)) {
-        state.transportLastActivity.set(sessionId, Date.now());
         const transport = state.mcpTransports.get(sessionId)!;
+        if (sessionOwners.get(transport) !== ownerKey(req.tenant!)) {
+          res.status(403).json({ error: "Session belongs to a different caller" });
+          return;
+        }
+        // Only the owner keeps the session alive.
+        state.transportLastActivity.set(sessionId, Date.now());
         await transport.handleRequest(req, res, req.body);
         return;
       }
 
       if (req.method === "POST") {
-        const sessionServer = engine.createSessionServer();
+        const sessionServer = engine.createSessionServer(req.tenant!);
         const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
           enableJsonResponse: true,
@@ -44,6 +57,7 @@ export function createMcpProxyRouter(state: GatewayState): Router {
         const sid = transport.sessionId;
         if (sid) {
           state.mcpTransports.set(sid, transport);
+          sessionOwners.set(transport, ownerKey(req.tenant!));
           state.transportLastActivity.set(sid, Date.now());
         }
       } else if (req.method === "GET" || req.method === "DELETE") {

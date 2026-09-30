@@ -8,7 +8,7 @@ interface ExfilPattern {
 
 /**
  * Default exempt domains. Replace via the constructor when wiring up
- * environment-specific allowlists (e.g. Atlassian MCP). Empty by default —
+ * environment-specific allowlists (e.g. Atlassian MCP). Empty by default;
  * gateway-core ships generic.
  */
 const DEFAULT_EXEMPT_DOMAINS: RegExp[] = [];
@@ -54,9 +54,11 @@ const EXFILTRATION_PATTERNS: ExfilPattern[] = [
     description: "Contains URL that could be used for data exfiltration",
   },
 
-  // Email addresses (potential data leak target)
+  // Email addresses (potential data leak target). Linear: a match only starts
+  // at the beginning of a run and the local part is capped at 64 (see the
+  // PII email pattern for the trade-off).
   {
-    pattern: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
+    pattern: /(?<![a-zA-Z0-9._%+-])[a-zA-Z0-9._%+-]{1,64}@[a-zA-Z0-9.-]{1,253}\.[a-zA-Z]{2,63}/g,
     severity: "low",
     description: "Contains email address (potential exfiltration target)",
   },
