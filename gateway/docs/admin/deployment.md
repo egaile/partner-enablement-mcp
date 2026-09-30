@@ -102,7 +102,15 @@ railway up
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "gateway/Dockerfile",
-    "watchPatterns": ["gateway/**", "packages/sdk/**", "packages/gateway-core/**", "packs-private/pack-atlassian/**"]
+    "watchPatterns": [
+      "gateway/**",
+      "packages/sdk/**",
+      "packages/gateway-core/**",
+      "packs-private/pack-atlassian/**",
+      "package.json",
+      "package-lock.json",
+      ".dockerignore"
+    ]
   },
   "deploy": {
     "healthcheckPath": "/health",
@@ -112,7 +120,7 @@ railway up
 }
 ```
 
-The Dockerfile installs and builds `@mcpshield/sdk`, `@mcpshield/gateway-core`, `@mcpshield/pack-atlassian` and the gateway in order, prunes dev dependencies, and starts `node dist/index.js` from `gateway/`.
+The Dockerfile installs and builds `@mcpshield/sdk`, `@mcpshield/gateway-core`, `@mcpshield/pack-atlassian` and the gateway in order, prunes dev dependencies, and starts `node dist/index.js` from `gateway/` as the unprivileged `node` user. The app files stay owned by root, so the process can read its code but not rewrite it.
 
 ### Verify deployment
 

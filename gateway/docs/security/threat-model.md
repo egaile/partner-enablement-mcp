@@ -79,7 +79,7 @@ AI agents that call tools through MCP add these risks:
 
 **Mitigations:**
 - **Clerk JWT verification**: all API and MCP requests require a valid Clerk Bearer token or API key
-- **Tenant isolation**: Supabase RLS ensures data access is scoped to the user's tenants
+- **Tenant isolation**: the gateway scopes every query to the caller's tenant. Clients have no direct database access (migration 010 revokes it from `anon` and `authenticated`), and RLS policies remain as a backstop
 - **API key authentication**: programmatic access with SHA-256 hashed keys, expiration dates, and last-used tracking
 - **Role guards**: sensitive operations (key creation, team management) require elevated roles
 
@@ -91,7 +91,7 @@ AI agents that call tools through MCP add these risks:
 - **Append-only audit log**: the audit_logs table is designed for insert-only operations
 - **Correlation IDs**: every tool call is assigned a UUID that links the audit entry, alerts, and approval requests
 - **Buffered writes with retry**: failed writes are retried, not silently dropped
-- **RLS protection**: audit logs cannot be modified through the Supabase client (anon key)
+- **No client database access**: the `anon` and `authenticated` roles have no table access (migration 010), so audit logs can't be changed with a Supabase client key; only the gateway's service role can write them
 
 ## Security pipeline flow
 

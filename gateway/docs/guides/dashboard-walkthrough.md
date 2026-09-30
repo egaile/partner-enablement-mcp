@@ -38,7 +38,7 @@ The servers page lists all registered downstream MCP servers with their connecti
 - Click a server card to view details
 
 **Server detail view:**
-- Server configuration (transport, URL, date added; older stdio records also show their command)
+- Server configuration (transport, URL, date added). The URL has credentials removed: members see scheme, host and path with any query string shown as `?[redacted]`, and viewers see only scheme and host
 - **Tool inventory**: lists all tools discovered from that server with their names, descriptions, and input schemas
 - **Health status**: current health (healthy/degraded/unreachable), latency, consecutive failures
 - **Tool snapshots**: history of tool definition changes with approve/reject actions for drift

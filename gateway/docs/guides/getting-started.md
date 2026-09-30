@@ -34,6 +34,9 @@ Or paste each file from `gateway/supabase/migrations/` into the SQL editor in or
 5. `005_billing.sql`: billing plans, usage metering, Stripe integration
 6. `006_server_auth_headers.sql`: auth headers for downstream servers
 7. `007_server_oauth.sql`: OAuth 2.1 token storage for downstream servers
+8. `008_oauth_state_nonce.sql`: persisted OAuth state nonce, so a flow survives a gateway restart
+9. `009_oauth_code_verifier.sql`: PKCE code verifier column
+10. `010_revoke_client_access.sql`: removes all table and function access from the `anon` and `authenticated` roles, so only the gateway's service role can use the database
 
 After running migrations, seed a default tenant:
 

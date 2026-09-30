@@ -112,24 +112,32 @@ Detects patterns that indicate an attempt to transmit data to external endpoints
 
 **Class:** `AtlassianInjectionStrategy`
 
-Detects injection attempts specifically targeting Atlassian tools. This strategy includes 20 patterns tuned for Jira and Confluence content vectors.
+Detects injection attempts specifically targeting Atlassian tools. It runs 19 checks tuned for Jira and Confluence content: 13 regex patterns, plus 6 block rules that find a Confluence macro or HTML comment, locate its real closing tag, and check the text between them. The block rules run in code rather than as one regex so they stay linear on unclosed or repeated tags.
 
 ### Detection categories
 
 **Critical severity:**
-- JQL injection: piggybacked SQL statements (`union select`, `; DROP TABLE`) appended to JQL queries
-- CQL injection: malicious CQL targeting Confluence search
-- Confluence page content injection: `<ac:structured-macro>` or `<ac:rich-text-body>` tags in page content parameters
-- Jira description injection: system prompt overrides embedded in issue descriptions or comments
+- Conditional triggers aimed at AI readers: "when an AI reads this", "if you are an agent"
+- Explicit hidden instructions: "hidden instruction for the AI"
+- SQL in a JQL context: `union select`, `; drop ...`
+- JQL tautologies: `assignee = currentUser() or 1=1`
+- Content hidden with CSS inside a `{html}` macro (`display:none`, `font-size:0`, ...)
+- Injection phrases inside a `{panel}` macro ("ignore previous", "system prompt")
+- LLM delimiters (`[SYSTEM]`, `[INST]`, `<<SYS>>`, `<|im_start|>`) inside a `{noformat}` block
 
 **High severity:**
-- Workflow transition manipulation: attempts to bypass workflow restrictions via crafted transition parameters
-- Permission escalation: references to admin-level operations in non-admin tool calls
-- Cross-project data access: patterns indicating attempts to access projects outside the intended scope
+- AI directive markers at the start of a line: `@ai:`, `@agent:`, `@assistant:`, `@claude:`, `@copilot:`
+- JQL wildcard project access: `project in (*)`
+- Cross-project instructions: "then search issues in all projects"
+- Mass field changes: "change the assignee of all ..."
+- Long base64-looking values in Jira custom fields
+- White text in a `{color:#ffffff}` macro
+- Injection phrases inside HTML comments or a `{expand}` macro
 
 **Medium severity:**
-- Unusual field combinations in issue updates
-- Embedded URLs in Jira fields that match known exfiltration patterns
+- Data-moving instructions: "copy all data to ..."
+- Bulk operations: "delete all issues in ..."
+- Workflow bypass: "transition this issue to done without ..."
 
 ### Why this matters
 

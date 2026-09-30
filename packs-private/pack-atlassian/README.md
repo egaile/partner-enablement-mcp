@@ -4,7 +4,7 @@ The Atlassian (Jira + Confluence) industry pack for [MCPShield](../../README.md)
 
 ## What it contributes
 
-- **`AtlassianInjectionStrategy`**: 20+ scanner patterns targeting prompt-injection payloads embedded in Jira issue descriptions, comments, Confluence pages, and Compass content. Catches AI-directive markers (`@ai:`, `@assistant:`), invisible-text tricks (`{color:#ffffff}...{color}`), conditional triggers (`if you are an AI...`), and hidden-instruction phrasing.
+- **`AtlassianInjectionStrategy`**: 19 scanner checks (13 regex patterns plus 6 block rules for Confluence macros and HTML comments) targeting prompt-injection payloads embedded in Jira issue descriptions, comments, Confluence pages, and Compass content. Catches AI-directive markers (`@ai:`, `@assistant:`), invisible-text tricks (`{color:#ffffff}...{color}`), conditional triggers (`if you are an AI...`), and hidden-instruction phrasing.
 - **Audit enricher**: adds `threatDetails.atlassian = { projectKey, issueKey, spaceKey, pageId, operationType, isWriteOperation }` on every Atlassian tool call, parsed from `params.issueKey`/`spaceKey`/JQL and from the tool name (`jira_create_issue` → `create_issue`, etc.).
 - **6 policy templates**:
   - **Read-Only Jira**: deny write tools, allow reads

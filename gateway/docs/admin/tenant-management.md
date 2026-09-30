@@ -95,7 +95,7 @@ The dashboard's sign-in page can show a **Try the demo** button that signs visit
 3. On the gateway, set `DEMO_CLERK_USER_IDS=<user id>`. The gateway always treats these users as `viewer`, whatever `tenant_users` says.
 4. On the dashboard, set `DEMO_CLERK_USER_ID=<user id>` and redeploy. The button appears on `/sign-in`.
 
-Clicking the button calls `/api/demo-login`, which creates a Clerk sign-in token that expires after 2 minutes and redirects to `/demo`, which redeems it. The demo user lands in the default tenant with a read-only banner and an **Exit demo** button. Clerk's account menu is hidden for this user so visitors can't change its email or security settings.
+Clicking the button calls `/api/demo-login`. It first asks the gateway (`GET /api/demo/viewer-check`) whether it forces this user to `viewer`. If step 3 was skipped, the answer is no and the dashboard sends the visitor back to `/sign-in?demo=unavailable` instead of handing out a session with write access. Otherwise it turns off self-deletion and organization creation for the demo user in Clerk, creates a Clerk sign-in token that expires after 2 minutes, and redirects to `/demo`, which redeems it. The demo user lands in the default tenant with a read-only banner and an **Exit demo** button. Clerk's account menu is hidden for this user so visitors can't change its email or security settings.
 
 ## Team management API
 
@@ -181,7 +181,8 @@ CREATE POLICY "tenant_isolation_mcp_servers" ON mcp_servers
 ```
 
 This means:
-- Dashboard queries (using the Supabase anon key with Clerk JWT) are automatically scoped to the user's tenants.
+- The dashboard never queries Supabase directly. It goes through the gateway's REST API.
+- Migration `010_revoke_client_access.sql` removes all table and function access from the `anon` and `authenticated` roles, so a client holding a Supabase key or JWT can't read or write rows at all. These policies are a backstop, not the main control.
 - Gateway queries (using the Supabase service role key) bypass RLS and can access all tenants. The gateway adds tenant scoping in its own query logic.
 
 ### Cross-tenant isolation

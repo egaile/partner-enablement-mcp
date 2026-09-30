@@ -57,7 +57,7 @@ Everything the proxy needs at request time is in **`@mcpshield/gateway-core`**:
 - `audit/`: buffered batch writer + correlation IDs + enricher registry
 - `monitor/`: drift detector with SHA-256 tool snapshots
 - `approval/`: HITL approval queue (engine + storage port)
-- `webhooks/`: HMAC-signed delivery with SSRF allowlist + `AlertSink` adapter
+- `webhooks/`: HMAC-signed delivery with an SSRF guard that rejects loopback/private/metadata addresses + `AlertSink` adapter
 - `packs/`: runtime loader for industry packs
 - `storage/`: `StorageBackend` interface + SQLite reference impl
 - `auth/`: `AuthProvider` interface + API-key reference impl
